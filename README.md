@@ -4,7 +4,7 @@ This is a six-operator FM synthesizer where the operators do everything. It's op
 
 ## Operator types
 ### Wave: Sine, Triangle, Saw, Square, White Noise
-- Options: Ratio, Detune, Phase, Fold. You can also tempo sync the operator to a DAW with the checkmark.
+- Options: Ratio, Detune, Phase, Fold. You can also tempo sync the operator to a DAW with the checkmark - that's why Ratio changes to Sync Rate there.
 - Ratio goes down to 0.01 so you can have an oscillator slow enough to be used as an LFO. I may add another mode for this in the future.
 - PLEASE NOTE: The gain for all operators is controlled in the Audio Matrix!
 
@@ -32,7 +32,21 @@ This is a six-operator FM synthesizer where the operators do everything. It's op
 ### Reverb
 -Mix and Room.
 
-## General Features:
+## Preset Bar
+
+### Presets
+There are three buttons to handle presets.
+- Init: This initializes the patch to a single Sine wave, with Operator 1's Out set to 1.
+- Save: This saves a patch as an .xml file.
+- Load: This loads a patch from an .xml file.
+
+### Randomization
+There are three randomization buttons.
+- R-Synth: This changes all synth variables. It also changes the outs on the Audio Matrix page.
+- R-FM: This changes all modulation - all variables on the matrix.
+- R-Route: This randomizes all audio matrix routing.
+
+## Other Features:
 - You can sync an operator to DAW tempo and use it as an LFO. Do you want more LFOs? Why have LFOs when you can just have more oscillators??
 - You can pass audio into an operator with the audio routing matrix, so you can use an operator as a filter. Do you want a filter? Why have filters when you can just have more operators?
 - You can modulate any operator with any other operator.
@@ -44,4 +58,6 @@ This is a six-operator FM synthesizer where the operators do everything. It's op
 - A soft clipper on the end of the chain and at every step of the audio routing page.
 
 Pictures of the synth in use are provided in the pictures/ folder. There are also build scripts in the main folder.
-This is mostly AI-coded, but I'm actively using the synth myself! So. It will evolve as it evolves, but I am happy with it for now. If you want to expand it, please free to take the code and run with it - that's why it's here!! Or if you want you can open a bug report.
+This is mostly AI-coded, but I work in IT as a job, and am actively using the synth myself, and have done a fair bit of troubleshooting to get it to its current form! I just ... don't code in C++ (much). So it will evolve as it evolves, but I am happy with it for now. If you want to expand it, please free to take the code and run with it - that's why it's here!! Or if you want you can open a bug report and I will look into it.
+
+Happy synthing!

@@ -82,29 +82,27 @@ private:
     {
         auto& prng = juce::Random::getSystemRandom();
         auto& parameters = audioProcessor.apvts.processor.getParameters();
+
         
         for (auto* param : parameters)
         {
             if (auto* rangedParam = dynamic_cast<juce::RangedAudioParameter*> (param))
             {
                 juce::String paramID = rangedParam->getParameterID();
-                
-                // lock out
-                if (paramID.containsIgnoreCase ("GAIN"))
-                    continue;
-
+		// lock out the ceiling gain
+		//if (paramID.containsIgnoreCase ("GAIN_CEIL"));
+		//	continue;
                 bool shouldRandomize = false;
-
-                switch (target)
+                switch (target) // Randomize all associated connections
                 {
                     case RandomTarget::OperatorsAndEnvelopes:
-                        // Randomize if it is NOT a row/column cell in either grid matrix
-                        if (!paramID.startsWith ("MOD_") && !paramID.startsWith ("AUDIO_ROUTE_") && !paramID.startsWith ("FOCUSED_"))
+                        // Randomize if it is NOT a row/column cell in either grid matrix. This also routes the outs on the routing matrix, it just made more sense to me
+                        if (paramID.startsWith ("MODE_") || paramID.startsWith ("WAVE_SHAPE") || paramID.startsWith ("FILTER_TYPE") || paramID.startsWith ("TEMPO_SYNC") || paramID.startsWith ("RATIO") || paramID.startsWith ("DETUNE") || paramID.startsWith ("PHASE") || paramID.startsWith ("FOLD") || paramID.startsWith ("ATTACK") || paramID.startsWith ("DECAY") || paramID.startsWith ("SUSTAIN") || paramID.startsWith ("RELEASE") || paramID.startsWith ("OUT"))
                             shouldRandomize = true;
                         break;
 
                     case RandomTarget::ModulationMatrix:
-                        // Isolate strictly Phase Modulation links
+                        // Isolate strictly Phase Modulation links and MOD_TGT
                         if (paramID.startsWith ("MOD_"))
                             shouldRandomize = true;
                         break;

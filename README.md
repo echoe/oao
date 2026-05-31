@@ -1,30 +1,59 @@
 # Oops! All Oscillators! (OAO)
 
+<img src=https://raw.githubusercontent.com/echoe/oao/refs/heads/main/pictures/operators.png width="450" height="300" />
+
 This is a six-operator FM synthesizer where the operators do everything. It's open source, written in C++ using the JUCE framework and copious amounts of AI help.
+
+Thanks to both Six Sines and to the Korg Opsix for some of the inspiration behind this synth :)
 
 ## Operator types
 ### Wave: Sine, Triangle, Saw, Square, White Noise
 - Options: Ratio, Detune, Phase, Fold. You can also tempo sync the operator to a DAW with the checkmark - that's why Ratio changes to Sync Rate there.
-- Ratio goes down to 0.01 so you can have an oscillator slow enough to be used as an LFO. I may add another mode for this in the future.
-- PLEASE NOTE: The gain for all operators is controlled in the Audio Matrix!
+- Ratio: from 0.01 to 16, this controls the pitch of the waveform relative to the note you're playing. You, uh, need this for FM.
+- Detune: You can slightly detune the note if you want, without moving the Ratio by tiny steps.
+- Phase: Changes the phase of the waveform.
+- Fold: Folds the waveform in on itself.
 
-### Additive: 
+Additional Notes:
+
+- Ratio goes down to 0.01 so you can have a waveform slow enough to reasonably be used as an LFO. I may add another operator mode for this in the future if this isn't slow enough for some cases.
+- If you really need PWM you should be able to modulate any of these wave operators targeting the 'Phase' field.
+- PLEASE NOTE: The gain for all operators is controlled in the Audio Matrix! If you don't hear one, go to the Audio Matrix and turn it up!
+
+### Additive
 - Options: Ratio, Tilt, Stretch, Odd/Even
-- It's an actual additive oscillator in your FM oscillator! Additive is cool.
+- Ratio: from 0.01 to 16, this controls the pitch of the waveform relative to the note you're playing. You, uh, need this for FM.
+- Tilt: Tilts the sound spectrally.
+- Stretch: Changes how far away, or close together, your partials are.
+- Odd/Even: Emphasizes either odd or even partials.
 
-### Filter: Lowpass, Highpass, Bandpass, Comb, Granular.
+Additional Notes:
+- It's an 16-partial additive oscillator, if you were wondering! I thought about it and it made the most sense to me just for CPU usage reasons. But IDK, maybe it's fine? You can change this to however many partials you want and build it yourself, just change 'numPartials'.
+
+### Filter: 
+#### SVF (Lowpass, Highpass, Bandpass)
 - Options: Cutoff, Resonance, Keytrack, Feedback
-- Granular options: Grain size, Damping, Scatter, Feedback
+- They're the normal filters of those kinds. The implementation here is JUCE-standard.
+#### Comb
+- Options: Cutoff, Resonance, Keytrack, Feedback
+- This is modeled after the Comb effect on the Korg Opsix as described here: https://www.icemoonprison.com/blog/archives/579
+- As such, you can use this for physical modeling.
+#### Granular
+- Options: Grain size, Damping, Scatter, Feedback
+- Because there aren't enough knobs and I couldn't think of a reason you wouldn't want it keytracked, this filter forces keytracking to 100%.
 
 ## Modulation Matrix
-- A 6 by 6 matrix letting you modulate any operator by any other operator. On the right of this, there is a 6-slot mod matrix, letting you modulate anything in the synth (including effects) with one of the six operators.
+- A 6 by 6 matrix letting you modulate any operator with any other operator. On the right of this, there is a 6-slot mod matrix, letting you modulate anything in the synth (including effects, but effects are global only) with one of the six operators.
+- NOTE FOR THE 6-SLOT MOD MATRIX: The targets are labeled with the name of the initial knobs. However, they should affect whatever you have enabled within that Oscillator.
+- - So for instance, if you affect Oscillator 2's "Ratio" with Oscillator 6, and Oscillator 2 is set to a Comb Filter, you will actually modulate its Grain Size. ... In theory. That's how it's set up.
 
 ## Audio Matrix
-- A 6 by 6 matrix letting you route audio within the synths.
-- You can route audio from one operator into another with this, and you can control which operators are sending out (by default you only hear operator 1).
+- A 6 by 6 matrix letting you route audio.
+- You can route audio from one operator into another with this, and you can control which operators are sending out to be heard.
+- The default 'Init' state just has Operator 1 audible. You can check this when you open the synth up by opening up this page and looking on the far right.
 
 ## Effects
-- Basic effects taken straight from default juce effects:
+- Basic effects taken straight from default juce effects!
 ### Chorus
 -Mix, Rate, and Depth.
 ### Delay
@@ -46,11 +75,14 @@ There are three randomization buttons.
 - R-FM: This changes all modulation - all variables on the matrix.
 - R-Route: This randomizes all audio matrix routing.
 
+### Gain
+If you're using randomization you may want to turn the gain down as a precaution! Don't go deaf!!! It's easy for things to get /too wild/. I've tried to moderate that and haven't made all audio from my computer break for a while, but this is a freeware VST made by one developer and AI, so, uh, no guarantees.
+
 ## Other Features:
 - You can sync an operator to DAW tempo and use it as an LFO. Do you want more LFOs? Why have LFOs when you can just have more oscillators??
 - You can pass audio into an operator with the audio routing matrix, so you can use an operator as a filter. Do you want a filter? Why have filters when you can just have more operators?
 - You can modulate any operator with any other operator.
-- Three simple, global-only effects to soften up the FM; Delay, Reverb, and Chorus. If you want better effects, get your own lol.
+- Three simple, global-only effects to soften up the FM; Delay, Reverb, and Chorus. If you want better effects, that's what effects in a DAW are for! The effects are not the point!
 - Preset support! ... It's in the form of writing and reading xml files, but it does work!
 - Randomization of each page, if you really can't think of anything.
 - An Init button to avoid the randomization and get back to a normal state when it becomes too much.
@@ -58,6 +90,6 @@ There are three randomization buttons.
 - A soft clipper on the end of the chain and at every step of the audio routing page.
 
 Pictures of the synth in use are provided in the pictures/ folder. There are also build scripts in the main folder.
-This is mostly AI-coded, but I work in IT as a job, and am actively using the synth myself, and have done a fair bit of troubleshooting to get it to its current form! I just ... don't code in C++ (much). So it will evolve as it evolves, but I am happy with it for now. If you want to expand it, please free to take the code and run with it - that's why it's here!! Or if you want you can open a bug report and I will look into it.
+This is mostly AI-coded, but I work in IT as a job, am actively using the synth myself, and have done a fair bit of troubleshooting to get it to its current form! I just ... don't code in C++ (much). So it will evolve as it evolves - but I am happy with it for now. If you want to expand it, please free to take the code and run with it - that's why it's here!! Or if you want you can open a bug report and I will look into it. The main thing I'm aware of that it could need is visual scaling options, but it works on all of my computers so ... yeah. If necessary I can get those added.
 
 Happy synthing!

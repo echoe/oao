@@ -159,12 +159,16 @@ void FMPluginAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlo
     spec.sampleRate = sampleRate;
     spec.maximumBlockSize = samplesPerBlock;
     spec.numChannels = getTotalNumOutputChannels();
+    waveTable.prepare(); // Build tables before use
     // prepare synth voices
     synth.setCurrentPlaybackSampleRate (sampleRate);
     for (int i = 0; i < synth.getNumVoices(); ++i)
     {
         if (auto* voice = dynamic_cast<FMVoice*> (synth.getVoice (i)))
-            voice->setCurrentPlaybackSampleRate (sampleRate); // Make sure your FMVoice class handles this parameter update!
+        {
+            voice->setCurrentPlaybackSampleRate (sampleRate);
+            voice->prepare (sampleRate, samplesPerBlock, &waveTable);
+        }
     }
     // prepare effects with default values?
     chorusModule.prepare (spec);

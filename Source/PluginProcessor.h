@@ -2,6 +2,7 @@
 #pragma once
 #include <JuceHeader.h>
 #include "FMVoice.h"
+#include "WaveTable.h"
 
 // Simple dummy sound struct needed by juce::Synthesiser
 struct FMSound : public juce::SynthesiserSound
@@ -15,7 +16,6 @@ class FMPluginAudioProcessor  : public juce::AudioProcessor
 public:
     FMPluginAudioProcessor();
     ~FMPluginAudioProcessor() override;
-
     void prepareToPlay (double sampleRate, int samplesPerBlock) override;
     void releaseResources() override;
     void reset() override;
@@ -41,8 +41,8 @@ public:
     juce::AudioProcessorValueTreeState apvts;
 
 private:
-    //synth
     juce::Synthesiser synth;
+    WaveTable waveTable; //single shared instance for all operators
     juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
     void updateVoices();
     //effects

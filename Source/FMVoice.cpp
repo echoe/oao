@@ -1,4 +1,5 @@
 #include "FMVoice.h"
+#include "WaveTable.h"
 
 FMVoice::FMVoice()
 {
@@ -15,6 +16,16 @@ FMVoice::FMVoice()
 bool FMVoice::canPlaySound (juce::SynthesiserSound* sound) 
 { 
     return true; 
+}
+
+void FMVoice::prepare (double sampleRate, int samplesPerBlock, WaveTable* wt)
+{
+    waveTable = wt;
+    double safeRate = sampleRate > 0.0 ? sampleRate : 44100.0;
+    for (int i = 0; i < ProjectConfig::numOperators; ++i)
+    {
+        operators[i].prepare (safeRate, wt);
+    }
 }
 
 void FMVoice::initParameters (juce::AudioProcessorValueTreeState& apvts)
@@ -66,12 +77,7 @@ void FMVoice::initParameters (juce::AudioProcessorValueTreeState& apvts)
 void FMVoice::setCurrentPlaybackSampleRate (double newRate)
 {
     juce::SynthesiserVoice::setCurrentPlaybackSampleRate (newRate);
-    double safeRate = newRate > 0.0 ? newRate : 44100.0;
-    
-    for (int i = 0; i < ProjectConfig::numOperators; ++i)
-    {
-        operators[i].prepare (safeRate);
-    }
+    prepare (newRate, 0, waveTable);
 }
 
 void FMVoice::startNote (int midiNoteNumber, float velocity, juce::SynthesiserSound*, int)
@@ -150,7 +156,7 @@ void FMVoice::renderNextBlock (juce::AudioBuffer<float>& outputBuffer, int start
         p.decay   = safeLoad (opParams[i].decay,   0.2f);
         p.sustain = safeLoad (opParams[i].sustain, 0.8f);
         p.release = safeLoad (opParams[i].release, 0.5f);
-        operators[i].envelope.setParameters (p);
+        operators[i].setEnvelopeParameters (p);
     }
 
     // =====================================================================

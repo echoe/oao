@@ -3,6 +3,7 @@
 #include "FMOperator.h"
 #include "SynthFilter.h"
 #include "Constants.h"
+#include "WaveTable.h"
 #include <array>
 #include <memory>
 
@@ -37,7 +38,7 @@ public:
     void stopNote (float velocity, bool allowTailOff) override;
     void pitchWheelMoved (int newPitchWheelValue) override;
     void controllerMoved (int controllerNumber, int newControllerValue) override;
-    
+    void prepare (double sampleRate, int samplesPerBlock, WaveTable* wt);
     void setDAWTempo (float newBPM) noexcept;
     void resetVoiceState();
     void renderNextBlock (juce::AudioBuffer<float>& outputBuffer, int startSample, int numSamples) override;
@@ -56,7 +57,7 @@ private:
     float level { 0.0f };
     int lastPlayedNote = 60; 
     std::atomic<float> currentBPM { 120.0f };
-
+    WaveTable* waveTable = nullptr;
     std::array<FMOperator, ProjectConfig::numOperators> operators;
 
     std::array<float, ProjectConfig::numOperators> lastOpOutputs { 0.0f };

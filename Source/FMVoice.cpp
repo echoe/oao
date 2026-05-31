@@ -197,14 +197,14 @@ void FMVoice::renderNextBlock (juce::AudioBuffer<float>& outputBuffer, int start
         
         // Effects mod accumulators (written here, consumed in PluginProcessor)
         // Store on the voice so the processor can read them each block
-        chorusMixMod    = 0.0f;
-        chorusRateMod   = 0.0f;
-        chorusDepthMod  = 0.0f;
-        delayMixMod     = 0.0f;
-        delayTimeMod    = 0.0f;
-        delayFeedbackMod = 0.0f;
-        reverbMixMod    = 0.0f;
-        reverbRoomMod   = 0.0f;
+        float chorusMixMod     { 0.0f };
+        float chorusRateMod    { 0.0f };
+        float chorusDepthMod   { 0.0f };
+        float delayMixMod      { 0.0f };
+        float delayTimeMod     { 0.0f };
+        float delayFeedbackMod { 0.0f };
+        float reverbMixMod     { 0.0f };
+        float reverbRoomMod    { 0.0f };
         
         for (int slot = 0; slot < numModSlots; ++slot)
         {

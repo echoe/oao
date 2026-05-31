@@ -1,3 +1,4 @@
+//EffectsPage.h
 #pragma once
 #include <JuceHeader.h>
 
@@ -34,10 +35,9 @@ public:
     {
         g.fillAll (juce::Colours::transparentBlack);
         auto bounds = getLocalBounds().toFloat();
-        // Separate the page visually into vertical modules with separation lines.
+        // Separate the page visually into vertical modules with separation lines and rounded rectangles. Maybe we'll rewrite this for UI similarity in future.
         float sectionWidth = bounds.getWidth() / 3.0f;
         g.setColour (juce::Colours::white.withAlpha (0.05f));
-        // Rounded rectangle for UI slickness.
         g.fillRoundedRectangle (bounds.getX() + 10, bounds.getY() + 10, sectionWidth - 20, bounds.getHeight() - 20, 6.0f);
         g.fillRoundedRectangle (bounds.getX() + sectionWidth + 10, bounds.getY() + 10, sectionWidth - 20, bounds.getHeight() - 20, 6.0f);
         g.fillRoundedRectangle (bounds.getX() + (sectionWidth * 2) + 10, bounds.getY() + 10, sectionWidth - 20, bounds.getHeight() - 20, 6.0f);
@@ -65,13 +65,11 @@ public:
         layoutRow (chorusMixSlider, chorusMixLabel, chorusArea);
         layoutRow (chorusRateSlider, chorusRateLabel, chorusArea);
         layoutRow (chorusDepthSlider, chorusDepthLabel, chorusArea);
-
         // --- Delay Knobs (Column 2) ---
         auto delayArea = area.removeFromLeft (sectionWidth).withTrimmedTop (50);
         layoutRow (delayMixSlider, delayMixLabel, delayArea);
         layoutRow (delayTimeSlider, delayTimeLabel, delayArea);
         layoutRow (delayFeedbackSlider, delayFeedbackLabel, delayArea);
-
         // --- Reverb Knobs (Column 3) ---
         auto reverbArea = area.withTrimmedTop (50);
         layoutRow (reverbMixSlider, reverbMixLabel, reverbArea);

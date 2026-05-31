@@ -1,4 +1,4 @@
-// PresetBar.h
+//PresetBar.h
 #pragma once
 #include <JuceHeader.h>
 #include "PluginProcessor.h"
@@ -23,7 +23,7 @@ public:
             btn.setButtonText (text);
             addAndMakeVisible (btn);
         };
-
+	// Random and preset button labels and click functions
         setupButton (initButton,    "Init");
         setupButton (saveButton,    "Save");
         setupButton (loadButton,    "Load");
@@ -58,9 +58,9 @@ public:
 	scaleLabel.setJustificationType (juce::Justification::centredRight);
 	addAndMakeVisible (scaleLabel);
 
-        // Scale selector (25% to 400% in 25% steps)
+        // Scale selector (50% to 200% in 25% steps)
         int id = 1;
-        for (int percent = 25; percent <= 400; percent += 25)
+        for (int percent = 50; percent <= 200; percent += 25)
         {
             scaleSelector.addItem (juce::String (percent) + "%", id++);
             if (percent == 100)
@@ -83,11 +83,11 @@ public:
         g.drawHorizontalLine (getHeight() - 1, 0.0f, static_cast<float> (getWidth()));
     }
 
-    void resized() override
+    void resized() override //Handles drawing everything on the bar
     {
         auto area = getLocalBounds().reduced (2);
         // 6 buttons + 2 labels + 2 dropdowns = 10 slots
-	int labelWidth    = 30;
+	int labelWidth    = 40;
         int dropdownWidth = 60;
 	int remaining     = area.getWidth() - ((labelWidth + dropdownWidth) * 2);
 	int slotWidth     = remaining / 6;
@@ -106,7 +106,6 @@ public:
     }
 
 private:
-    // --- all your existing private methods unchanged ---
     void triggerInit()
     {
         auto& parameters = audioProcessor.apvts.processor.getParameters();
@@ -114,12 +113,10 @@ private:
             if (auto* rangedParam = dynamic_cast<juce::RangedAudioParameter*> (param))
                 rangedParam->setValueNotifyingHost (rangedParam->getDefaultValue());
     }
-
-    void triggerRandomizer (RandomTarget target)
+    void triggerRandomizer (RandomTarget target) //handles all randomization
     {
         auto& prng = juce::Random::getSystemRandom();
         auto& parameters = audioProcessor.apvts.processor.getParameters();
-
         for (auto* param : parameters)
         {
             if (auto* rangedParam = dynamic_cast<juce::RangedAudioParameter*> (param))
@@ -128,15 +125,15 @@ private:
                 bool shouldRandomize = false;
                 switch (target)
                 {
-                    case RandomTarget::OperatorsAndEnvelopes:
+                    case RandomTarget::OperatorsAndEnvelopes: //picks all vars on purpose to randomize
                         if (paramID.startsWith ("MODE_") || paramID.startsWith ("WAVE_SHAPE") || paramID.startsWith ("FILTER_TYPE") || paramID.startsWith ("TEMPO_SYNC") || paramID.startsWith ("RATIO") || paramID.startsWith ("DETUNE") || paramID.startsWith ("PHASE") || paramID.startsWith ("FOLD") || paramID.startsWith ("ATTACK") || paramID.startsWith ("DECAY") || paramID.startsWith ("SUSTAIN") || paramID.startsWith ("RELEASE") || paramID.startsWith ("OUT"))
                             shouldRandomize = true;
                         break;
-                    case RandomTarget::ModulationMatrix:
+                    case RandomTarget::ModulationMatrix: //randomizes FM matrix
                         if (paramID.startsWith ("MOD_"))
                             shouldRandomize = true;
                         break;
-                    case RandomTarget::RoutingMatrix:
+                    case RandomTarget::RoutingMatrix: //randomizes audio routing
                         if (paramID.startsWith ("AUDIO_ROUTE_"))
                             shouldRandomize = true;
                         break;
@@ -146,7 +143,6 @@ private:
             }
         }
     }
-
     void triggerSave()
     {
         fileChooser = std::make_unique<juce::FileChooser> (
@@ -164,7 +160,6 @@ private:
                 }
             });
     }
-
     void triggerLoad()
     {
         fileChooser = std::make_unique<juce::FileChooser> (
@@ -182,9 +177,7 @@ private:
                 }
             });
     }
-
     FMPluginAudioProcessor& audioProcessor;
-
     juce::TextButton initButton, saveButton, loadButton;
     juce::TextButton randOpsButton, randModButton, randRouteButton;
     juce::ComboBox oversamplingSelector;

@@ -1,3 +1,5 @@
+//FMVoice.cpp
+#include "Constants.h"
 #include "FMVoice.h"
 #include "WaveTable.h"
 
@@ -61,7 +63,7 @@ void FMVoice::initParameters (juce::AudioProcessorValueTreeState& apvts)
         }
     }
     // Wire up the 6 mod slots
-    for (int slot = 0; slot < numModSlots; ++slot)
+    for (int slot = 0; slot < ProjectConfig::numModSlots; ++slot)
     {
         juce::String s = juce::String (slot + 1);
         modSlotSrc[slot] = apvts.getRawParameterValue ("MOD_SRC_" + s);
@@ -212,7 +214,7 @@ void FMVoice::renderNextBlock (juce::AudioBuffer<float>& outputBuffer, int start
         float reverbMixMod     { 0.0f };
         float reverbRoomMod    { 0.0f };
         
-        for (int slot = 0; slot < numModSlots; ++slot)
+        for (int slot = 0; slot < ProjectConfig::numModSlots; ++slot)
         {
             if (!modSlotSrc[slot] || !modSlotTgt[slot] || !modSlotAmt[slot])
                 continue;

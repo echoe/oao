@@ -165,14 +165,11 @@ void FMPluginAudioProcessor::setOversamplingFactor (int factor)
     oversampling = std::make_unique<juce::dsp::Oversampling<float>> (
         getTotalNumOutputChannels(), order,
         juce::dsp::Oversampling<float>::filterHalfBandPolyphaseIIR);
-
-    double oversampledRate = getSampleRate() * factor;
     oversampling->initProcessing (getBlockSize());
-
     // Update all voices with the new effective sample rate
     for (int i = 0; i < synth.getNumVoices(); ++i)
         if (auto* voice = dynamic_cast<FMVoice*> (synth.getVoice (i)))
-            voice->prepare (oversampledRate, getBlockSize() * factor, &waveTable);
+            voice->prepare (getSampleRate(), getBlockSize() * factor, &waveTable);
 }
 
 void FMPluginAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
@@ -181,7 +178,6 @@ void FMPluginAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlo
     spec.maximumBlockSize = samplesPerBlock;
     spec.numChannels = getTotalNumOutputChannels();
     waveTable.prepare(); // Build tables before use
-    setOversamplingFactor(1); //prime this setting
     // prepare synth voices
     synth.setCurrentPlaybackSampleRate (sampleRate);
     for (int i = 0; i < synth.getNumVoices(); ++i)
@@ -213,6 +209,7 @@ void FMPluginAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlo
     delayLineR.prepare (delaySpec);
     delayLineL.reset();
     delayLineR.reset();
+    setOversamplingFactor(1); //prime this setting
 }
 
 void FMPluginAudioProcessor::releaseResources() {}
@@ -233,10 +230,7 @@ void FMPluginAudioProcessor::updateVoices()
 void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
 {
     juce::ScopedNoDenormals noDenormals;
-
-    // =====================================================================
-    // 1. TEMPO SYNC
-    // =====================================================================
+    // Tempo Sync
     float activeBPM = 120.0f;
     if (auto* playHead = getPlayHead())
     {
@@ -244,26 +238,44 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
         if (positionInfo.hasValue())
             activeBPM = static_cast<float> (positionInfo->getBpm().orFallback (120.0));
     }
-
     for (int i = 0; i < synth.getNumVoices(); ++i)
         if (auto* voice = dynamic_cast<FMVoice*> (synth.getVoice (i)))
             voice->setDAWTempo (activeBPM);
-
-    // =====================================================================
-    // 2. CLEAR UNUSED OUTPUT CHANNELS & RENDER SYNTH
-    // =====================================================================
+    // clear unused channels, render synth
     auto totalNumInputChannels  = getTotalNumInputChannels();
     auto totalNumOutputChannels = getTotalNumOutputChannels();
-
     for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
         buffer.clear (i, 0, buffer.getNumSamples());
 
     updateVoices();
-    synth.renderNextBlock (buffer, midiMessages, 0, buffer.getNumSamples());
 
-    // =====================================================================
-    // 3. MODULATION MATRIX: READ BASE PARAMS + ACCUMULATE VOICE MOD OFFSETS
-    // =====================================================================
+    // Render synth with optional oversampling
+    if (oversampling != nullptr && currentOversamplingFactor > 1)
+    {
+        juce::dsp::AudioBlock<float> inputBlock (buffer);
+        auto oversampledBlock = oversampling->processSamplesUp (inputBlock);
+
+        int oversampledSize = static_cast<int> (oversampledBlock.getNumSamples());
+        juce::AudioBuffer<float> oversampledBuffer (totalNumOutputChannels, oversampledSize);
+        oversampledBuffer.clear();
+
+        for (int ch = 0; ch < totalNumOutputChannels; ++ch)
+            oversampledBuffer.copyFrom (ch, 0, oversampledBlock.getChannelPointer (ch), oversampledSize);
+
+        synth.renderNextBlock (oversampledBuffer, midiMessages, 0, oversampledSize);
+
+        for (int ch = 0; ch < totalNumOutputChannels; ++ch)
+            oversampledBlock.getSingleChannelBlock (ch).copyFrom (
+                juce::dsp::AudioBlock<float> (oversampledBuffer).getSingleChannelBlock (ch));
+
+        oversampling->processSamplesDown (inputBlock);
+    }
+    else
+    {
+        synth.renderNextBlock (buffer, midiMessages, 0, buffer.getNumSamples());
+    }
+
+    // MODULATION MATRIX: READ BASE PARAMS + ACCUMULATE VOICE MOD OFFSETS
     float totalChorusMix     = chorusMixParam->load     (std::memory_order_relaxed);
     float totalChorusRate    = chorusRateParam->load    (std::memory_order_relaxed);
     float totalChorusDepth   = chorusDepthParam->load   (std::memory_order_relaxed);
@@ -272,7 +284,6 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
     float totalDelayFeedback = delayFeedbackParam->load (std::memory_order_relaxed);
     float totalReverbMix     = reverbMixParam->load     (std::memory_order_relaxed);
     float totalReverbRoom    = reverbRoomParam->load    (std::memory_order_relaxed);
-
     for (int v = 0; v < synth.getNumVoices(); ++v)
     {
         if (auto* voice = dynamic_cast<FMVoice*> (synth.getVoice (v)))
@@ -301,17 +312,12 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
     totalReverbMix     = juce::jlimit (0.0f,   1.0f,    totalReverbMix);
     totalReverbRoom    = juce::jlimit (0.0f,   1.0f,    totalReverbRoom);
 
-    // =====================================================================
     // 4. MASTER GAIN
-    // =====================================================================
     juce::dsp::AudioBlock<float> block (buffer);
-
     if (auto* gainParam = apvts.getRawParameterValue ("GAIN_CEIL"))
         block.multiplyBy (juce::Decibels::decibelsToGain (gainParam->load()));
 
-    // =====================================================================
     // 5. CHORUS
-    // =====================================================================
     chorusModule.setMix   (totalChorusMix);
     chorusModule.setRate  (totalChorusRate);
     chorusModule.setDepth (totalChorusDepth);
@@ -319,9 +325,7 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
     juce::dsp::ProcessContextReplacing<float> context (block);
     chorusModule.process (context);
 
-    // =====================================================================
     // 6. DELAY
-    // =====================================================================
     {
         float delaySamples = (totalDelayTime / 1000.0f) * static_cast<float> (getSampleRate());
         delaySamples = juce::jlimit (1.0f,
@@ -348,18 +352,14 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
         }
     }
 
-    // =====================================================================
     // 7. REVERB
-    // =====================================================================
     reverbParams.wetLevel = totalReverbMix;
     reverbParams.dryLevel = 1.0f - (totalReverbMix * 0.5f);
     reverbParams.roomSize = totalReverbRoom;
     reverbModule.setParameters (reverbParams);
     reverbModule.process (context);
 
-    // =====================================================================
     // 8. OUTPUT SOFT CLIP
-    // =====================================================================
     for (int channel = 0; channel < totalNumOutputChannels; ++channel)
     {
         auto* channelData = buffer.getWritePointer (channel);

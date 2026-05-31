@@ -1,3 +1,4 @@
+//FMVoice.h
 #pragma once
 #include <JuceHeader.h>
 #include "FMOperator.h"
@@ -29,11 +30,9 @@ class FMVoice : public juce::SynthesiserVoice
 public:
     FMVoice();
     ~FMVoice() override = default;
-
     bool canPlaySound (juce::SynthesiserSound* sound) override;
     void initParameters (juce::AudioProcessorValueTreeState& apvts);
     void setCurrentPlaybackSampleRate (double newRate) override;
-    
     void startNote (int midiNoteNumber, float velocity, juce::SynthesiserSound*, int) override;
     void stopNote (float velocity, bool allowTailOff) override;
     void pitchWheelMoved (int newPitchWheelValue) override;
@@ -51,7 +50,6 @@ public:
     std::atomic<float> delayFeedbackMod { 0.0f };
     std::atomic<float> reverbMixMod     { 0.0f };
     std::atomic<float> reverbRoomMod    { 0.0f };
-
 private:
     double baseFrequency { 440.0 };
     float level { 0.0f };
@@ -59,18 +57,14 @@ private:
     std::atomic<float> currentBPM { 120.0f };
     WaveTable* waveTable = nullptr;
     std::array<FMOperator, ProjectConfig::numOperators> operators;
-
     std::array<float, ProjectConfig::numOperators> lastOpOutputs { 0.0f };
     std::array<float, ProjectConfig::numOperators> previousOpOutputs { 0.0f };
     std::array<float, ProjectConfig::numOperators> processedOpOutputs { 0.0f };
-
     std::array<OperatorParameterCache, ProjectConfig::numOperators> opParams;
     std::array<std::atomic<float>*, 6> extraModParams { nullptr };
-
-    static constexpr int numModSlots = 6;
-    std::atomic<float>* modSlotSrc[numModSlots] { nullptr };
-    std::atomic<float>* modSlotTgt[numModSlots] { nullptr };
-    std::atomic<float>* modSlotAmt[numModSlots] { nullptr };
+    std::atomic<float>* modSlotSrc[ProjectConfig::numModSlots] { nullptr };
+    std::atomic<float>* modSlotTgt[ProjectConfig::numModSlots] { nullptr };
+    std::atomic<float>* modSlotAmt[ProjectConfig::numModSlots] { nullptr };
 
     // FM and Audio routing grids
     std::atomic<float>* matrixParams[ProjectConfig::numOperators][ProjectConfig::numOperators]      { nullptr };

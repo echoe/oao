@@ -82,6 +82,12 @@ void FMVoice::setCurrentPlaybackSampleRate (double newRate)
     prepare (newRate, 0, waveTable);
 }
 
+void FMVoice::setOversamplingFactor (int factor)
+{
+    for (int i = 0; i < ProjectConfig::numOperators; ++i)
+        operators[i].setOversamplingFactor (factor);
+}
+
 void FMVoice::startNote (int midiNoteNumber, float velocity, juce::SynthesiserSound*, int)
 {
     baseFrequency = juce::MidiMessage::getMidiNoteInHertz (midiNoteNumber);

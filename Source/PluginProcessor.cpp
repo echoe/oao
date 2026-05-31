@@ -160,16 +160,19 @@ void FMPluginAudioProcessor::setOversamplingFactor (int factor)
     if (factor == 2) order = 1;
     if (factor == 4) order = 2;
     if (factor == 8) order = 3;
-
     currentOversamplingFactor = factor;
     oversampling = std::make_unique<juce::dsp::Oversampling<float>> (
         getTotalNumOutputChannels(), order,
         juce::dsp::Oversampling<float>::filterHalfBandPolyphaseIIR);
     oversampling->initProcessing (getBlockSize());
-    // Update all voices with the new effective sample rate
+
+    // Tell all voices about the new oversampling factor so phase increments stay correct
     for (int i = 0; i < synth.getNumVoices(); ++i)
         if (auto* voice = dynamic_cast<FMVoice*> (synth.getVoice (i)))
-            voice->prepare (getSampleRate(), getBlockSize() * factor, &waveTable);
+        {
+            voice->setOversamplingFactor (factor);
+            voice->prepare (getSampleRate(), getBlockSize(), &waveTable);
+        }
 }
 
 void FMPluginAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
@@ -210,6 +213,7 @@ void FMPluginAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlo
     delayLineL.reset();
     delayLineR.reset();
     setOversamplingFactor(1); //prime this setting
+
 }
 
 void FMPluginAudioProcessor::releaseResources() {}
@@ -248,26 +252,32 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
         buffer.clear (i, 0, buffer.getNumSamples());
 
     updateVoices();
-
     // Render synth with optional oversampling
+
     if (oversampling != nullptr && currentOversamplingFactor > 1)
     {
         juce::dsp::AudioBlock<float> inputBlock (buffer);
         auto oversampledBlock = oversampling->processSamplesUp (inputBlock);
-
+    
+        // Wrap the oversampled block's memory directly as an AudioBuffer — no copy needed
+        float* channels[2];
+        channels[0] = oversampledBlock.getChannelPointer (0);
+        channels[1] = oversampledBlock.getNumChannels() > 1
+                          ? oversampledBlock.getChannelPointer (1)
+                          : oversampledBlock.getChannelPointer (0);
+    
         int oversampledSize = static_cast<int> (oversampledBlock.getNumSamples());
-        juce::AudioBuffer<float> oversampledBuffer (totalNumOutputChannels, oversampledSize);
-        oversampledBuffer.clear();
-
-        for (int ch = 0; ch < totalNumOutputChannels; ++ch)
-            oversampledBuffer.copyFrom (ch, 0, oversampledBlock.getChannelPointer (ch), oversampledSize);
-
-        synth.renderNextBlock (oversampledBuffer, midiMessages, 0, oversampledSize);
-
-        for (int ch = 0; ch < totalNumOutputChannels; ++ch)
-            oversampledBlock.getSingleChannelBlock (ch).copyFrom (
-                juce::dsp::AudioBlock<float> (oversampledBuffer).getSingleChannelBlock (ch));
-
+        juce::AudioBuffer<float> oversampledBuffer (channels, 2, oversampledSize);
+    
+        juce::MidiBuffer scaledMidi;
+        for (auto meta : midiMessages)
+        {
+            auto newPos = juce::jlimit (0, oversampledSize - 1,
+                meta.samplePosition * currentOversamplingFactor);
+            scaledMidi.addEvent (meta.getMessage(), newPos);
+        }
+    
+        synth.renderNextBlock (oversampledBuffer, scaledMidi, 0, oversampledSize);
         oversampling->processSamplesDown (inputBlock);
     }
     else

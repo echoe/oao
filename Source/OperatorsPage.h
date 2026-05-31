@@ -127,7 +127,6 @@ private:
 	// Check for granular filter
 	int selectedFilter = filterTypeSelector.getSelectedId();
 	bool isGranular = (isFilterMode && selectedFilter == 5); // 5 is Granular
-	DBG("selectedFilter: " + juce::String(selectedFilter) + " | isFilterMode: " + juce::String((int)isFilterMode));
         waveShapeSelector.setVisible (isWaveMode);
         filterTypeSelector.setVisible (isFilterMode);
 

@@ -11,8 +11,8 @@ public:
     {
         currentSampleRate = sampleRate;
         waveTable = wt;
-        envelope.setSampleRate (sampleRate);
-        phase = 0.0;
+        envelope.setSampleRate (sampleRate * oversamplingFactor);
+	phase = 0.0;
         internalFilter.prepare (sampleRate);
         internalFilter.reset();
     }
@@ -41,6 +41,12 @@ public:
     {
         envelope.reset();
         internalFilter.reset();
+    }
+
+    void setOversamplingFactor (int factor)
+    {
+        oversamplingFactor = factor;
+        envelope.setSampleRate (currentSampleRate * factor);
     }
 
     bool isActive() const { return envelope.isActive(); }
@@ -115,8 +121,10 @@ public:
             float totalSemitones = (detune / 100.0f) + (pitchModOffset * 12.0f);
             float modulatedFreq  = nodeTargetFrequency * std::pow(2.0f, totalSemitones / 12.0f);
             modulatedFreq = juce::jlimit(0.1f, static_cast<float>(currentSampleRate) * 0.49f, modulatedFreq);
-            double phaseIncrement = (modulatedFreq * juce::MathConstants<double>::twoPi) / currentSampleRate;
-            phase += phaseIncrement;
+	    // Corrected phaseIncrement to take into account oversampling.
+	    double phaseIncrement = (modulatedFreq * juce::MathConstants<double>::twoPi) 
+                        / (currentSampleRate * oversamplingFactor);
+	    phase += phaseIncrement;
             if (phase >= juce::MathConstants<double>::twoPi)
                 phase -= juce::MathConstants<double>::twoPi;
             float processedModSum = std::tanh(modulationSum * 0.15f) * (juce::MathConstants<float>::pi * 2.0f);
@@ -201,6 +209,7 @@ private:
     WaveTable* waveTable = nullptr;
     double phase = 0.0;
     double currentSampleRate = 44100.0;
+    int oversamplingFactor = 1;
     juce::ADSR envelope;
     juce::Random random;
     SynthFilter internalFilter;

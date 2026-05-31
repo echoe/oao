@@ -37,6 +37,7 @@ public:
     void stopNote (float velocity, bool allowTailOff) override;
     void pitchWheelMoved (int newPitchWheelValue) override;
     void controllerMoved (int controllerNumber, int newControllerValue) override;
+    void setOversamplingFactor (int factor);
     void prepare (double sampleRate, int samplesPerBlock, WaveTable* wt);
     void setDAWTempo (float newBPM) noexcept;
     void resetVoiceState();

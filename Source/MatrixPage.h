@@ -211,13 +211,6 @@ public:
         gridX    = gridArea.getX() + labelLeft;
         gridY    = gridArea.getY() + labelTop;
    
-	DBG ("cellSize: " + juce::String(cellSize) + 
-     " gridX: " + juce::String(gridX) + 
-     " gridY: " + juce::String(gridY) +
-     " availableW: " + juce::String(availableW) +
-     " availableH: " + juce::String(availableH) +
-     " gridArea: " + juce::String(gridArea.getWidth()) + "x" + juce::String(gridArea.getHeight()));
- 
         int idx = 0;
         for (int src = 0; src < ProjectConfig::numOperators; ++src)
             for (int dest = 0; dest < ProjectConfig::numOperators; ++dest)

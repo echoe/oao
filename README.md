@@ -1,4 +1,4 @@
-# Oops! All Oscillators! (OAO)
+# Oops! All Operators! (OAO)
 
 <img src=https://raw.githubusercontent.com/echoe/oao/refs/heads/main/pictures/operators.png width="450" height="300" />
 
@@ -28,7 +28,7 @@ Additional Notes:
 - Odd/Even: Emphasizes either odd or even partials.
 
 Additional Notes:
-- It's an 16-partial additive oscillator, if you were wondering! I thought about it and it made the most sense to me just for CPU usage reasons. But IDK, maybe it's fine? You can change this to however many partials you want and build it yourself, just change 'numPartials'.
+- It's an 16-partial additive oscillator, if you were wondering! I thought about it and it made the most sense to me just for CPU usage reasons. But IDK, maybe it's fine to be 32 or 64? You can change this to however many partials you want and build it yourself, just change 'numPartials'.
 
 ### Filter: 
 #### SVF (Lowpass, Highpass, Bandpass)
@@ -44,8 +44,8 @@ Additional Notes:
 
 ## Modulation Matrix
 - A 6 by 6 matrix letting you modulate any operator with any other operator. On the right of this, there is a 6-slot mod matrix, letting you modulate anything in the synth (including effects, but effects are global only) with one of the six operators.
-- NOTE FOR THE 6-SLOT MOD MATRIX: The targets are labeled with the name of the initial knobs. However, they should affect whatever you have enabled within that Oscillator.
-- - So for instance, if you affect Oscillator 2's "Ratio" with Oscillator 6, and Oscillator 2 is set to a Comb Filter, you will actually modulate its Grain Size. ... In theory. That's how it's set up.
+- NOTE FOR THE 6-SLOT MOD MATRIX: The targets are labeled with the name of the initial knobs. However, they should affect whatever you have enabled within that Operator.
+- - So for instance, if you affect Operator 2's "Ratio" with Operator 6, and Operator 2 is set to a Comb Filter, you will actually modulate its Grain Size. ... In theory. That's how it's set up.
 
 ## Audio Matrix
 - A 6 by 6 matrix letting you route audio.
@@ -79,8 +79,8 @@ There are three randomization buttons.
 If you're using randomization you may want to turn the gain down as a precaution! Don't go deaf!!! It's easy for things to get /too wild/. I've tried to moderate that and haven't made all audio from my computer break for a while, but this is a freeware VST made by one developer and AI, so, uh, no guarantees.
 
 ## Other Features:
-- You can sync an operator to DAW tempo and use it as an LFO. Do you want more LFOs? Why have LFOs when you can just have more oscillators??
-- You can pass audio into an operator with the audio routing matrix, so you can use an operator as a filter. Do you want a filter? Why have filters when you can just have more operators?
+- You can sync an operator to DAW tempo and use it as an LFO. Do you want more LFOs? Why have LFOs when you can just have more Operators??
+- You can pass audio into an operator with the audio routing matrix, so you can use an operator as a filter. Do you want a filter? Why have filters when you can just have more operators??
 - You can modulate any operator with any other operator.
 - Three simple, global-only effects to soften up the FM; Delay, Reverb, and Chorus. If you want better effects, that's what effects in a DAW are for! The effects are not the point!
 - Preset support! ... It's in the form of writing and reading xml files, but it does work!

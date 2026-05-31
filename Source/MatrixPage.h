@@ -45,7 +45,7 @@ struct ModMatrixSlot : public juce::Component
         addAndMakeVisible (targetSelector);
 
         // Bi-polar amount slider
-        amountSlider.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
+        amountSlider.setSliderStyle (juce::Slider::LinearVertical);
         amountSlider.setRange (-1.0, 1.0, 0.001);
         amountSlider.setValue (0.0, juce::dontSendNotification);
         amountSlider.setTextBoxStyle (juce::Slider::TextBoxRight, false, 44, 15);
@@ -69,11 +69,10 @@ struct ModMatrixSlot : public juce::Component
     void resized() override
     {
         auto area = getLocalBounds().reduced (2, 3);
-
-        // Layout: [S#] [Source Dropdown] [Target Dropdown] [Amount Slider]
-        rowLabel.setBounds       (area.removeFromLeft (20));
-        sourceSelector.setBounds (area.removeFromLeft (90).reduced (2, 0));
-        targetSelector.setBounds (area.removeFromLeft (110).reduced (2, 0));
+        int w = area.getWidth();
+        rowLabel.setBounds       (area.removeFromLeft (w * 0.06f));
+        sourceSelector.setBounds (area.removeFromLeft (w * 0.25f).reduced (2, 0));
+        targetSelector.setBounds (area.removeFromLeft (w * 0.35f).reduced (2, 0));
         amountSlider.setBounds   (area.reduced (2, 0));
     }
 
@@ -155,12 +154,12 @@ public:
 
         // Title
         g.setColour (juce::Colours::white);
-        g.setFont (18.0f);
+        g.setFont (juce::jlimit (8.0f, 18.0f, cellSize * 0.20f));
         g.drawText (matrixTitle, getLocalBounds().removeFromTop (40), juce::Justification::centred);
 
         // Row/column labels for the NxN grid
         g.setColour (juce::Colours::lightgrey);
-        g.setFont (11.0f);
+        g.setFont (juce::jlimit (8.0f, 18.0f, cellSize * 0.15f));
 
         for (int i = 0; i < ProjectConfig::numOperators; ++i)
         {
@@ -172,7 +171,7 @@ public:
 
             // Column labels (top — "To Op N")
             int x = gridX + i * cellSize;
-            g.drawText ("Op " + juce::String (i + 1),
+            g.drawText ("To Op " + juce::String (i + 1),
                         x, gridY - 18, cellSize, 16,
                         juce::Justification::centred);
         }
@@ -184,7 +183,7 @@ public:
 
         // Sidebar header
         g.setColour (juce::Colours::white.withAlpha (0.55f));
-        g.setFont (13.0f);
+        g.setFont (juce::jlimit (8.0f, 18.0f, cellSize * 0.15f));
         juce::String sideTitle = (paramPrefix == "MOD_") ? "MOD ROUTING" : "CARRIER OUTPUTS";
         g.drawText (sideTitle,
                     static_cast<int> (splitX) + 8, 30,
@@ -196,21 +195,41 @@ public:
     {
         auto area = getLocalBounds();
         area.removeFromTop (50);
-
-        int totalW = area.getWidth();
+    
+        int totalW       = area.getWidth();
         auto gridArea    = area.removeFromLeft (static_cast<int> (totalW * splitRatio));
         auto sidebarArea = area.reduced (8, 4);
-
-        // Place NxN knobs
+    
+        // Reserve label margins before computing cellSize
+        int labelLeft = 45;
+        int labelTop  = 20;
+    
+        int availableW = gridArea.getWidth()  - labelLeft;
+        int availableH = gridArea.getHeight() - labelTop;
+    
+        cellSize = std::min (availableW, availableH) / ProjectConfig::numOperators;
+        gridX    = gridArea.getX() + labelLeft;
+        gridY    = gridArea.getY() + labelTop;
+   
+	DBG ("cellSize: " + juce::String(cellSize) + 
+     " gridX: " + juce::String(gridX) + 
+     " gridY: " + juce::String(gridY) +
+     " availableW: " + juce::String(availableW) +
+     " availableH: " + juce::String(availableH) +
+     " gridArea: " + juce::String(gridArea.getWidth()) + "x" + juce::String(gridArea.getHeight()));
+ 
         int idx = 0;
         for (int src = 0; src < ProjectConfig::numOperators; ++src)
             for (int dest = 0; dest < ProjectConfig::numOperators; ++dest)
                 if (auto* s = matrixSliders[idx++])
-                    s->setBounds (gridArea.getX() + gridX + dest * cellSize,
+                {
+                    s->setTextBoxStyle (juce::Slider::TextBoxBelow, false,
+                                        cellSize - 8, juce::jlimit (10, 18, cellSize / 6));
+                    s->setBounds (gridX + dest * cellSize,
                                   gridY + src * cellSize,
                                   cellSize - 4, cellSize - 2);
-
-        // Sidebar layout
+                }
+    
         if (paramPrefix == "MOD_")
         {
             int slotH = sidebarArea.getHeight() / 6;
@@ -223,10 +242,11 @@ public:
             for (int i = 0; i < ProjectConfig::numOperators; ++i)
             {
                 auto cell = sidebarArea.removeFromTop (rowH).reduced (0, 2);
-                if (auto* lb = outputLabels[i])   lb->setBounds (cell.removeFromLeft (48));
-                if (auto* sl = outputSliders[i])  sl->setBounds (cell);
+                if (auto* lb = outputLabels[i])  lb->setBounds (cell.removeFromLeft (48));
+                if (auto* sl = outputSliders[i]) sl->setBounds (cell);
             }
         }
+	repaint();
     }
 
 private:
@@ -234,9 +254,9 @@ private:
     juce::String matrixTitle;
 
     // Grid geometry — tweak these to taste
-    static constexpr int gridX    = 40;   // left offset for first column
-    static constexpr int gridY    = 50;   // top offset for first row
-    static constexpr int cellSize = 90;   // px per cell (knob + label)					  
+    int gridX     = 45;
+    int gridY     = 50;
+    int cellSize  = 90;
     static constexpr float splitRatio = 0.65f;
 
 

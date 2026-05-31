@@ -154,12 +154,34 @@ juce::AudioProcessorValueTreeState::ParameterLayout FMPluginAudioProcessor::crea
     return { params.begin(), params.end() };
 }
 
+void FMPluginAudioProcessor::setOversamplingFactor (int factor)
+{
+    int order = 0;
+    if (factor == 2) order = 1;
+    if (factor == 4) order = 2;
+    if (factor == 8) order = 3;
+
+    currentOversamplingFactor = factor;
+    oversampling = std::make_unique<juce::dsp::Oversampling<float>> (
+        getTotalNumOutputChannels(), order,
+        juce::dsp::Oversampling<float>::filterHalfBandPolyphaseIIR);
+
+    double oversampledRate = getSampleRate() * factor;
+    oversampling->initProcessing (getBlockSize());
+
+    // Update all voices with the new effective sample rate
+    for (int i = 0; i < synth.getNumVoices(); ++i)
+        if (auto* voice = dynamic_cast<FMVoice*> (synth.getVoice (i)))
+            voice->prepare (oversampledRate, getBlockSize() * factor, &waveTable);
+}
+
 void FMPluginAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
     spec.sampleRate = sampleRate;
     spec.maximumBlockSize = samplesPerBlock;
     spec.numChannels = getTotalNumOutputChannels();
     waveTable.prepare(); // Build tables before use
+    setOversamplingFactor(1); //prime this setting
     // prepare synth voices
     synth.setCurrentPlaybackSampleRate (sampleRate);
     for (int i = 0; i < synth.getNumVoices(); ++i)

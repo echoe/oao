@@ -6,7 +6,6 @@
 class PresetBar : public juce::Component
 {
 public:
-    // Targeting flag to isolate target parameters surgically
     enum class RandomTarget
     {
         OperatorsAndEnvelopes,
@@ -14,39 +13,71 @@ public:
         RoutingMatrix
     };
 
+    // Called by the editor to handle scale changes
+    std::function<void(float)> onScaleChanged;
+
     PresetBar (FMPluginAudioProcessor& processorToLink)
         : audioProcessor (processorToLink)
     {
-        // 1. Configure and style buttons via lambda helper
         auto setupButton = [this] (juce::TextButton& btn, const juce::String& text) {
             btn.setButtonText (text);
             addAndMakeVisible (btn);
         };
 
-        // Standard Utility Presets
-        setupButton (initButton, "Init");
-        setupButton (saveButton, "Save");
-        setupButton (loadButton, "Load");
-
-        // The Split Isolated Randomizers (Kept compact to fit layout boundaries)
-        setupButton (randOpsButton, "R-Synth");
-        setupButton (randModButton, "R-FM");
+        setupButton (initButton,    "Init");
+        setupButton (saveButton,    "Save");
+        setupButton (loadButton,    "Load");
+        setupButton (randOpsButton,   "R-Synth");
+        setupButton (randModButton,   "R-FM");
         setupButton (randRouteButton, "R-Route");
 
-        // 2. Assign Button Click Actions
         initButton.onClick      = [this] { triggerInit(); };
         saveButton.onClick      = [this] { triggerSave(); };
         loadButton.onClick      = [this] { triggerLoad(); };
-        
-        // Wire up the targeted randomizers
         randOpsButton.onClick   = [this] { triggerRandomizer (RandomTarget::OperatorsAndEnvelopes); };
         randModButton.onClick   = [this] { triggerRandomizer (RandomTarget::ModulationMatrix); };
         randRouteButton.onClick = [this] { triggerRandomizer (RandomTarget::RoutingMatrix); };
+
+        // Oversampling selector
+        oversamplingSelector.addItem ("1x",  1);
+        oversamplingSelector.addItem ("2x",  2);
+        oversamplingSelector.addItem ("4x",  3);
+        oversamplingSelector.addItem ("8x",  4);
+        oversamplingSelector.setSelectedId (1, juce::dontSendNotification);
+        addAndMakeVisible (oversamplingSelector);
+        oversamplingSelector.onChange = [this]
+        {
+            int selectedId = oversamplingSelector.getSelectedId();
+            int factor = 1 << (selectedId - 1); // 1, 2, 4, 8
+            audioProcessor.setOversamplingFactor (factor);
+        };
+	oversamplingLabel.setText ("OS:", juce::dontSendNotification);
+	oversamplingLabel.setJustificationType (juce::Justification::centredRight);
+	addAndMakeVisible (oversamplingLabel);
+	scaleLabel.setText ("Size:", juce::dontSendNotification);
+	scaleLabel.setJustificationType (juce::Justification::centredRight);
+	addAndMakeVisible (scaleLabel);
+
+        // Scale selector (25% to 400% in 25% steps)
+        int id = 1;
+        for (int percent = 25; percent <= 400; percent += 25)
+        {
+            scaleSelector.addItem (juce::String (percent) + "%", id++);
+            if (percent == 100)
+                scaleSelector.setSelectedId (id - 1, juce::dontSendNotification);
+        }
+        addAndMakeVisible (scaleSelector);
+        scaleSelector.onChange = [this]
+        {
+            int selectedId = scaleSelector.getSelectedId();
+            float scale = (25.0f * selectedId) / 100.0f; // 25%, 50%... maps to 0.25, 0.5...
+            if (onScaleChanged)
+                onScaleChanged (scale);
+        };
     }
 
     void paint (juce::Graphics& g) override
     {
-        // Draw a dark utility background with a subtle separation line at the bottom
         g.fillAll (juce::Colours::black.brighter (0.1f));
         g.setColour (juce::Colours::white.withAlpha (0.15f));
         g.drawHorizontalLine (getHeight() - 1, 0.0f, static_cast<float> (getWidth()));
@@ -54,72 +85,64 @@ public:
 
     void resized() override
     {
-        // We now have 6 buttons total to evenly distribute horizontally
         auto area = getLocalBounds().reduced (2);
-        int buttonWidth = area.getWidth() / 6;
+        // 6 buttons + 2 labels + 2 dropdowns = 10 slots
+	int labelWidth    = 30;
+        int dropdownWidth = 60;
+	int remaining     = area.getWidth() - ((labelWidth + dropdownWidth) * 2);
+	int slotWidth     = remaining / 6;
 
-        initButton.setBounds (area.removeFromLeft (buttonWidth).reduced (1));
-        randOpsButton.setBounds (area.removeFromLeft (buttonWidth).reduced (1));
-        randModButton.setBounds (area.removeFromLeft (buttonWidth).reduced (1));
-        randRouteButton.setBounds (area.removeFromLeft (buttonWidth).reduced (1));
-        saveButton.setBounds (area.removeFromLeft (buttonWidth).reduced (1));
-        loadButton.setBounds (area.reduced (1)); // Leftover space goes to Load
+        initButton.setBounds        (area.removeFromLeft (slotWidth).reduced (1));
+        randOpsButton.setBounds     (area.removeFromLeft (slotWidth).reduced (1));
+        randModButton.setBounds     (area.removeFromLeft (slotWidth).reduced (1));
+        randRouteButton.setBounds   (area.removeFromLeft (slotWidth).reduced (1));
+        saveButton.setBounds        (area.removeFromLeft (slotWidth).reduced (1));
+        loadButton.setBounds        (area.removeFromLeft (slotWidth).reduced (1));
+    	oversamplingLabel.setBounds    (area.removeFromLeft (labelWidth).reduced (1));
+    	oversamplingSelector.setBounds (area.removeFromLeft (dropdownWidth).reduced (1));
+    	scaleLabel.setBounds           (area.removeFromLeft (labelWidth).reduced (1));
+    	scaleSelector.setBounds        (area.reduced (1));
+
     }
 
 private:
+    // --- all your existing private methods unchanged ---
     void triggerInit()
     {
         auto& parameters = audioProcessor.apvts.processor.getParameters();
         for (auto* param : parameters)
-        {
             if (auto* rangedParam = dynamic_cast<juce::RangedAudioParameter*> (param))
                 rangedParam->setValueNotifyingHost (rangedParam->getDefaultValue());
-        }
     }
 
-    // Targeted Randomizer Engine
     void triggerRandomizer (RandomTarget target)
     {
         auto& prng = juce::Random::getSystemRandom();
         auto& parameters = audioProcessor.apvts.processor.getParameters();
 
-        
         for (auto* param : parameters)
         {
             if (auto* rangedParam = dynamic_cast<juce::RangedAudioParameter*> (param))
             {
                 juce::String paramID = rangedParam->getParameterID();
-		// lock out the ceiling gain
-		//if (paramID.containsIgnoreCase ("GAIN_CEIL"));
-		//	continue;
                 bool shouldRandomize = false;
-                switch (target) // Randomize all associated connections
+                switch (target)
                 {
                     case RandomTarget::OperatorsAndEnvelopes:
-                        // Randomize if it is NOT a row/column cell in either grid matrix. This also routes the outs on the routing matrix, it just made more sense to me
                         if (paramID.startsWith ("MODE_") || paramID.startsWith ("WAVE_SHAPE") || paramID.startsWith ("FILTER_TYPE") || paramID.startsWith ("TEMPO_SYNC") || paramID.startsWith ("RATIO") || paramID.startsWith ("DETUNE") || paramID.startsWith ("PHASE") || paramID.startsWith ("FOLD") || paramID.startsWith ("ATTACK") || paramID.startsWith ("DECAY") || paramID.startsWith ("SUSTAIN") || paramID.startsWith ("RELEASE") || paramID.startsWith ("OUT"))
                             shouldRandomize = true;
                         break;
-
                     case RandomTarget::ModulationMatrix:
-                        // Isolate strictly Phase Modulation links and MOD_TGT
                         if (paramID.startsWith ("MOD_"))
                             shouldRandomize = true;
                         break;
-
                     case RandomTarget::RoutingMatrix:
-                        // Isolate strictly Raw Audio Routing links
                         if (paramID.startsWith ("AUDIO_ROUTE_"))
                             shouldRandomize = true;
                         break;
                 }
-
                 if (shouldRandomize)
-                {
-                    // setValueNotifyingHost takes a normalized float between 0.0f and 1.0f
-                    float randomValue = prng.nextFloat();
-                    rangedParam->setValueNotifyingHost (randomValue);
-                }
+                    rangedParam->setValueNotifyingHost (prng.nextFloat());
             }
         }
     }
@@ -128,52 +151,45 @@ private:
     {
         fileChooser = std::make_unique<juce::FileChooser> (
             "Save Synth Preset",
-            juce::File::getSpecialLocation (juce::File::userDocumentsDirectory),
-            "*.xml"
-        );
-
+            juce::File::getSpecialLocation (juce::File::userDocumentsDirectory), "*.xml");
         fileChooser->launchAsync (juce::FileBrowserComponent::saveMode | juce::FileBrowserComponent::canSelectFiles,
-        [this] (const juce::FileChooser& chooser)
-        {
-            auto file = chooser.getResult();
-            if (file != juce::File())
+            [this] (const juce::FileChooser& chooser)
             {
-                auto state = audioProcessor.apvts.copyState();
-                std::unique_ptr<juce::XmlElement> xml (state.createXml());
-                xml->writeTo (file);
-            }
-        });
+                auto file = chooser.getResult();
+                if (file != juce::File())
+                {
+                    auto state = audioProcessor.apvts.copyState();
+                    std::unique_ptr<juce::XmlElement> xml (state.createXml());
+                    xml->writeTo (file);
+                }
+            });
     }
 
     void triggerLoad()
     {
         fileChooser = std::make_unique<juce::FileChooser> (
             "Load Synth Preset",
-            juce::File::getSpecialLocation (juce::File::userDocumentsDirectory),
-            "*.xml"
-        );
-
+            juce::File::getSpecialLocation (juce::File::userDocumentsDirectory), "*.xml");
         fileChooser->launchAsync (juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles,
-        [this] (const juce::FileChooser& chooser)
-        {
-            auto file = chooser.getResult();
-            if (file.existsAsFile())
+            [this] (const juce::FileChooser& chooser)
             {
-                std::unique_ptr<juce::XmlElement> xml (juce::XmlDocument::parse (file));
-
-                if (xml != nullptr && xml->hasTagName (audioProcessor.apvts.state.getType()))
+                auto file = chooser.getResult();
+                if (file.existsAsFile())
                 {
-                    audioProcessor.apvts.replaceState (juce::ValueTree::fromXml (*xml));
+                    std::unique_ptr<juce::XmlElement> xml (juce::XmlDocument::parse (file));
+                    if (xml != nullptr && xml->hasTagName (audioProcessor.apvts.state.getType()))
+                        audioProcessor.apvts.replaceState (juce::ValueTree::fromXml (*xml));
                 }
-            }
-        });
+            });
     }
 
     FMPluginAudioProcessor& audioProcessor;
-    
-    // UI Elements Group
+
     juce::TextButton initButton, saveButton, loadButton;
     juce::TextButton randOpsButton, randModButton, randRouteButton;
-
+    juce::ComboBox oversamplingSelector;
+    juce::ComboBox scaleSelector;
+    juce::Label oversamplingLabel;
+    juce::Label scaleLabel;
     std::unique_ptr<juce::FileChooser> fileChooser;
 };

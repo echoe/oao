@@ -3,8 +3,9 @@
 
 namespace ProjectConfig
 {
-    // Operator count ...
+    // Operator count
     static constexpr int numOperators = 6;
-    // Number of additional mod lanes on top of the matrix ...
-    constexpr int numModLanes = 4;
+    // Base plugin size
+    static constexpr int pluginSizeX = 950;
+    static constexpr int pluginSizeY = 680;
 }

@@ -1,4 +1,5 @@
 // PluginEditor.cpp
+#include "Constants.h"
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
 
@@ -16,6 +17,15 @@ FMPluginAudioProcessorEditor::FMPluginAudioProcessorEditor (FMPluginAudioProcess
     addAndMakeVisible (matrixPage);
     addAndMakeVisible (audioMatrixPage);
     addAndMakeVisible (effectsPage);
+
+    presetBar.onScaleChanged = [this] (float scale)
+    {
+        // Your base size — adjust to match your actual default dimensions
+        int baseWidth  = ProjectConfig::pluginSizeX;
+        int baseHeight = ProjectConfig::pluginSizeY;
+        setSize (static_cast<int> (baseWidth * scale), static_cast<int> (baseHeight * scale));
+        repaint();
+    };
 
     // Navigation Buttons Configuration
     addAndMakeVisible (opsPageButton);
@@ -57,7 +67,7 @@ FMPluginAudioProcessorEditor::FMPluginAudioProcessorEditor (FMPluginAudioProcess
     addAndMakeVisible (titleLabel);
 
     setPage (PageView::Operators);
-    setSize (950, 680); // Expanded boundary footprint to comfortably show labels
+    setSize (ProjectConfig::pluginSizeX, ProjectConfig::pluginSizeY); // Expanded boundary footprint to comfortably show labels
 }
 
 FMPluginAudioProcessorEditor::~FMPluginAudioProcessorEditor() {}
@@ -87,8 +97,8 @@ void FMPluginAudioProcessorEditor::resized()
     auto area = getLocalBounds();
     // 1. Dedicate the absolute top 40px block to Preset Management controls
     auto topBarArea = area.removeFromTop (40);
-    // Assuming your preset area takes up the left chunk:
-    auto presetArea = topBarArea.removeFromLeft(300);
+    // Assuming your preset area takes up the left chunk. We're making it larger to fit everything new
+    auto presetArea = topBarArea.removeFromLeft(450);
     presetBar.setBounds (presetArea.reduced (2));
     // 2. Head to the absolute right side of the bar to build the safety valve
     auto gainArea = topBarArea.removeFromRight (220);

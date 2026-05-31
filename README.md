@@ -1,5 +1,7 @@
 # Oops! All Oscillators! (OAO)
 
+<img src=https://raw.githubusercontent.com/echoe/oao/refs/heads/main/pictures/operators.png width="450" height="300" />
+
 This is a six-operator FM synthesizer where the operators do everything. It's open source, written in C++ using the JUCE framework and copious amounts of AI help.
 
 Thanks to both Six Sines and to the Korg Opsix for some of the inspiration behind this synth :)

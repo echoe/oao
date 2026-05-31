@@ -132,24 +132,6 @@ juce::AudioProcessorValueTreeState::ParameterLayout FMPluginAudioProcessor::crea
             juce::ParameterID { "MOD_AMT_" + s, 1 },
             "Mod Amount " + s, -1.0f, 1.0f, 0.0f));
     }
-
-    // Generate background multi-dimensional parameter nodes for row controls and mod matrix parameters
-    for (int row = 1; row <= 6; ++row)
-    {
-        for (int src = 0; src < ProjectConfig::numOperators; ++src)
-        {
-            for (int dest = 0; dest < ProjectConfig::numOperators; ++dest)
-            {
-                juce::String paramID = "FOCUSED_MOD_R" + juce::String (row) + "_" + juce::String (src) + "_" + juce::String (dest);
-                juce::String name = "Row " + juce::String (row) + ": Op " + juce::String (src + 1) + " -> Op " + juce::String (dest + 1);
-                
-                // Allow positive/negative bi-directional modulation depths
-                params.push_back (std::make_unique<juce::AudioParameterFloat> (juce::ParameterID { paramID, 1 }, name, -1.0f, 1.0f, 0.0f));
-            }
-        }
-    }
-    // --------------------------------------------------
-
     // --- CHORUS PARAMETERS ---
     params.push_back (std::make_unique<juce::AudioParameterFloat> ("CHORUS_MIX", "Chorus Mix", 0.0f, 1.0f, 0.0f));
     params.push_back (std::make_unique<juce::AudioParameterFloat> ("CHORUS_RATE", "Chorus Rate (Hz)", 0.1f, 5.0f, 1.0f));

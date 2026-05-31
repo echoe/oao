@@ -7,23 +7,24 @@ Thanks to both Six Sines and to the Korg Opsix for some of the inspiration behin
 ## Operator types
 ### Wave: Sine, Triangle, Saw, Square, White Noise
 - Options: Ratio, Detune, Phase, Fold. You can also tempo sync the operator to a DAW with the checkmark - that's why Ratio changes to Sync Rate there.
-- Ratio goes down to 0.01 so you can have an oscillator slow enough to be used as an LFO. I may add another mode for this in the future.
+- Ratio goes down to 0.01 so you can have a waveform slow enough to reasonably be used as an LFO. I may add another operator mode for this in the future if this isn't slow enough for some cases.
 - PLEASE NOTE: The gain for all operators is controlled in the Audio Matrix!
 
-### Additive: 
+### Additive
 - Options: Ratio, Tilt, Stretch, Odd/Even
-- It's an actual additive oscillator in your FM oscillator! Additive is cool.
+- It's an actual additive oscillator in your FM operator! Wee.
 
 ### Filter: Lowpass, Highpass, Bandpass, Comb, Granular.
 - Options: Cutoff, Resonance, Keytrack, Feedback
 - Granular options: Grain size, Damping, Scatter, Feedback
 
 ## Modulation Matrix
-- A 6 by 6 matrix letting you modulate any operator by any other operator. On the right of this, there is a 6-slot mod matrix, letting you modulate anything in the synth (including effects) with one of the six operators.
+- A 6 by 6 matrix letting you modulate any operator with any other operator. On the right of this, there is a 6-slot mod matrix, letting you modulate anything in the synth (including effects) with one of the six operators.
 
 ## Audio Matrix
-- A 6 by 6 matrix letting you route audio within the synths.
-- You can route audio from one operator into another with this, and you can control which operators are sending out (by default you only hear operator 1).
+- A 6 by 6 matrix letting you route audio.
+- You can route audio from one operator into another with this, and you can control which operators are sending out to be heard.
+- The default 'Init' state just has Operator 1 audible. You can check this when you open the synth up by opening up this page and looking on the far right.
 
 ## Effects
 - Basic effects taken straight from default juce effects:
@@ -60,6 +61,6 @@ There are three randomization buttons.
 - A soft clipper on the end of the chain and at every step of the audio routing page.
 
 Pictures of the synth in use are provided in the pictures/ folder. There are also build scripts in the main folder.
-This is mostly AI-coded, but I work in IT as a job, and am actively using the synth myself, and have done a fair bit of troubleshooting to get it to its current form! I just ... don't code in C++ (much). So it will evolve as it evolves, but I am happy with it for now. If you want to expand it, please free to take the code and run with it - that's why it's here!! Or if you want you can open a bug report and I will look into it.
+This is mostly AI-coded, but I work in IT as a job, and am actively using the synth myself, and have done a fair bit of troubleshooting to get it to its current form! I just ... don't code in C++ (much). So it will evolve as it evolves, but I am happy with it for now. If you want to expand it, please free to take the code and run with it - that's why it's here!! Or if you want you can open a bug report and I will look into it. The main thing I'm aware of that it could need is scaling options, but it works on all of my computers so ... yeah. If necessary I can add them.
 
 Happy synthing!

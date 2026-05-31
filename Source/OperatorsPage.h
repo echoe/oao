@@ -117,7 +117,7 @@ struct CompactOperatorGroup : public juce::Component
 
 private:
     // Combined logic method avoids layout text fighting
-    void updateUIState()
+    void updateUIState() // Update the state of the UI depending on the settings!
     {
         int selectedMode = modeSelector.getSelectedId();
         bool isWaveMode = (selectedMode == 1);
@@ -202,7 +202,6 @@ public:
             addAndMakeVisible (*opModules.back());
         }
     }
-
     void resized() override
     {
         auto area = getLocalBounds();

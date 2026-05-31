@@ -54,12 +54,32 @@ public:
 	oversamplingLabel.setText ("OS:", juce::dontSendNotification);
 	oversamplingLabel.setJustificationType (juce::Justification::centredRight);
 	addAndMakeVisible (oversamplingLabel);
-	scaleLabel.setText ("Size:", juce::dontSendNotification);
-	scaleLabel.setJustificationType (juce::Justification::centredRight);
-	addAndMakeVisible (scaleLabel);
+
+	// Polyphony selector. 1 is, of course, mono.
+	polyphonyLabel.setText ("Poly:", juce::dontSendNotification);
+        polyphonyLabel.setJustificationType (juce::Justification::centredRight);
+        addAndMakeVisible (polyphonyLabel);
+        
+        polyphonySelector.addItem ("1",  1);
+        polyphonySelector.addItem ("2",  2);
+        polyphonySelector.addItem ("4",  3);
+        polyphonySelector.addItem ("8",  4);
+        polyphonySelector.addItem ("16", 5);
+        polyphonySelector.addItem ("32", 6);
+        polyphonySelector.setSelectedId (4, juce::dontSendNotification); // default 8 voices
+        addAndMakeVisible (polyphonySelector);
+        polyphonySelector.onChange = [this]
+        {
+            int selectedId = polyphonySelector.getSelectedId();
+            int numVoices  = polyphonySelector.getItemText (selectedId - 1).getIntValue();
+            audioProcessor.setPolyphony (numVoices);
+        };
 
         // Scale selector (50% to 200% in 25% steps)
-        int id = 1;
+        scaleLabel.setText ("Size:", juce::dontSendNotification);
+        scaleLabel.setJustificationType (juce::Justification::centredRight);
+        addAndMakeVisible (scaleLabel);
+	int id = 1;
         for (int percent = 50; percent <= 200; percent += 25)
         {
             scaleSelector.addItem (juce::String (percent) + "%", id++);
@@ -67,10 +87,11 @@ public:
                 scaleSelector.setSelectedId (id - 1, juce::dontSendNotification);
         }
         addAndMakeVisible (scaleSelector);
-        scaleSelector.onChange = [this]
+	scaleSelector.onChange = [this]
         {
-            int selectedId = scaleSelector.getSelectedId();
-            float scale = (25.0f * selectedId) / 100.0f; // 25%, 50%... maps to 0.25, 0.5...
+            int selectedId  = scaleSelector.getSelectedId();
+            float percent   = 50.0f + (selectedId - 1) * 25.0f; // 50, 75, 100, 125...
+            float scale     = percent / 100.0f;
             if (onScaleChanged)
                 onScaleChanged (scale);
         };
@@ -86,10 +107,10 @@ public:
     void resized() override //Handles drawing everything on the bar
     {
         auto area = getLocalBounds().reduced (2);
-        // 6 buttons + 2 labels + 2 dropdowns = 10 slots
+        // 6 buttons + 3 labels + 3 dropdowns = 12 slots
 	int labelWidth    = 40;
-        int dropdownWidth = 60;
-	int remaining     = area.getWidth() - ((labelWidth + dropdownWidth) * 2);
+        int dropdownWidth = 40;
+	int remaining     = area.getWidth() - ((labelWidth + dropdownWidth) * 3);
 	int slotWidth     = remaining / 6;
 
         initButton.setBounds        (area.removeFromLeft (slotWidth).reduced (1));
@@ -100,6 +121,8 @@ public:
         loadButton.setBounds        (area.removeFromLeft (slotWidth).reduced (1));
     	oversamplingLabel.setBounds    (area.removeFromLeft (labelWidth).reduced (1));
     	oversamplingSelector.setBounds (area.removeFromLeft (dropdownWidth).reduced (1));
+	polyphonyLabel.setBounds       (area.removeFromLeft (labelWidth).reduced (1));
+        polyphonySelector.setBounds    (area.removeFromLeft (dropdownWidth).reduced (1));
     	scaleLabel.setBounds           (area.removeFromLeft (labelWidth).reduced (1));
     	scaleSelector.setBounds        (area.reduced (1));
 
@@ -184,5 +207,7 @@ private:
     juce::ComboBox scaleSelector;
     juce::Label oversamplingLabel;
     juce::Label scaleLabel;
+    juce::ComboBox polyphonySelector;
+    juce::Label polyphonyLabel;
     std::unique_ptr<juce::FileChooser> fileChooser;
 };

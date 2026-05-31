@@ -44,8 +44,7 @@ FMPluginAudioProcessorEditor::FMPluginAudioProcessorEditor (FMPluginAudioProcess
     effectsPageButton.setButtonText ("Effects");
     effectsPageButton.onClick = [this] { setPage (PageView::Effects); };
 
-    // Gain slider, since a JUCE limiter simply does not work
-    // Configure the Slider style
+    // Gain slider, since a JUCE limiter simply does not work. Configure slider style!
     gainSlider.setSliderStyle (juce::Slider::LinearHorizontal);
     gainSlider.setTextBoxStyle (juce::Slider::TextBoxLeft, false, 45, 18);
     addAndMakeVisible (gainSlider);
@@ -95,12 +94,12 @@ void FMPluginAudioProcessorEditor::paint (juce::Graphics& g)
 void FMPluginAudioProcessorEditor::resized()
 {
     auto area = getLocalBounds();
-    // 1. Dedicate the absolute top 40px block to Preset Management controls
+    // Dedicate the top 40px to Preset Management controls
     auto topBarArea = area.removeFromTop (40);
-    // Assuming your preset area takes up the left chunk. We're making it larger to fit everything new
-    auto presetArea = topBarArea.removeFromLeft(450);
+    // Set preset and oversampling controls area to take up the left chunk
+    auto presetArea = topBarArea.removeFromLeft(550);
     presetBar.setBounds (presetArea.reduced (2));
-    // 2. Head to the absolute right side of the bar to build the safety valve
+    // Head to the absolute right side of the bar for the gain slider
     auto gainArea = topBarArea.removeFromRight (220);
     gainLabel.setBounds (gainArea.removeFromLeft (45));
     gainSlider.setBounds (gainArea.reduced (2));
@@ -108,7 +107,7 @@ void FMPluginAudioProcessorEditor::resized()
     // Add title in remaining area in top 
     titleLabel.setBounds (topBarArea.reduced (2));
 
-    // 2. Dedicate the subsequent 40px block underneath to UI Navigation Page switching
+    // Dedicate the subsequent 40px block underneath the PresetBar to UI Navigation Page switching
     auto navArea = area.removeFromTop (40);
     int buttonWidth = getWidth() / 4;
     opsPageButton.setBounds (navArea.removeFromLeft (buttonWidth).reduced (4));

@@ -6,6 +6,34 @@ This is a six-operator FM synthesizer where the operators do everything. It's op
 
 Thanks to both Six Sines and to the Korg Opsix for some of the inspiration behind this synth :)
 
+## Preset Bar
+
+### Presets
+There are three buttons to handle presets.
+- Init: This initializes the patch to a single Sine wave, with Operator 1's Out set to 1.
+- Save: This saves a patch as an .xml file.
+- Load: This loads a patch from an .xml file.
+
+### Randomization
+There are three randomization buttons. These are after 'Init', because frequently after using them, you'll want to go back to an init state.
+You can also go through and manually click on knobs to reset them to 'default'!
+- R-Synth: This changes all synth variables. It also changes the outs on the Audio Matrix page.
+- R-FM: This changes all modulation - all variables on the matrix.
+- R-Route: This randomizes all audio matrix routing.
+
+### Oversampling
+This oversamples the main audio path to provide increased polyphony. Select between 1,2,4, and 8x.
+
+### Poly
+This picks the number of voices in the synth. This defauts to 8 but you can go from 1 (mono) to 32.
+
+### Size
+Change the size of the synth window, from 50% to 200%.
+
+### Gain
+If you're using randomization you may want to turn the gain down as a precaution! Don't go deaf!!! It's easy for things to get /too wild/. I've tried to moderate that and haven't made all audio from my computer break for a while, but this is a freeware VST made by one developer and AI, so, uh, no guarantees.
+
+
 ## Operator types
 ### Wave: Sine, Triangle, Saw, Square, White Noise
 - Options: Ratio, Detune, Phase, Fold. You can also tempo sync the operator to a DAW with the checkmark - that's why Ratio changes to Sync Rate there.
@@ -28,7 +56,7 @@ Additional Notes:
 - Odd/Even: Emphasizes either odd or even partials.
 
 Additional Notes:
-- It's an 16-partial additive oscillator, if you were wondering! I thought about it and it made the most sense to me just for CPU usage reasons. But IDK, maybe it's fine to be 32 or 64? You can change this to however many partials you want and build it yourself, just change 'numPartials'.
+- It's a 32-partial additive oscillator, if you were wondering! I thought about it and it made the most sense to me just for CPU usage reasons. But IDK, maybe it's fine to be 32 or 64? You can change this to however many partials you want and build it yourself, just change 'numPartials'.
 
 ### Filter: 
 #### SVF (Lowpass, Highpass, Bandpass)
@@ -60,23 +88,6 @@ Additional Notes:
 -Mix, Time, and Feedback,
 ### Reverb
 -Mix and Room.
-
-## Preset Bar
-
-### Presets
-There are three buttons to handle presets.
-- Init: This initializes the patch to a single Sine wave, with Operator 1's Out set to 1.
-- Save: This saves a patch as an .xml file.
-- Load: This loads a patch from an .xml file.
-
-### Randomization
-There are three randomization buttons.
-- R-Synth: This changes all synth variables. It also changes the outs on the Audio Matrix page.
-- R-FM: This changes all modulation - all variables on the matrix.
-- R-Route: This randomizes all audio matrix routing.
-
-### Gain
-If you're using randomization you may want to turn the gain down as a precaution! Don't go deaf!!! It's easy for things to get /too wild/. I've tried to moderate that and haven't made all audio from my computer break for a while, but this is a freeware VST made by one developer and AI, so, uh, no guarantees.
 
 ## Other Features:
 - You can sync an operator to DAW tempo and use it as an LFO. Do you want more LFOs? Why have LFOs when you can just have more Operators??

@@ -66,7 +66,7 @@ public:
         return 1.0f / targetResonance;
     }
 
-    void reset()
+    void reset() // Reset buffers
     {
         s1 = 0.0f;
         s2 = 0.0f;

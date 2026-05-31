@@ -7,7 +7,6 @@ FMPluginAudioProcessor::FMPluginAudioProcessor()
     : AudioProcessor (BusesProperties().withOutput ("Output", juce::AudioChannelSet::stereo(), true)),
       apvts (*this, nullptr, "Parameters", createParameterLayout())
 {
-    // The curly braces are critical here so 'voice' exists in scope!
     // This is the number of voices the synth has (8 voice polyphony).
     for (int i = 0; i < 8; ++i)
     {
@@ -175,6 +174,31 @@ void FMPluginAudioProcessor::setOversamplingFactor (int factor)
         }
 }
 
+void FMPluginAudioProcessor::setPolyphony (int numVoices)
+{
+    // Remove all existing voices
+    synth.clearVoices();
+
+    // Add the new number of voices
+    for (int i = 0; i < numVoices; ++i)
+    {
+        auto* voice = new FMVoice();
+        voice->initParameters (apvts);
+        synth.addVoice (voice);
+    }
+
+    // Prepare all the new voices
+    for (int i = 0; i < synth.getNumVoices(); ++i)
+    {
+        if (auto* voice = dynamic_cast<FMVoice*> (synth.getVoice (i)))
+        {
+            voice->setCurrentPlaybackSampleRate (getSampleRate());
+            voice->prepare (getSampleRate(), getBlockSize(), &waveTable);
+            voice->setOversamplingFactor (currentOversamplingFactor);
+        }
+    }
+}
+
 void FMPluginAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
     spec.sampleRate = sampleRate;
@@ -191,7 +215,7 @@ void FMPluginAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlo
             voice->prepare (sampleRate, samplesPerBlock, &waveTable);
         }
     }
-    // prepare effects with default values?
+    // prepare effects with default values
     chorusModule.prepare (spec);
     chorusModule.setCentreDelay (7.0f); // ms
     chorusModule.setFeedback (0.2f);
@@ -396,20 +420,18 @@ void FMPluginAudioProcessor::setStateInformation (const void* data, int sizeInBy
     if (xmlState != nullptr && xmlState->hasTagName (apvts.state.getType()))
         apvts.replaceState (juce::ValueTree::fromXml (*xmlState));
 }
-// avoiding issues when looping sounds in VSTs
-void FMPluginAudioProcessor::reset()
+
+void FMPluginAudioProcessor::reset() // This function solves issues if you're looping a bar in a VST.
 {
-    // 1. Clear the custom delay vectors completely
+    // Clear effect states. There are two delays (one left, one right).
     delayLineL.reset();
     delayLineR.reset();
-
-    // 2. Clear JUCE native effects states
     chorusModule.reset();
     reverbModule.reset();
     
-    // 3. Tell the synth engine to kill hanging voice notes
+    // Tell the synth engine to kill hanging voice notes
     synth.allNotesOff (0, false);
-    // also clear filters, which aren't cleared by the above
+    // Also clear filters, which aren't cleared by the above.
     for (int i = 0; i < synth.getNumVoices(); ++i)
         {
             if (auto* voice = dynamic_cast<FMVoice*> (synth.getVoice (i)))
@@ -419,7 +441,7 @@ void FMPluginAudioProcessor::reset()
         }
 }
 
-// Necessary to avoid createPluginFilter()' error
+// Necessary to avoid createPluginFilter() error and actually create the plugin.
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()
 {
     return new FMPluginAudioProcessor();

@@ -35,7 +35,7 @@ void FMVoice::initParameters (juce::AudioProcessorValueTreeState& apvts)
     for (int i = 0; i < ProjectConfig::numOperators; ++i)
     {
         juce::String opNum = juce::String (i + 1);
-
+	// Debugigng check to make sure we have parameters
         auto check = [&](juce::String id, std::atomic<float>*& ptr) {
             ptr = apvts.getRawParameterValue(id);
             if (ptr == nullptr) 
@@ -92,9 +92,7 @@ void FMVoice::startNote (int midiNoteNumber, float velocity, juce::SynthesiserSo
 {
     baseFrequency = juce::MidiMessage::getMidiNoteInHertz (midiNoteNumber);
     level = velocity;
-    
     resetVoiceState();
-
     for (int i = 0; i < ProjectConfig::numOperators; ++i)
     {
         if (opParams[i].attack != nullptr)
@@ -167,9 +165,7 @@ void FMVoice::renderNextBlock (juce::AudioBuffer<float>& outputBuffer, int start
         operators[i].setEnvelopeParameters (p);
     }
 
-    // =====================================================================
-    // 1. CACHE PARAMETERS
-    // =====================================================================
+    // Cache parameters for all operators.
     std::array<float, ProjectConfig::numOperators> cachedRatios, cachedDetunes, cachedPhases, cachedFolds, cachedOuts;
     std::array<int, ProjectConfig::numOperators> cachedModes, cachedShapes, cachedFilterTypes;
     std::array<bool, ProjectConfig::numOperators> cachedSyncs;
@@ -188,9 +184,7 @@ void FMVoice::renderNextBlock (juce::AudioBuffer<float>& outputBuffer, int start
         cachedSyncs[i]     = safeLoad(opParams[i].sync, 0.0f) > 0.5f;
     }
 
-    // =====================================================================
-    // 2. SAMPLE-RATE DSP LOOP
-    // =====================================================================
+    // Here's our sample-rate DSP loop
     for (int sample = 0; sample < numSamples; ++sample)
     {
         std::array<float, ProjectConfig::numOperators> opOutputs { 0.0f };
@@ -200,10 +194,7 @@ void FMVoice::renderNextBlock (juce::AudioBuffer<float>& outputBuffer, int start
         std::array<float, ProjectConfig::numOperators> levelModOffsets { 0.0f };
         std::array<float, ProjectConfig::numOperators> cutoffModOffsets { 0.0f };
 
-	// =====================================================================
-        // PHASE A: 6-SLOT MODULATION MATRIX
-        // =====================================================================
-        
+        // 6-slot mod matrix setup!
         // Per-operator mod accumulators
         std::array<float, ProjectConfig::numOperators> ratioModOffsets  { 0.0f };
         std::array<float, ProjectConfig::numOperators> detuneModOffsets { 0.0f };
@@ -236,7 +227,7 @@ void FMVoice::renderNextBlock (juce::AudioBuffer<float>& outputBuffer, int start
             // Source signal: Op 1 = index 1, so operator index = srcIdx - 1
             float srcSignal = lastOpOutputs[srcIdx - 1] * amt;
         
-            // --- Per-operator targets ---
+            // --- Per-operator targets. I haven't fully checked this math but it looks right ---
             // tgtIdx 1-30: laid out as blocks of 5 per operator
             // (op-1)*5 + 1 = first param of that op
             // param within block: 0=Ratio, 1=Detune, 2=Phase, 3=Fold, 4=Level
@@ -271,7 +262,7 @@ void FMVoice::renderNextBlock (juce::AudioBuffer<float>& outputBuffer, int start
             }
         }
 
-        // --- PHASE B: OPERATOR PROCESSING ---
+        // Process the operators!
         for (int dest = 0; dest < ProjectConfig::numOperators; ++dest)
         {
             float modulationSum = 0.0f;
@@ -294,7 +285,7 @@ void FMVoice::renderNextBlock (juce::AudioBuffer<float>& outputBuffer, int start
             }
             audioInputSum = std::tanh (audioInputSum);
 
-            // Let the operator do ALL the heavy lifting!
+            // Throw everything into the operator
             opOutputs[dest] = operators[dest].processSample (
                 baseFrequency, 
                 currentBpmValue,
@@ -314,7 +305,7 @@ void FMVoice::renderNextBlock (juce::AudioBuffer<float>& outputBuffer, int start
                 cachedSyncs[dest]
             );
 
-            // --- PHASE C: FINAL LEVEL & HISTORY TRACKING ---
+            // Process outputs and send them out
             processedOpOutputs[dest] = opOutputs[dest];
 
             if (std::abs(levelModOffsets[dest]) > 0.001f)
@@ -326,26 +317,20 @@ void FMVoice::renderNextBlock (juce::AudioBuffer<float>& outputBuffer, int start
         previousOpOutputs = lastOpOutputs;
         lastOpOutputs = processedOpOutputs;
 
-        // =====================================================================
-        // 3. MAIN OUTPUT MIX BUS
-        // =====================================================================
+        // Mixbus main output
         float mixSample = 0.0f;
         for (int i = 0; i < ProjectConfig::numOperators; ++i)
         {
             mixSample += processedOpOutputs[i] * cachedOuts[i];
         }
-
         float polyphonyCushion = 1.0f / std::sqrt (static_cast<float> (ProjectConfig::numOperators));
         float finalGain = level * polyphonyCushion * 0.5f;
-        
         for (int channel = 0; channel < outputBuffer.getNumChannels(); ++channel)
         {
             outputBuffer.addSample (channel, startSample + sample, mixSample * finalGain);
         }
     }
-    // =====================================================================
-    // 4. CLEANUP: CHECK IF VOICE FINISHED
-    // =====================================================================
+    // Cleanup - check if voice is finished
     bool isAnyEnvelopeActive = false;
     for (int i = 0; i < ProjectConfig::numOperators; ++i)
     {

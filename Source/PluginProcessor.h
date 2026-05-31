@@ -22,6 +22,7 @@ public:
     void reset() override;
     void processBlock (juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
     void setOversamplingFactor (int factor);
+    void setPolyphony (int numVoices);
     juce::AudioProcessorEditor* createEditor() override;
     bool hasEditor() const override { return true; }
     const juce::String getName() const override { return JucePlugin_Name; }

@@ -2,6 +2,8 @@
 
 This is a six-operator FM synthesizer where the operators do everything. It's open source, written in C++ using the JUCE framework and copious amounts of AI help.
 
+Thanks to both Six Sines and to the Korg Opsix for some of the inspiration behind this synth :)
+
 ## Operator types
 ### Wave: Sine, Triangle, Saw, Square, White Noise
 - Options: Ratio, Detune, Phase, Fold. You can also tempo sync the operator to a DAW with the checkmark - that's why Ratio changes to Sync Rate there.

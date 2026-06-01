@@ -75,6 +75,7 @@ Additional Notes:
 
 ## Modulation Matrix
 - A 6 by 6 matrix letting you modulate any operator with any other operator. On the right of this, there is a 6-slot mod matrix, letting you modulate anything in the synth (including effects, but effects are global only) with one of the six operators.
+- This is a frequency modulation matrix - you are modulating the frequency of anything you target (including targeting a filter) with the wave of whatever you are sending in.
 - NOTE FOR THE 6-SLOT MOD MATRIX: The targets are labeled with the name of the initial knobs. However, they should affect whatever you have enabled within that Operator.
 - - So for instance, if you affect Operator 2's "Ratio" with Operator 6, and Operator 2 is set to a Comb Filter, you will actually modulate its Grain Size. ... In theory. That's how it's set up.
 

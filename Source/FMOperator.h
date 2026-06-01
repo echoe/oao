@@ -40,6 +40,7 @@ public:
     void resetVoiceState()
     {
         envelope.reset();
+	pinkB0 = pinkB1 = pinkB2 = pinkB3 = pinkB4 = pinkB5 = pinkB6 = 0.0f; // reset pink noise state. if this doesn't work put it in noteon
         internalFilter.reset();
     }
 
@@ -184,7 +185,20 @@ public:
                     case 1:  rawSample = waveTable->lookupTriangle (wrappedPhase); break;
                     case 2:  rawSample = waveTable->lookupSaw      (wrappedPhase); break;
                     case 3:  rawSample = waveTable->lookupSquare   (wrappedPhase); break;
-                    case 4:  rawSample = random.nextFloat() * 2.0f - 1.0f;        break;
+                    case 4:  rawSample = random.nextFloat() * 2.0f - 1.0f;         break; //white noise
+                    case 5: // pink
+                    {
+                        float white = random.nextFloat() * 2.0f - 1.0f;
+                        pinkB0 = 0.99886f * pinkB0 + white * 0.0555179f;
+                        pinkB1 = 0.99332f * pinkB1 + white * 0.0750759f;
+                        pinkB2 = 0.96900f * pinkB2 + white * 0.1538520f;
+                        pinkB3 = 0.86650f * pinkB3 + white * 0.3104856f;
+                        pinkB4 = 0.55000f * pinkB4 + white * 0.5329522f;
+                        pinkB5 = -0.7616f * pinkB5 - white * 0.0168980f;
+                        rawSample = (pinkB0 + pinkB1 + pinkB2 + pinkB3 + pinkB4 + pinkB5 + pinkB6 + white * 0.5362f) * 0.11f;
+                        pinkB6 = white * 0.115926f;
+                        break;
+                    }
                     default: rawSample = waveTable->lookupSine     (wrappedPhase); break;
                 }
 
@@ -211,6 +225,8 @@ private:
     double currentSampleRate = 44100.0;
     int oversamplingFactor = 1;
     juce::ADSR envelope;
-    juce::Random random;
+    juce::Random random; //white noise
+    float pinkB0 = 0.0f, pinkB1 = 0.0f, pinkB2 = 0.0f;
+    float pinkB3 = 0.0f, pinkB4 = 0.0f, pinkB5 = 0.0f, pinkB6 = 0.0f;
     SynthFilter internalFilter;
 };

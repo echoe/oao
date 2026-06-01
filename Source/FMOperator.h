@@ -50,6 +50,12 @@ public:
         envelope.setSampleRate (currentSampleRate * factor);
     }
 
+    void setExternalAudioSample (float left, float right) noexcept
+    {
+        externalAudioL = left;
+        externalAudioR = right;
+    }
+
     bool isActive() const { return envelope.isActive(); }
 
     float processSample (double baseFrequency, float currentBpm,
@@ -61,7 +67,38 @@ public:
         if (!envelope.isActive()) return 0.0f;
 
         float outputSample = 0.0f;
-        if (mode == 2) //If filter, we process it here. These all have soft clippers at the end to avoid being /too/ hot.
+	if (mode == 3)
+        {
+            // Ratio knob → input gain
+            float inputGain = (ratio - 0.01f) / (16.0f - 0.01f) * 2.0f;
+        
+            // Mix stereo to mono and apply gain
+            float extSample = (externalAudioL + externalAudioR) * 0.5f * inputGain;
+        
+            // Detune knob → one-pole tone filter
+            float toneAmt     = (detune + 50.0f) / 100.0f;
+            float filterCoeff = juce::jlimit (0.01f, 0.99f, toneAmt);
+            extSample         = extSample * filterCoeff + externalAudioL * (1.0f - filterCoeff);
+        
+            // Phase knob → FM modulation sensitivity
+            float modSensitivity = phaseKnob / 360.0f;
+            float modDepth       = std::tanh (modulationSum * 0.15f * modSensitivity);
+            extSample           *= (1.0f + modDepth);
+        
+            // Fold knob → wavefold depth
+            float foldDepth = juce::jlimit (0.0f, 1.0f, foldKnob + foldModOffset);
+            if (foldDepth > 0.001f)
+            {
+                float drive = 1.0f + (foldDepth * 5.0f);
+                extSample   = std::sin (extSample * drive) * (1.0f / std::sqrt (drive));
+            }
+        
+            // Feed through audioInputSum so the audio matrix works
+            outputSample = std::isfinite (extSample)
+                               ? std::tanh (extSample + audioInputSum)
+                               : 0.0f;
+        }
+	else if (mode == 2) //If filter, we process it here. These all have soft clippers at the end to avoid being /too/ hot.
         {
 	    if (filterType == 5) // Formant
             {
@@ -240,6 +277,8 @@ public:
     }
 
 private:
+    float externalAudioL = 0.0f;
+    float externalAudioR = 0.0f;
     WaveTable* waveTable = nullptr;
     double phase = 0.0;
     double currentSampleRate = 44100.0;

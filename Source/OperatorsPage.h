@@ -37,7 +37,7 @@ struct CompactOperatorGroup : public juce::Component
         syncButton.setClickingTogglesState (true);
         addAndMakeVisible (syncButton);
         
-        modeSelector.addItemList ({ "Wave", "Additive", "Filter" }, 1);
+        modeSelector.addItemList ({ "Wave", "Additive", "Filter", "Ext. In" }, 1);
         addAndMakeVisible (modeSelector);
 
         waveShapeSelector.addItemList ({ "Sine", "Triangle", "Saw", "Square", "White Noise", "Pink Noise" }, 1);
@@ -122,6 +122,7 @@ private:
         bool isWaveMode = (selectedMode == 1);
 	bool isAdditiveMode = (selectedMode == 2);
         bool isFilterMode = (selectedMode == 3);
+	bool isExtAudioMode = (selectedMode == 4);
         bool isSynced = syncButton.getToggleState();
 	// Check for granular filter
 	int selectedFilter = filterTypeSelector.getSelectedId();
@@ -130,7 +131,14 @@ private:
 	waveShapeSelector.setVisible (isWaveMode);
         filterTypeSelector.setVisible (isFilterMode);
 
-	if (isGranular)
+	if (isExtAudioMode)
+	{
+	    ratioLabel.setText ("Gain", juce::dontSendNotification);
+            detuneLabel.setText ("Tone", juce::dontSendNotification);
+            phaseLabel.setText ("Mod", juce::dontSendNotification);
+            foldLabel.setText ("Fold", juce::dontSendNotification);
+	}
+	else if (isGranular)
 	{
 	    ratioLabel.setText ("Grain Size", juce::dontSendNotification);
             detuneLabel.setText ("Damping", juce::dontSendNotification);

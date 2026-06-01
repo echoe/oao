@@ -42,6 +42,12 @@ public:
     void setDAWTempo (float newBPM) noexcept;
     void resetVoiceState();
     void renderNextBlock (juce::AudioBuffer<float>& outputBuffer, int startSample, int numSamples) override;
+    void setExternalAudioSample (float left, float right) noexcept
+    {
+        externalAudioL = left;
+        externalAudioR = right;
+    }
+    
     // Effects modulation outputs — read by PluginProcessor after renderNextBlock
     std::atomic<float> chorusMixMod     { 0.0f };
     std::atomic<float> chorusRateMod    { 0.0f };
@@ -52,6 +58,8 @@ public:
     std::atomic<float> reverbMixMod     { 0.0f };
     std::atomic<float> reverbRoomMod    { 0.0f };
 private:
+    float externalAudioL = 0.0f;
+    float externalAudioR = 0.0f;
     double baseFrequency { 440.0 };
     float level { 0.0f };
     int lastPlayedNote = 60; 

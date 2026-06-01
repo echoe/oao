@@ -4,7 +4,9 @@
 #include "Constants.h"
 
 FMPluginAudioProcessor::FMPluginAudioProcessor()
-    : AudioProcessor (BusesProperties().withOutput ("Output", juce::AudioChannelSet::stereo(), true)),
+    : AudioProcessor (BusesProperties()
+		    .withInput  ("Input",  juce::AudioChannelSet::stereo(), false) // optional input!
+		    .withOutput ("Output", juce::AudioChannelSet::stereo(), true)),
       apvts (*this, nullptr, "Parameters", createParameterLayout())
 {
     // This is the number of voices the synth has (8 voice polyphony).
@@ -40,10 +42,24 @@ FMPluginAudioProcessor::FMPluginAudioProcessor()
 
 FMPluginAudioProcessor::~FMPluginAudioProcessor() {}
 
+bool FMPluginAudioProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
+{
+    // Output must always be stereo
+    if (layouts.getMainOutputChannelSet() != juce::AudioChannelSet::stereo())
+        return false;
+
+    // Input can be stereo or disabled (no input)
+    if (layouts.getMainInputChannelSet() != juce::AudioChannelSet::stereo() &&
+        !layouts.getMainInputChannelSet().isDisabled())
+        return false;
+
+    return true;
+}
+
 juce::AudioProcessorValueTreeState::ParameterLayout FMPluginAudioProcessor::createParameterLayout()
 {
     std::vector<std::unique_ptr<juce::RangedAudioParameter>> params;
-    juce::StringArray modeChoices { "Wave", "Additive", "Filter" };
+    juce::StringArray modeChoices { "Wave", "Additive", "Filter", "Ext. In" };
     juce::StringArray waveShapeChoices { "Sine", "Triangle", "Saw", "Square", "White Noise", "Pink Noise" };
     juce::StringArray filterTypeChoices { "Lowpass", "Highpass", "Bandpass", "Comb", "Granular", "Formant" };
     
@@ -272,26 +288,37 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
     // clear unused channels, render synth
     auto totalNumInputChannels  = getTotalNumInputChannels();
     auto totalNumOutputChannels = getTotalNumOutputChannels();
-    for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
-        buffer.clear (i, 0, buffer.getNumSamples());
+    
+    // Capture input audio before clearing so external audio operators can use it
+    juce::AudioBuffer<float> inputCapture (totalNumInputChannels, buffer.getNumSamples());
+    for (int ch = 0; ch < totalNumInputChannels; ++ch)
+        inputCapture.copyFrom (ch, 0, buffer, ch, 0, buffer.getNumSamples());
+    
+    // Clear entire buffer so input audio doesn't bleed through to output
+    buffer.clear();
+    
+    auto* inputL = totalNumInputChannels > 0 ? inputCapture.getReadPointer (0) : nullptr;
+    auto* inputR = totalNumInputChannels > 1 ? inputCapture.getReadPointer (1) : nullptr;
 
     updateVoices();
-    // Render synth with optional oversampling
-
+    // Render synth with optional oversampling and external audio possibly being passed in
+    
     if (oversampling != nullptr && currentOversamplingFactor > 1)
     {
         juce::dsp::AudioBlock<float> inputBlock (buffer);
         auto oversampledBlock = oversampling->processSamplesUp (inputBlock);
     
-        // Wrap the oversampled block's memory directly as an AudioBuffer — no copy needed
+        int oversampledSize = static_cast<int> (oversampledBlock.getNumSamples());
+        juce::AudioBuffer<float> oversampledBuffer (totalNumOutputChannels, oversampledSize);
+        oversampledBuffer.clear();
+    
         float* channels[2];
         channels[0] = oversampledBlock.getChannelPointer (0);
         channels[1] = oversampledBlock.getNumChannels() > 1
                           ? oversampledBlock.getChannelPointer (1)
                           : oversampledBlock.getChannelPointer (0);
     
-        int oversampledSize = static_cast<int> (oversampledBlock.getNumSamples());
-        juce::AudioBuffer<float> oversampledBuffer (channels, 2, oversampledSize);
+        juce::AudioBuffer<float> oversampledWrap (channels, 2, oversampledSize);
     
         juce::MidiBuffer scaledMidi;
         for (auto meta : midiMessages)
@@ -301,11 +328,30 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
             scaledMidi.addEvent (meta.getMessage(), newPos);
         }
     
-        synth.renderNextBlock (oversampledBuffer, scaledMidi, 0, oversampledSize);
+        // Feed external audio per sample into voices before render
+        for (int i = 0; i < oversampledSize; ++i)
+        {
+            float extL = (inputL != nullptr && i < buffer.getNumSamples()) ? inputL[i] : 0.0f;
+            float extR = (inputR != nullptr && i < buffer.getNumSamples()) ? inputR[i] : 0.0f;
+            for (int v = 0; v < synth.getNumVoices(); ++v)
+                if (auto* voice = dynamic_cast<FMVoice*> (synth.getVoice (v)))
+                    voice->setExternalAudioSample (extL, extR);
+        }
+    
+        synth.renderNextBlock (oversampledWrap, scaledMidi, 0, oversampledSize);
         oversampling->processSamplesDown (inputBlock);
     }
     else
     {
+        // Feed external audio per sample into voices before render
+        for (int i = 0; i < buffer.getNumSamples(); ++i)
+        {
+            float extL = inputL != nullptr ? inputL[i] : 0.0f;
+            float extR = inputR != nullptr ? inputR[i] : 0.0f;
+            for (int v = 0; v < synth.getNumVoices(); ++v)
+                if (auto* voice = dynamic_cast<FMVoice*> (synth.getVoice (v)))
+                    voice->setExternalAudioSample (extL, extR);
+        }
         synth.renderNextBlock (buffer, midiMessages, 0, buffer.getNumSamples());
     }
 
@@ -392,6 +438,20 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
     reverbParams.roomSize = totalReverbRoom;
     reverbModule.setParameters (reverbParams);
     reverbModule.process (context);
+
+    // Feed oscilloscope — mix L+R to mono
+    {
+        auto* leftData  = buffer.getReadPointer (0);
+        auto* rightData = buffer.getNumChannels() > 1 ? buffer.getReadPointer (1) : leftData;
+        int writePos    = scopeWritePos.load (std::memory_order_relaxed);
+    
+        for (int i = 0; i < buffer.getNumSamples(); ++i)
+        {
+            scopeBuffer[writePos] = (leftData[i] + rightData[i]) * 0.5f;
+            writePos = (writePos + 1) % scopeBufferSize;
+        }
+        scopeWritePos.store (writePos, std::memory_order_relaxed);
+    }
 
     // 8. OUTPUT SOFT CLIP
     for (int channel = 0; channel < totalNumOutputChannels; ++channel)

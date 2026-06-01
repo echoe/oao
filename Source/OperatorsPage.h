@@ -40,7 +40,7 @@ struct CompactOperatorGroup : public juce::Component
         modeSelector.addItemList ({ "Wave", "Additive", "Filter" }, 1);
         addAndMakeVisible (modeSelector);
 
-        waveShapeSelector.addItemList ({ "Sine", "Triangle", "Saw", "Square", "White Noise" }, 1);
+        waveShapeSelector.addItemList ({ "Sine", "Triangle", "Saw", "Square", "White Noise", "Pink Noise" }, 1);
         addAndMakeVisible (waveShapeSelector);
         
         filterTypeSelector.addItemList ({ "Lowpass", "Highpass", "Bandpass", "Comb", "Granular" }, 1);

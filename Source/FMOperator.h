@@ -63,7 +63,27 @@ public:
         float outputSample = 0.0f;
         if (mode == 2) //If filter, we process it here. These all have soft clippers at the end to avoid being /too/ hot.
         {
-            if (filterType == 4) // Granular
+	    if (filterType == 5) // Formant
+            {
+                // Vowel (Ratio knob): Scale 0.01 - 16.0 to 0.0 - 4.0 (A-E-I-O-U)
+                float normalizedRatio = (ratio - 0.01f) / (16.0f - 0.01f);
+                float baseVowel       = normalizedRatio * 4.0f;
+                // Vowel Mod (Phase knob): How much modulation affects the vowel sweep
+                float modDepth = phaseKnob / 360.0f;
+                // Apply modulation (scaled so full modulation can sweep the whole table)
+                float dynamicVowel = baseVowel + (modulationSum * modDepth * 4.0f);
+                dynamicVowel       = juce::jlimit(0.0f, 4.0f, dynamicVowel);
+                // Resonance/Nasality (Detune knob): Map -50.0 - 50.0 to a Q-Factor of 2.0 to 15.0
+                float normalizedDetune = (detune + 50.0f) / 100.0f; 
+                float qFactor          = juce::jmap(normalizedDetune, 0.0f, 1.0f, 2.0f, 15.0f);
+                // Drive (Fold knob): Pushes the input into a soft-clipper BEFORE the filter.
+                float drive       = 1.0f + (foldKnob * 4.0f); // 1.0x to 5.0x drive
+                float drivenInput = std::tanh(audioInputSum * drive);
+                // output
+                float output = internalFilter.processSampleFormant(drivenInput, dynamicVowel, qFactor);
+                outputSample = std::isfinite(output) ? std::tanh(output) : 0.0f;
+            }
+	    else if (filterType == 4) // Granular
             {
 		// we assume keytracking so we can track scatter and grain size
                 float granularFreq = baseFrequency + (modulationSum * 200.0f);

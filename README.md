@@ -69,6 +69,9 @@ Additional Notes:
 #### Granular
 - Options: Grain size, Damping, Scatter, Feedback
 - Because there aren't enough knobs and I couldn't think of a reason you wouldn't want it keytracked, this filter forces keytracking to 100%.
+#### Formant
+- Options: Vowel, Nasal, Vowel Mod, Drive
+- Note: Vowel Mod changes the amount of modulation coming in from the modulation matrix, if you are modulating it. So to hear it simply, you can self-modulate this operator, and then tweak the Vowel Mod, and it will change the sound then.
 
 ## Modulation Matrix
 - A 6 by 6 matrix letting you modulate any operator with any other operator. On the right of this, there is a 6-slot mod matrix, letting you modulate anything in the synth (including effects, but effects are global only) with one of the six operators.

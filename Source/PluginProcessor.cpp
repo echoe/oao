@@ -45,7 +45,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout FMPluginAudioProcessor::crea
     std::vector<std::unique_ptr<juce::RangedAudioParameter>> params;
     juce::StringArray modeChoices { "Wave", "Additive", "Filter" };
     juce::StringArray waveShapeChoices { "Sine", "Triangle", "Saw", "Square", "White Noise", "Pink Noise" };
-    juce::StringArray filterTypeChoices { "Lowpass", "Highpass", "Bandpass", "Comb", "Granular" };
+    juce::StringArray filterTypeChoices { "Lowpass", "Highpass", "Bandpass", "Comb", "Granular", "Formant" };
     
     // Generate parameters for each operator dynamically
     for (int i = 0; i < ProjectConfig::numOperators; ++i)

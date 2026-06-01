@@ -43,7 +43,7 @@ struct CompactOperatorGroup : public juce::Component
         waveShapeSelector.addItemList ({ "Sine", "Triangle", "Saw", "Square", "White Noise", "Pink Noise" }, 1);
         addAndMakeVisible (waveShapeSelector);
         
-        filterTypeSelector.addItemList ({ "Lowpass", "Highpass", "Bandpass", "Comb", "Granular" }, 1);
+        filterTypeSelector.addItemList ({ "Lowpass", "Highpass", "Bandpass", "Comb", "Granular", "Formant" }, 1);
         addAndMakeVisible (filterTypeSelector);
 
         // APVTS Links
@@ -127,7 +127,8 @@ private:
 	// Check for granular filter
 	int selectedFilter = filterTypeSelector.getSelectedId();
 	bool isGranular = (isFilterMode && selectedFilter == 5); // 5 is Granular
-        waveShapeSelector.setVisible (isWaveMode);
+        bool isFormant = (isFilterMode && selectedFilter == 6); // 6 is Formant
+	waveShapeSelector.setVisible (isWaveMode);
         filterTypeSelector.setVisible (isFilterMode);
 
 	if (isGranular)
@@ -136,6 +137,13 @@ private:
             detuneLabel.setText ("Damping", juce::dontSendNotification);
             phaseLabel.setText ("Scatter", juce::dontSendNotification);
             foldLabel.setText ("Feedback", juce::dontSendNotification);
+	}
+	else if (isFormant)
+	{
+	    ratioLabel.setText ("Vowel", juce::dontSendNotification);
+            detuneLabel.setText ("Nasal", juce::dontSendNotification);
+            phaseLabel.setText ("Vowel Mod", juce::dontSendNotification);
+            foldLabel.setText("Drive", juce::dontSendNotification);
 	}
 	else if (isFilterMode)
         {

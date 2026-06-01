@@ -83,17 +83,16 @@ struct CompactOperatorGroup : public juce::Component
     {
         auto area = getLocalBounds().reduced (6);
         auto topStrip = area.removeFromTop (22);
+	int topStripSize = topStrip.getWidth();
         // 1. Position the Header and Sync Button
-        opHeaderLabel.setBounds (topStrip.removeFromLeft (85));
-        syncButton.setBounds (topStrip.removeFromLeft (45).reduced (1));
+        opHeaderLabel.setBounds (topStrip.removeFromLeft (topStripSize*0.25f));
+        syncButton.setBounds (topStrip.removeFromLeft (topStripSize*0.2f).reduced (1));
         // 2. FIX: Carve out 75 pixels for the Mode Selector dropdown!
-        modeSelector.setBounds (topStrip.removeFromLeft (75).reduced (1));
-        // 3. The remaining space goes to the conditional dropdowns
+        modeSelector.setBounds (topStrip.removeFromLeft (topStripSize*0.25f).reduced (1));
+        // 3. The remaining space goes to the conditional dropdowns. if/else.
         if (filterTypeSelector.isVisible())
-        {
-            int menuWidth = topStrip.getWidth() / 2;
-            waveShapeSelector.setBounds (topStrip.removeFromLeft (menuWidth).reduced (1));
-            filterTypeSelector.setBounds (topStrip.reduced (1));
+	{
+	    filterTypeSelector.setBounds (topStrip.reduced (1));
         }
         else
         {

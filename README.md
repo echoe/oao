@@ -35,7 +35,7 @@ If you're using randomization you may want to turn the gain down as a precaution
 
 
 ## Operator types
-### Wave: Sine, Triangle, Saw, Square, White Noise
+### Wave: Sine, Triangle, Saw, Square, White Noise, Pink Noise
 - Options: Ratio, Detune, Phase, Fold. You can also tempo sync the operator to a DAW with the checkmark - that's why Ratio changes to Sync Rate there.
 - Ratio: from 0.01 to 16, this controls the pitch of the waveform relative to the note you're playing. You, uh, need this for FM.
 - Detune: You can slightly detune the note if you want, without moving the Ratio by tiny steps.
@@ -50,13 +50,13 @@ Additional Notes:
 
 ### Additive
 - Options: Ratio, Tilt, Stretch, Odd/Even
-- Ratio: from 0.01 to 16, this controls the pitch of the waveform relative to the note you're playing. You, uh, need this for FM.
+- Ratio: from 0.01 to 16, this controls the pitch of the waveform relative to the note you're playing. You still need this for FM.
 - Tilt: Tilts the sound spectrally.
 - Stretch: Changes how far away, or close together, your partials are.
 - Odd/Even: Emphasizes either odd or even partials.
 
 Additional Notes:
-- It's a 32-partial additive oscillator, if you were wondering! I thought about it and it made the most sense to me just for CPU usage reasons. But IDK, maybe it's fine to be 32 or 64? You can change this to however many partials you want and build it yourself, just change 'numPartials'.
+- It's a 32-partial additive oscillator, if you were wondering! I thought about it and it made the most sense to me just for CPU usage reasons. But IDK, maybe it's fine to be 32 or 64? You can change this to however many partials you want and build it yourself, just change 'numPartials' in 'FMOperator.h' and rebuild the synth yourself :)
 
 ### Filter: 
 #### SVF (Lowpass, Highpass, Bandpass)
@@ -90,7 +90,7 @@ Additional Notes:
 -Mix and Room.
 
 ## Other Features:
-- You can sync an operator to DAW tempo and use it as an LFO. Do you want more LFOs? Why have LFOs when you can just have more Operators??
+- You can sync an operator to DAW tempo and use it as an LFO. Do you want more LFOs? Why have LFOs when you can just have more operators??
 - You can pass audio into an operator with the audio routing matrix, so you can use an operator as a filter. Do you want a filter? Why have filters when you can just have more operators??
 - You can modulate any operator with any other operator.
 - Three simple, global-only effects to soften up the FM; Delay, Reverb, and Chorus. If you want better effects, that's what effects in a DAW are for! The effects are not the point!
@@ -101,6 +101,6 @@ Additional Notes:
 - A soft clipper on the end of the chain and at every step of the audio routing page.
 
 Pictures of the synth in use are provided in the pictures/ folder. There are also build scripts in the main folder.
-This is mostly AI-coded, but I work in IT as a job, am actively using the synth myself, and have done a fair bit of troubleshooting to get it to its current form! I just ... don't code in C++ (much). So it will evolve as it evolves - but I am happy with it for now. If you want to expand it, please free to take the code and run with it - that's why it's here!! Or if you want you can open a bug report and I will look into it. The main thing I'm aware of that it could need is visual scaling options, but it works on all of my computers so ... yeah. If necessary I can get those added.
+This is mostly AI-coded, but I work in IT as a job, am actively using the synth myself, and have read over all of the code and think I understand it (though how much can one understand code they haven't written themselves?). So. YMMV.
 
 Happy synthing!

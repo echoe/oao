@@ -11,10 +11,19 @@ struct Grain {
     bool  isActive;
 };
 
+struct Vowel { float f1, f2, f3; };
+static constexpr Vowel VOWEL_TABLE[5] = {
+    { 730.0f, 1090.0f, 2440.0f }, // 0.0 -> A
+    { 440.0f, 1800.0f, 2500.0f }, // 1.0 -> E
+    { 290.0f, 2290.0f, 3010.0f }, // 2.0 -> I
+    { 450.0f,  800.0f, 2830.0f }, // 3.0 -> O
+    { 300.0f,  870.0f, 2240.0f }  // 4.0 -> U
+};
+
 class SynthFilter
 {
 public:
-    enum FilterType { Lowpass = 0, Highpass, Bandpass, Comb, Granular };
+    enum FilterType { Lowpass = 0, Highpass, Bandpass, Comb, Granular, Formant };
     
     SynthFilter() 
     {
@@ -58,7 +67,7 @@ public:
 
     void setType (int typeIndex)
     {
-        currentType = static_cast<FilterType>(juce::jlimit (0, 4, typeIndex));
+        currentType = static_cast<FilterType>(juce::jlimit (0, 5, typeIndex));
     }
 
     float getPrecalculatedK() const noexcept
@@ -70,6 +79,10 @@ public:
     {
         s1 = 0.0f;
         s2 = 0.0f;
+	for (int i = 0; i < 3; ++i) { //formant buffer reset
+            f_s1[i] = 0.0f;
+            f_s2[i] = 0.0f;
+        }
         lastCombDamping = 0.0f;
         
         if (!combBuffer.empty())
@@ -87,6 +100,12 @@ public:
         std::fill(combBuffer.begin(), combBuffer.end(), 0.0f);
         writePtr = 0;
         lastCombDamping = 0.0f;
+
+	// For formant
+	for (int i = 0; i < 3; ++i) {
+            f_s1[i] = 0.0f;
+            f_s2[i] = 0.0f;
+        }
 
         for (auto& g : grains) {
             g.isActive = false;
@@ -147,6 +166,52 @@ public:
             case Lowpass:  
             default:       return lp;
         }
+    }
+
+    // Formant Filter
+    float processSampleFormant(float input, float morphIndex, float qFactor)
+    {
+        // morphIndex: 0.0 to 4.0 maps to A-E-I-O-U
+        float safeMorph = juce::jlimit(0.0f, 4.0f, morphIndex);
+        int indexTarget = static_cast<int>(safeMorph);
+        int indexNext = juce::jmin(4, indexTarget + 1);
+        float frac = safeMorph - static_cast<float>(indexTarget);
+
+        // Linear interpolation of frequencies
+        float freqs[3];
+        freqs[0] = VOWEL_TABLE[indexTarget].f1 + frac * (VOWEL_TABLE[indexNext].f1 - VOWEL_TABLE[indexTarget].f1);
+        freqs[1] = VOWEL_TABLE[indexTarget].f2 + frac * (VOWEL_TABLE[indexNext].f2 - VOWEL_TABLE[indexTarget].f2);
+        freqs[2] = VOWEL_TABLE[indexTarget].f3 + frac * (VOWEL_TABLE[indexNext].f3 - VOWEL_TABLE[indexTarget].f3);
+
+        float outputAccumulator = 0.0f;
+        float precalcK = 1.0f / juce::jmax(0.1f, qFactor); // Needs high Q, usually pass 5.0 to 15.0 here
+
+        // Run 3 parallel SVF Bandpasses using the fast polynomial approximation
+        for (int i = 0; i < 3; ++i)
+        {
+            float x = juce::MathConstants<float>::pi * freqs[i] / static_cast<float>(sampleRate);
+            float x2 = x * x;
+            float g_mod = x * (945.0f - 105.0f * x2 + x2 * x2) / (945.0f - 420.0f * x2 + 15.0f * x2 * x2);
+            float h_mod = 1.0f / (1.0f + g_mod * (g_mod + precalcK));
+
+            float hp = (input - (g_mod + precalcK) * f_s1[i] - f_s2[i]) * h_mod;
+            float bp = g_mod * hp + f_s1[i];
+            float lp = g_mod * bp + f_s2[i];
+
+            f_s1[i] = 2.0f * bp - f_s1[i];
+            f_s2[i] = 2.0f * lp - f_s2[i];
+
+            if (std::isnan(f_s1[i]) || std::isinf(f_s1[i])) 
+            { 
+                reset(); 
+                return 0.0f; 
+            }
+
+            outputAccumulator += bp;
+        }
+
+        // Gain compensation for 3 parallel resonant peaks & soft clipper
+        return std::tanh(outputAccumulator * 0.33f);
     }
 
     // Standard Comb Filter
@@ -301,6 +366,10 @@ protected:
     float h { 0.0f };
     float s1 { 0.0f };
     float s2 { 0.0f };
+
+    // Formant Filter State Registers (3 parallel bands)
+    float f_s1[3] { 0.0f, 0.0f, 0.0f };
+    float f_s2[3] { 0.0f, 0.0f, 0.0f };
 
     // Comb & Granular Memory
     std::vector<float> combBuffer;

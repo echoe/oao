@@ -59,11 +59,11 @@ FMPluginAudioProcessorEditor::FMPluginAudioProcessorEditor (FMPluginAudioProcess
         p.apvts, "GAIN_CEIL", gainSlider);
 
     // Add title
-    //titleLabel.setText ("OAO", juce::dontSendNotification);
-    //titleLabel.setJustificationType (juce::Justification::centred);
-    //titleLabel.setFont (juce::Font (juce::FontOptions().withHeight (18.0f).withStyle ("Bold")));
-    //titleLabel.setColour (juce::Label::textColourId, juce::Colours::white);
-    //addAndMakeVisible (titleLabel);
+    titleLabel.setText ("OAO", juce::dontSendNotification);
+    titleLabel.setJustificationType (juce::Justification::centred);
+    titleLabel.setFont (juce::Font (juce::FontOptions().withHeight (18.0f).withStyle ("Bold")));
+    titleLabel.setColour (juce::Label::textColourId, juce::Colours::white);
+    addAndMakeVisible (titleLabel);
     oscilloscope = std::make_unique<Oscilloscope> (audioProcessor);
     addAndMakeVisible (*oscilloscope);
 

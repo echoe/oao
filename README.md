@@ -73,6 +73,10 @@ Additional Notes:
 - Options: Vowel, Nasal, Vowel Mod, Drive
 - Note: Vowel Mod changes the amount of modulation coming in from the modulation matrix, if you are modulating it. So to hear it simply, you can self-modulate this operator, and then tweak the Vowel Mod, and it will change the sound then.
 
+### Ext. In
+It's an external in! You can route external sound into the synth if you want now, and it will go through the modulation matrix like everything else (and will be affected by the filters). It is only open if midi data is going into the plugin though.
+-Options: Gain, Tilt (quick EQ), Mod (controls how much the external in is affected by audio modulation), Fold(just like the normal Wave oscillator)
+
 ## Modulation Matrix
 - A 6 by 6 matrix letting you modulate any operator with any other operator. On the right of this, there is a 6-slot mod matrix, letting you modulate anything in the synth (including effects, but effects are global only) with one of the six operators.
 - This is a frequency modulation matrix - you are modulating the frequency of anything you target (including targeting a filter) with the wave of whatever you are sending in.

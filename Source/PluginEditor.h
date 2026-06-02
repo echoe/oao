@@ -5,6 +5,8 @@
 #include "MatrixPage.h"
 #include "PresetBar.h"
 #include "EffectsPage.h"
+#include "Oscilloscope.h"
+
 
 class FMPluginAudioProcessorEditor : public juce::AudioProcessorEditor
 {
@@ -22,6 +24,7 @@ public:
 private:
     FMPluginAudioProcessor& audioProcessor;
     PresetBar presetBar; // <-- Preset support
+    std::unique_ptr<Oscilloscope> oscilloscope;
     juce::Label titleLabel;
     juce::TextButton opsPageButton, matrixPageButton, audioMatrixPageButton, effectsPageButton;
     OperatorsPage opsPage;

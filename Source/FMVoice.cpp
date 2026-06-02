@@ -187,6 +187,11 @@ void FMVoice::renderNextBlock (juce::AudioBuffer<float>& outputBuffer, int start
     // Here's our sample-rate DSP loop
     for (int sample = 0; sample < numSamples; ++sample)
     {
+	// Pass external audio to operators
+	for (int i = 0; i < ProjectConfig::numOperators; ++i)
+            operators[i].setExternalAudioSample (externalAudioL, externalAudioR);
+
+	// set outputs and offsets, to be updated later in this loop
         std::array<float, ProjectConfig::numOperators> opOutputs { 0.0f };
         std::array<float, ProjectConfig::numOperators> pitchModOffsets { 0.0f };
         std::array<float, ProjectConfig::numOperators> phaseModOffsets { 0.0f };

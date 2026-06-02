@@ -17,6 +17,7 @@ class FMPluginAudioProcessor  : public juce::AudioProcessor
 public:
     FMPluginAudioProcessor();
     ~FMPluginAudioProcessor() override;
+    bool isBusesLayoutSupported (const BusesLayout& layouts) const override;
     void prepareToPlay (double sampleRate, int samplesPerBlock) override;
     void releaseResources() override;
     void reset() override;
@@ -38,6 +39,9 @@ public:
     void getStateInformation (juce::MemoryBlock& destData) override;
     void setStateInformation (const void* data, int sizeInBytes) override;
     juce::AudioProcessorValueTreeState apvts;
+    static constexpr int scopeBufferSize = 512;
+    std::array<float, scopeBufferSize> scopeBuffer { 0.0f };
+    std::atomic<int> scopeWritePos { 0 };
 private:
     juce::Synthesiser synth;
     WaveTable waveTable; //single shared instance for all operators

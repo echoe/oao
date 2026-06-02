@@ -279,8 +279,8 @@ public:
                 grain.durationInSamples = juce::jmax(10.0f, durationSamples);
                 
                 // Jitter position based on scatter parameter
-                float jitter = (fastRandom() * 2.0f - 1.0f) * scatterAmount * static_cast<float>(sampleRate);
-                float delaySamples = juce::jlimit(1.0f, maxDelay, baseDelaySamples + jitter);
+                float jitter = (fastRandom() * 2.0f - 1.0f) * scatterAmount * baseDelaySamples;
+		float delaySamples = juce::jlimit(1.0f, maxDelay, baseDelaySamples + jitter);
                 
                 grain.position = static_cast<float>(writePtr) - delaySamples;
                 while (grain.position < 0.0f) grain.position += static_cast<float>(bSize);

@@ -59,11 +59,13 @@ FMPluginAudioProcessorEditor::FMPluginAudioProcessorEditor (FMPluginAudioProcess
         p.apvts, "GAIN_CEIL", gainSlider);
 
     // Add title
-    titleLabel.setText ("OAO", juce::dontSendNotification);
-    titleLabel.setJustificationType (juce::Justification::centred);
-    titleLabel.setFont (juce::Font (juce::FontOptions().withHeight (18.0f).withStyle ("Bold")));
-    titleLabel.setColour (juce::Label::textColourId, juce::Colours::white);
-    addAndMakeVisible (titleLabel);
+    //titleLabel.setText ("OAO", juce::dontSendNotification);
+    //titleLabel.setJustificationType (juce::Justification::centred);
+    //titleLabel.setFont (juce::Font (juce::FontOptions().withHeight (18.0f).withStyle ("Bold")));
+    //titleLabel.setColour (juce::Label::textColourId, juce::Colours::white);
+    //addAndMakeVisible (titleLabel);
+    oscilloscope = std::make_unique<Oscilloscope> (audioProcessor);
+    addAndMakeVisible (*oscilloscope);
 
     setPage (PageView::Operators);
     setSize (ProjectConfig::pluginSizeX, ProjectConfig::pluginSizeY); // Expanded boundary footprint to comfortably show labels
@@ -103,6 +105,10 @@ void FMPluginAudioProcessorEditor::resized()
     auto gainArea = topBarArea.removeFromRight (220);
     gainLabel.setBounds (gainArea.removeFromLeft (45));
     gainSlider.setBounds (gainArea.reduced (2));
+
+    // oscilloscope
+    if (oscilloscope != nullptr)
+        oscilloscope->setBounds (topBarArea.removeFromLeft(100));
 
     // Add title in remaining area in top 
     titleLabel.setBounds (topBarArea.reduced (2));

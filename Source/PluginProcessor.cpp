@@ -296,6 +296,9 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
     
     // Clear entire buffer so input audio doesn't bleed through to output
     buffer.clear();
+    DBG ("after clear - inputCh: " + juce::String (totalNumInputChannels) +
+     " outputCh: " + juce::String (totalNumOutputChannels) +
+     " sample0: " + juce::String (buffer.getSample (0, 0)));
     
     auto* inputL = totalNumInputChannels > 0 ? inputCapture.getReadPointer (0) : nullptr;
     auto* inputR = totalNumInputChannels > 1 ? inputCapture.getReadPointer (1) : nullptr;
@@ -460,6 +463,7 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
         for (int sample = 0; sample < buffer.getNumSamples(); ++sample)
             channelData[sample] = std::tanh (channelData[sample] * 0.4f);
     }
+    DBG ("end of processBlock - sample0: " + juce::String (buffer.getSample (0, 0)));
 }
 
 juce::AudioProcessorEditor* FMPluginAudioProcessor::createEditor()

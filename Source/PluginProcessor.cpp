@@ -89,6 +89,33 @@ juce::AudioProcessorValueTreeState::ParameterLayout FMPluginAudioProcessor::crea
 
 	//
     }
+    // Effects page — 3 slots, each with type, sync, mix, and 4 knobs
+    const int numFxSlots = 3;
+    for (int i = 0; i < numFxSlots; ++i)
+    {
+        juce::String s = juce::String (i + 1);
+    
+        juce::StringArray fxChoices = {
+            "None", "Lowpass", "Highpass", "Bandpass", "Comb", "Granular",
+            "Tape", "Distortion", "Spectral Resonator", "Chorus",
+            "Allpass Delay", "Allpass Reverb"
+        }; // we want to make this fxChoices actually use the filterTypeChoices above instead
+    
+        params.push_back (std::make_unique<juce::AudioParameterChoice> (
+            juce::ParameterID { "FX_TYPE_" + s, 1 }, "FX " + s + " Type", fxChoices, 0));
+        params.push_back (std::make_unique<juce::AudioParameterBool> (
+            juce::ParameterID { "FX_SYNC_" + s, 1 }, "FX " + s + " Sync", false));
+        params.push_back (std::make_unique<juce::AudioParameterFloat> (
+            juce::ParameterID { "FX_MIX_" + s, 1 }, "FX " + s + " Mix", 0.0f, 1.0f, 1.0f));
+        params.push_back (std::make_unique<juce::AudioParameterFloat> (
+            juce::ParameterID { "FX_A_" + s, 1 }, "FX " + s + " A", 0.0f, 1.0f, 0.5f));
+        params.push_back (std::make_unique<juce::AudioParameterFloat> (
+            juce::ParameterID { "FX_B_" + s, 1 }, "FX " + s + " B", 0.0f, 1.0f, 0.5f));
+        params.push_back (std::make_unique<juce::AudioParameterFloat> (
+            juce::ParameterID { "FX_C_" + s, 1 }, "FX " + s + " C", 0.0f, 1.0f, 0.0f));
+        params.push_back (std::make_unique<juce::AudioParameterFloat> (
+            juce::ParameterID { "FX_D_" + s, 1 }, "FX " + s + " D", 0.0f, 1.0f, 0.5f));
+    }
     
     // Generate Modulation Matrix Nodes (NxN Grid)
     for (int src = 0; src < ProjectConfig::numOperators; ++src)

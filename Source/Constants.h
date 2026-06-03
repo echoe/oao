@@ -14,7 +14,7 @@ namespace ProjectConfig
     // Filters list
     inline juce::StringArray getFilterTypeChoices()
     {
-        return { "None", "Lowpass", "Highpass", "Bandpass", "Comb", "Granular", "Formant", "Tape" };
+        return { "None", "Lowpass", "Highpass", "Bandpass", "Comb", "Granular", "Formant", "Tape", "Bitcrush", "AP Delay", "AP Reverb", "Compressor", "Varispeed", "Scatter", "Ring Mod" };
     }
     // Filters knobs list
     inline std::array<const char*, 4> getFilterKnobLabels (int filterTypeIndex)
@@ -29,7 +29,14 @@ namespace ProjectConfig
             case 5:  return { "Grain Size", "Damping",   "Scatter",   "Feedback"}; // Granular
             case 6:  return { "Vowel",      "Nasal",     "Vowel Mod", "Drive"   }; // Formant
 	    case 7:  return { "Wobble",     "Age",       "Saturation","Bias"    }; // Tape
-            default: return { "A",          "B",         "C",         "D"       };
+            case 8:  return { "Bits",       "Rate",      "Jitter",    "Noise"   }; // Bitcrush
+	    case 9:  return { "Time",       "Feedback",  "Diffusion", "Damping" }; // AP Delay
+	    case 10: return { "Size",       "Decay",     "Diffusion", "Damping" }; // AP Reverb
+	    case 11: return { "Threshold",  "Ratio",     "Attack",    "Release" }; // Compressor
+            case 12: return { "Speed",      "Accel",     "Depth",     "Mode"    }; // Varispeed
+	    case 13: return { "Pattern",    "Size",      "Speed",     "Depth"   }; // Scatter
+	    case 14: return { "Frequency", "Shape", "Depth", "Feedback" }; // Ring Mod
+	    default: return { "A",          "B",         "C",         "D"       };
         }
     }
 }

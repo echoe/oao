@@ -99,6 +99,48 @@ public:
 	tapeReadPtr  = 0.0f;
 	tapeLastSample = 0.0f;
 	std::fill (std::begin (tapeDelayBuffer), std::end (tapeDelayBuffer), 0.0f);
+	//bitcrush
+	crushHeld    = 0.0f;
+        crushCounter = 0;
+        // Allpass delay reset
+        apDelayBuffer.fill (0.0f);
+        apDelayWritePtr   = 0;
+        apDelayLastSample = 0.0f;
+        for (int i = 0; i < numApStages; ++i)
+        {
+            apStageBuffers[i].fill (0.0f);
+            apStageWritePtrs[i] = 0;
+        }
+        
+        // Allpass reverb reset
+        apRevBuffer.fill (0.0f);
+        apRevWritePtr   = 0;
+        apRevLastSample = 0.0f;
+        for (int i = 0; i < numRevStages; ++i)
+        {
+            apRevStageBuffers[i].fill (0.0f);
+            apRevStageWritePtrs[i] = 0;
+        }
+	// compressor
+	compEnvelope = 0.0f;
+        compGainDb   = 0.0f;
+	// varispeed
+	std::fill (std::begin (varispeedBuffer), std::end (varispeedBuffer), 0.0f);
+        varispeedWritePtr    = 0;
+        varispeedReadPtr     = 0.0f;
+        varispeedCurrentSpeed = 1.0f;
+	// scatter
+	scatterBuffer.fill (0.0f);
+        scatterWritePtr    = 0;
+        scatterReadPtr     = 0.0f;
+        scatterPattern     = 0;
+        scatterPhase       = 0;
+        scatterCycleLength = 0;
+        scatterActive      = false;
+        scatterSpeed       = 1.0f;
+	// ring mod
+	ringPhase    = 0.0f;
+        ringFeedback = 0.0f;
     }
 
     void noteStarted()
@@ -116,6 +158,21 @@ public:
         for (auto& g : grains) {
             g.isActive = false;
         }
+    }
+
+    // Single allpass filter stage — the core building block for the delay/reverb
+    template <size_t BufferSize>
+    float processAllpass (float input, float coeff,
+                          std::array<float, BufferSize>& buffer,
+                          int& writePtr)
+    {
+        int size     = static_cast<int> (BufferSize);
+        int readPtr  = (writePtr - static_cast<int> (coeff * size) + size) % size;
+        float delayed = buffer[readPtr];
+        float output  = -input + delayed;
+        buffer[writePtr] = input + delayed * coeff;
+        writePtr = (writePtr + 1) % size;
+        return output;
     }
 
     // Standard Block Rate SVF
@@ -353,23 +410,15 @@ public:
                          float saturation, float bias,
                          double sampleRate)
     {
-        // -------------------------------------------------------
         // 1. BIAS — affects how the tape magnetizes before saturation
         // bias: 0.0 = underbias (harsh/bright), 0.5 = optimal, 1.0 = overbias (dull/soft)
-        // -------------------------------------------------------
-        float biasOffset  = (bias - 0.5f) * 2.0f;  // -1.0 to 1.0
-        float biasedInput = input + biasOffset * input * input;
+        float biasOffset  = (bias - 0.5f) * 2.0f;
+        float biasedInput = input + biasOffset * std::abs (input) * input;
         biasedInput       = juce::jlimit (-1.0f, 1.0f, biasedInput);
-    
-        // -------------------------------------------------------
-        // 2. SATURATION — tape drive after bias
-        // -------------------------------------------------------
+        // Then saturation acts on biasedInput:
         float driveAmt  = 1.0f + saturation * 8.0f;
         float saturated = std::tanh (biasedInput * driveAmt) / std::tanh (driveAmt);
-    
-        // -------------------------------------------------------
         // 3. WOW/FLUTTER — modulate delay time with an LFO
-        // -------------------------------------------------------
         float baseDelaySamples = static_cast<float> (sampleRate) * 0.005f; // 5ms base
     
         float wowRate    = wobbleRate * 2.0f;
@@ -409,14 +458,443 @@ public:
         float c3 = 0.5f * (y3 - y0) + 1.5f * (y1 - y2);
         float output = ((c3 * frac + c2) * frac + c1) * frac + c0;
     
-        // -------------------------------------------------------
         // 4. AGE — one-pole low-pass for HF loss
-        // -------------------------------------------------------
         float ageCoeff = 1.0f - (age * 0.92f);
         output         = output * ageCoeff + tapeLastSample * (1.0f - ageCoeff);
         tapeLastSample = output;
     
         return std::isfinite (output) ? output : 0.0f;
+    }
+
+    float processSampleBitcrush (float input, float bits, float rate,
+                                  float jitter, float noise,
+                                  double sampleRate)
+    {
+        // -------------------------------------------------------
+        // 1. SAMPLE RATE REDUCTION
+        // -------------------------------------------------------
+        int downsampleFactor = juce::jlimit (1, 64,
+                                   static_cast<int> (1.0f + rate * 63.0f));
+    
+        crushCounter++;
+        if (crushCounter >= downsampleFactor)
+        {
+            crushCounter = 0;
+            crushHeld    = input;
+        }
+        float downsampled = crushHeld;
+    
+        // -------------------------------------------------------
+        // 2. JITTER — clock instability, randomizes sample timing
+        // -------------------------------------------------------
+        if (jitter > 0.001f)
+        {
+            // Randomly retrigger the hold with probability based on jitter
+            if (crushRandom.nextFloat() < jitter * 0.1f)
+                crushHeld = input;
+    
+            // Add random timing offset to the held value
+            float jitterAmt = (crushRandom.nextFloat() * 2.0f - 1.0f) * jitter * 0.05f;
+            downsampled     = crushHeld + jitterAmt * crushHeld;
+        }
+    
+        // -------------------------------------------------------
+        // 3. BIT DEPTH REDUCTION
+        // -------------------------------------------------------
+        float bitDepth = juce::jmap (bits, 0.0f, 1.0f, 1.0f, 16.0f);
+        float levels   = std::pow (2.0f, bitDepth);
+        float crushed  = std::round (downsampled * levels) / levels;
+    
+        // -------------------------------------------------------
+        // 4. QUANTIZATION NOISE
+        // -------------------------------------------------------
+        if (noise > 0.001f)
+        {
+            float dither = (crushRandom.nextFloat() * 2.0f - 1.0f) * noise * (1.0f / levels);
+            crushed     += dither;
+            crushed      = juce::jlimit (-1.0f, 1.0f, crushed);
+        }
+    
+        return crushed;
+    }
+
+    float processSampleAllpassDelay (float input, float time, float feedback,
+                                      float diffusion, float damping,
+                                      double sampleRate)
+    {
+        // -------------------------------------------------------
+        // 1. DIFFUSION — cascade allpass stages to smear the echo
+        // -------------------------------------------------------
+        float diffCoeff = diffusion * 0.7f;
+        float diffused  = input;
+        for (int i = 0; i < numApStages; ++i)
+            diffused = processAllpass (diffused, diffCoeff,
+                                       apStageBuffers[i], apStageWritePtrs[i]);
+    
+        // -------------------------------------------------------
+        // 2. MAIN DELAY LINE
+        // -------------------------------------------------------
+        float delayMs      = juce::jmap (time, 0.0f, 1.0f, 10.0f, 1000.0f);
+        int   delaySamples = juce::jlimit (1, apDelayBufferSize - 1,
+                                 static_cast<int> (delayMs / 1000.0f * sampleRate));
+    
+        int   readPtr = (apDelayWritePtr - delaySamples + apDelayBufferSize) % apDelayBufferSize;
+        float delayed = apDelayBuffer[readPtr];
+    
+        // -------------------------------------------------------
+        // 3. DAMPING — frequency-mapped one-pole LP in feedback path
+        // -------------------------------------------------------
+        float dampCutoff  = juce::jmap (1.0f - damping, 0.0f, 1.0f, 20.0f, 20000.0f);
+        float dampAlpha   = 1.0f - std::exp (-2.0f * juce::MathConstants<float>::pi
+                                             * dampCutoff / static_cast<float> (sampleRate));
+        apDelayLastSample += dampAlpha * (delayed - apDelayLastSample);
+    
+        // -------------------------------------------------------
+        // 4. FEEDBACK
+        // -------------------------------------------------------
+        float feedbackAmt = juce::jlimit (0.0f, 0.95f, feedback);
+        apDelayBuffer[apDelayWritePtr] = diffused + apDelayLastSample * feedbackAmt;
+        apDelayWritePtr = (apDelayWritePtr + 1) % apDelayBufferSize;
+    
+        return delayed + input;
+    }
+    
+    float processSampleAllpassReverb (float input, float size, float decay,
+                                       float diffusion, float damping,
+                                       double sampleRate)
+    {
+        // -------------------------------------------------------
+        // 1. PRE-DIFFUSION
+        // -------------------------------------------------------
+        float diffCoeff = juce::jlimit (0.0f, 0.75f, diffusion * 0.75f);
+        float diffused  = input;
+        for (int i = 0; i < numRevStages / 2; ++i)
+            diffused = processAllpass (diffused, diffCoeff,
+                                       apRevStageBuffers[i], apRevStageWritePtrs[i]);
+    
+        // -------------------------------------------------------
+        // 2. REVERB TANK
+        // -------------------------------------------------------
+        float sizeMs      = juce::jmap (size, 0.0f, 1.0f, 20.0f, 500.0f);
+        int   tankSamples = juce::jlimit (1, apRevBufferSize - 1,
+                                 static_cast<int> (sizeMs / 1000.0f * sampleRate));
+    
+        int   readPtr = (apRevWritePtr - tankSamples + apRevBufferSize) % apRevBufferSize;
+        float tankOut = apRevBuffer[readPtr];
+    
+        // -------------------------------------------------------
+        // 3. DAMPING — frequency-mapped one-pole LP in feedback path
+        // -------------------------------------------------------
+        float dampCutoff  = juce::jmap (1.0f - damping, 0.0f, 1.0f, 20.0f, 20000.0f);
+        float dampAlpha   = 1.0f - std::exp (-2.0f * juce::MathConstants<float>::pi
+                                             * dampCutoff / static_cast<float> (sampleRate));
+        apRevLastSample  += dampAlpha * (tankOut - apRevLastSample);
+    
+        // -------------------------------------------------------
+        // 4. DECAY
+        // -------------------------------------------------------
+        float decayAmt = juce::jlimit (0.0f, 0.93f, decay);
+        apRevBuffer[apRevWritePtr] = diffused + apRevLastSample * decayAmt;
+        apRevWritePtr = (apRevWritePtr + 1) % apRevBufferSize;
+    
+        // -------------------------------------------------------
+        // 5. POST-DIFFUSION
+        // -------------------------------------------------------
+        float output = tankOut;
+        for (int i = numRevStages / 2; i < numRevStages; ++i)
+            output = processAllpass (output, diffCoeff,
+                                     apRevStageBuffers[i], apRevStageWritePtrs[i]);
+    
+        return output + input * 0.1f;
+    }
+
+    float processSampleCompressor (float input, float threshold, float ratio,
+                                float attack, float release,
+                                double sampleRate)
+    {
+        // -------------------------------------------------------
+        // 1. THRESHOLD — map 0-1 to -40dB to 0dB
+        // -------------------------------------------------------
+        float thresholdDb = juce::jmap (threshold, 0.0f, 1.0f, -40.0f, 0.0f);
+    
+        // -------------------------------------------------------
+        // 2. ENVELOPE FOLLOWER — tracks signal level
+        // -------------------------------------------------------
+        float inputLevel = std::abs (input);
+        float attackCoeff  = std::exp (-1.0f / (static_cast<float> (sampleRate)
+                                       * juce::jmap (attack,   0.0f, 1.0f, 0.001f, 0.5f)));
+        float releaseCoeff = std::exp (-1.0f / (static_cast<float> (sampleRate)
+                                       * juce::jmap (release, 0.0f, 1.0f, 0.01f,  2.0f)));
+    
+        if (inputLevel > compEnvelope)
+            compEnvelope = attackCoeff  * compEnvelope + (1.0f - attackCoeff)  * inputLevel;
+        else
+            compEnvelope = releaseCoeff * compEnvelope + (1.0f - releaseCoeff) * inputLevel;
+    
+        // -------------------------------------------------------
+        // 3. GAIN COMPUTATION
+        // -------------------------------------------------------
+        float inputDb   = juce::Decibels::gainToDecibels (compEnvelope, -60.0f);
+        float targetDb  = 0.0f;
+    
+        // map ratio knob 0-1 to compression ratio 1:1 to 20:1
+        float compRatio = juce::jmap (ratio, 0.0f, 1.0f, 1.0f, 20.0f);
+    
+        if (inputDb > thresholdDb)
+            targetDb = thresholdDb + (inputDb - thresholdDb) / compRatio;
+        else
+            targetDb = inputDb;
+    
+        float gainDb   = targetDb - inputDb;
+        compGainDb     = gainDb; // store for metering if needed
+    
+        // -------------------------------------------------------
+        // 4. APPLY GAIN
+        // -------------------------------------------------------
+        float gain = juce::Decibels::decibelsToGain (gainDb);
+        return input * gain;
+    }
+
+    float processSampleVarispeed (float input, float speed, float acceleration,
+                                   float depth, float mode,
+                                   double sampleRate)
+    {
+        // -------------------------------------------------------
+        // 1. TARGET SPEED — mode controls direction
+        // -------------------------------------------------------
+        // mode: 0.0 = slow down, 0.5 = neutral, 1.0 = speed up
+        // speed: base speed variation amount
+        float targetSpeed;
+        if (mode < 0.45f)
+            targetSpeed = juce::jmap (speed, 0.0f, 1.0f, 0.25f, 0.99f); // slow down
+        else if (mode > 0.55f)
+            targetSpeed = juce::jmap (speed, 0.0f, 1.0f, 1.01f, 4.0f);  // speed up
+        else
+            targetSpeed = 1.0f; // neutral passthrough
+    
+        // -------------------------------------------------------
+        // 2. ACCELERATION — how fast speed changes happen
+        // -------------------------------------------------------
+        // depth controls how much the speed varies around the target
+        float depthAmt    = depth * 0.5f;
+        float accelCoeff  = std::exp (-1.0f / (static_cast<float> (sampleRate)
+                                      * juce::jmap (acceleration, 0.0f, 1.0f, 0.001f, 2.0f)));
+    
+        // Apply depth as subtle speed modulation around target
+        float speedMod       = std::sin (varispeedReadPtr * 0.0001f) * depthAmt;
+        float modulatedSpeed = targetSpeed + speedMod;
+        modulatedSpeed       = juce::jlimit (0.1f, 4.0f, modulatedSpeed);
+    
+        // Smooth speed changes with acceleration coefficient
+        varispeedCurrentSpeed = accelCoeff * varispeedCurrentSpeed 
+                                + (1.0f - accelCoeff) * modulatedSpeed;
+    
+        // -------------------------------------------------------
+        // 3. WRITE INPUT TO BUFFER
+        // -------------------------------------------------------
+        int bufferSize = 96000;
+        varispeedBuffer[varispeedWritePtr] = input;
+        varispeedWritePtr = (varispeedWritePtr + 1) % bufferSize;
+    
+        // -------------------------------------------------------
+        // 4. READ AT MODULATED SPEED using Hermite interpolation
+        // -------------------------------------------------------
+        varispeedReadPtr += varispeedCurrentSpeed;
+        while (varispeedReadPtr >= static_cast<float> (bufferSize))
+            varispeedReadPtr -= static_cast<float> (bufferSize);
+        while (varispeedReadPtr < 0.0f)
+            varispeedReadPtr += static_cast<float> (bufferSize);
+    
+        int   idx1 = static_cast<int> (varispeedReadPtr) % bufferSize;
+        float frac = varispeedReadPtr - std::floor (varispeedReadPtr);
+        int   idx0 = (idx1 - 1 + bufferSize) % bufferSize;
+        int   idx2 = (idx1 + 1) % bufferSize;
+        int   idx3 = (idx1 + 2) % bufferSize;
+    
+        float y0 = varispeedBuffer[idx0];
+        float y1 = varispeedBuffer[idx1];
+        float y2 = varispeedBuffer[idx2];
+        float y3 = varispeedBuffer[idx3];
+    
+        float c0 = y1;
+        float c1 = 0.5f * (y2 - y0);
+        float c2 = y0 - 2.5f * y1 + 2.0f * y2 - 0.5f * y3;
+        float c3 = 0.5f * (y3 - y0) + 1.5f * (y1 - y2);
+    
+        float output = ((c3 * frac + c2) * frac + c1) * frac + c0;
+        return std::isfinite (output) ? output : 0.0f;
+    }
+
+    float processSampleScatter (float input, float pattern, float size,
+                                 float speed, float depth,
+                                 double sampleRate)
+    {
+        // -------------------------------------------------------
+        // 1. WRITE INPUT TO BUFFER always
+        // -------------------------------------------------------
+        scatterBuffer[scatterWritePtr] = input;
+        scatterWritePtr = (scatterWritePtr + 1) % scatterBufferSize;
+    
+        // -------------------------------------------------------
+        // 2. PATTERN SELECTION
+        // Pattern 0.0-0.25: Stutter (repeat short segment)
+        // Pattern 0.25-0.5: Reverse (play segment backwards)
+        // Pattern 0.5-0.75: Skip (jump forward in buffer)
+        // Pattern 0.75-1.0: Loop (loop a segment at different speed)
+        // -------------------------------------------------------
+        int patternIdx = juce::jlimit (0, 3, static_cast<int> (pattern * 4.0f));
+    
+        // Size: 0.0 = very short (10ms), 1.0 = long (500ms)
+        float sizeMs      = juce::jmap (size, 0.0f, 1.0f, 10.0f, 500.0f);
+        int   segmentSize = juce::jlimit (1, scatterBufferSize - 1,
+                                static_cast<int> (sizeMs / 1000.0f * sampleRate));
+    
+        // Speed: 0.0 = half speed, 0.5 = normal, 1.0 = double speed
+        float playbackSpeed = juce::jmap (speed, 0.0f, 1.0f, 0.5f, 2.0f);
+    
+        // Update cycle length based on segment size
+        scatterCycleLength = segmentSize;
+        scatterPhase       = (scatterPhase + 1) % scatterCycleLength;
+    
+        // -------------------------------------------------------
+        // 3. COMPUTE READ POSITION based on pattern
+        // -------------------------------------------------------
+        float readPos = 0.0f;
+    
+        switch (patternIdx)
+        {
+            case 0: // Stutter — repeat the same segment
+            {
+                float segStart = static_cast<float> (scatterWritePtr) - segmentSize;
+                readPos = segStart + static_cast<float> (scatterPhase) * playbackSpeed;
+                break;
+            }
+            case 1: // Reverse — play segment backwards
+            {
+                float segStart = static_cast<float> (scatterWritePtr) - segmentSize;
+                readPos = segStart + static_cast<float> (scatterCycleLength - scatterPhase) * playbackSpeed;
+                break;
+            }
+            case 2: // Skip — jump to a random position each cycle
+            {
+                if (scatterPhase == 0)
+                {
+                    // Pick a new random position at the start of each cycle
+                    int maxLookback = juce::jmin (scatterBufferSize - 1, segmentSize * 4);
+                    scatterReadPtr  = static_cast<float> (scatterWritePtr)
+                                      - static_cast<float> (scatterRandom.nextInt (maxLookback) + segmentSize);
+                }
+                readPos = scatterReadPtr + static_cast<float> (scatterPhase) * playbackSpeed;
+                break;
+            }
+            case 3: // Loop — loop segment at playback speed
+            {
+                float segStart = static_cast<float> (scatterWritePtr) - segmentSize;
+                float loopPos  = std::fmod (static_cast<float> (scatterPhase) * playbackSpeed,
+                                            static_cast<float> (segmentSize));
+                readPos = segStart + loopPos;
+                break;
+            }
+        }
+    
+        // Wrap read position into valid buffer range
+        while (readPos < 0.0f)
+            readPos += static_cast<float> (scatterBufferSize);
+        while (readPos >= static_cast<float> (scatterBufferSize))
+            readPos -= static_cast<float> (scatterBufferSize);
+    
+        // -------------------------------------------------------
+        // 4. HERMITE INTERPOLATION
+        // -------------------------------------------------------
+        int   idx1 = static_cast<int> (readPos) % scatterBufferSize;
+        float frac = readPos - std::floor (readPos);
+        int   idx0 = (idx1 - 1 + scatterBufferSize) % scatterBufferSize;
+        int   idx2 = (idx1 + 1) % scatterBufferSize;
+        int   idx3 = (idx1 + 2) % scatterBufferSize;
+    
+        float y0 = scatterBuffer[idx0];
+        float y1 = scatterBuffer[idx1];
+        float y2 = scatterBuffer[idx2];
+        float y3 = scatterBuffer[idx3];
+    
+        float c0 = y1;
+        float c1 = 0.5f * (y2 - y0);
+        float c2 = y0 - 2.5f * y1 + 2.0f * y2 - 0.5f * y3;
+        float c3 = 0.5f * (y3 - y0) + 1.5f * (y1 - y2);
+        float scattered = ((c3 * frac + c2) * frac + c1) * frac + c0;
+    
+        // -------------------------------------------------------
+        // 5. HANNING WINDOW to prevent clicks at segment boundaries
+        // -------------------------------------------------------
+        float window = 0.5f * (1.0f - std::cos (juce::MathConstants<float>::twoPi
+                                                 * static_cast<float> (scatterPhase)
+                                                 / static_cast<float> (scatterCycleLength)));
+        scattered *= window;
+    
+        // -------------------------------------------------------
+        // 6. DEPTH MIX — blend scattered with dry
+        // -------------------------------------------------------
+        return scattered * depth + input * (1.0f - depth);
+    }
+
+    float processSampleRingMod (float input, float frequency, float shape,
+                                 float depth, float feedback,
+                                 double sampleRate)
+    {
+        // -------------------------------------------------------
+        // 1. ADVANCE OSCILLATOR PHASE
+        // -------------------------------------------------------
+        float phaseIncrement = (frequency * juce::MathConstants<float>::twoPi)
+                               / static_cast<float> (sampleRate);
+        ringPhase += phaseIncrement;
+        if (ringPhase >= juce::MathConstants<float>::twoPi)
+            ringPhase -= juce::MathConstants<float>::twoPi;
+    
+        // -------------------------------------------------------
+        // 2. OSCILLATOR SHAPE
+        // Shape 0.0-0.33: Sine
+        // Shape 0.33-0.66: Saw
+        // Shape 0.66-1.0: Square
+        // -------------------------------------------------------
+        float carrier = 0.0f;
+        if (shape < 0.33f)
+        {
+            // Sine
+            carrier = std::sin (ringPhase);
+        }
+        else if (shape < 0.66f)
+        {
+            // Saw — blend from sine to saw
+            float blend = (shape - 0.33f) / 0.33f;
+            float sine  = std::sin (ringPhase);
+            float saw   = (ringPhase / juce::MathConstants<float>::pi) - 1.0f;
+            carrier     = sine * (1.0f - blend) + saw * blend;
+        }
+        else
+        {
+            // Square — blend from saw to square
+            float blend  = (shape - 0.66f) / 0.34f;
+            float saw    = (ringPhase / juce::MathConstants<float>::pi) - 1.0f;
+            float square = ringPhase < juce::MathConstants<float>::pi ? 1.0f : -1.0f;
+            carrier      = saw * (1.0f - blend) + square * blend;
+        }
+    
+        // -------------------------------------------------------
+        // 3. FEEDBACK — feed output back into input for extra harmonics
+        // -------------------------------------------------------
+        float feedbackAmt = juce::jlimit (0.0f, 0.95f, feedback);
+        float modInput    = input + ringFeedback * feedbackAmt;
+    
+        // -------------------------------------------------------
+        // 4. RING MODULATION — multiply input by carrier
+        // -------------------------------------------------------
+        float modulated = modInput * carrier;
+        ringFeedback    = modulated;
+    
+        // -------------------------------------------------------
+        // 5. DEPTH — blend modulated with dry
+        // -------------------------------------------------------
+        return modulated * depth + input * (1.0f - depth);
     }
 
     int getCurrentType() const noexcept { return static_cast<int>(currentType); }
@@ -464,6 +942,60 @@ protected:
     float tapeReadPtr      = 0.0f;
     float tapeLastSample   = 0.0f; // for age/HF loss one-pole filter
     float tapeSatDrive     = 1.0f;
+
+    // Bitcrusher state
+    juce::Random crushRandom; // for random noise
+    float crushHeld      = 0.0f; // held sample for downsampling
+    int   crushCounter   = 0;    // sample counter for downsampling
+
+    // Allpass Delay state
+    static constexpr int apDelayBufferSize = 96000; // 2 seconds at 48kHz
+    std::array<float, apDelayBufferSize> apDelayBuffer { 0.0f };
+    int   apDelayWritePtr  = 0;
+    float apDelayLastSample = 0.0f;
+    
+    // Allpass stages for delay diffusion (4 stages)
+    static constexpr int numApStages = 4;
+    static constexpr int apStageSize = 4096;
+    std::array<std::array<float, apStageSize>, numApStages> apStageBuffers {};
+    std::array<int, numApStages> apStageWritePtrs { 0, 0, 0, 0 };
+    
+    // Allpass Reverb state — separate buffers so delay and reverb don't share
+    static constexpr int apRevBufferSize = 96000;
+    std::array<float, apRevBufferSize> apRevBuffer { 0.0f };
+    int   apRevWritePtr   = 0;
+    float apRevLastSample = 0.0f;
+    
+    static constexpr int numRevStages = 8; // more stages = denser reverb
+    static constexpr int apRevStageSize = 4096;
+    std::array<std::array<float, apRevStageSize>, numRevStages> apRevStageBuffers {};
+    std::array<int, numRevStages> apRevStageWritePtrs { 0, 0, 0, 0, 0, 0, 0, 0 };
+
+    // Compressor state
+    float compEnvelope  = 0.0f;  // envelope follower
+    float compGainDb    = 0.0f;  // current gain in dB
+
+    // Varispeed state
+    float varispeedBuffer[96000] { 0.0f };
+    int   varispeedWritePtr = 0;
+    float varispeedReadPtr  = 0.0f;
+    float varispeedCurrentSpeed = 1.0f; // current playback speed
+
+    // Scatter state
+    static constexpr int scatterBufferSize = 88200; // 2 seconds at 44.1kHz
+    std::array<float, scatterBufferSize> scatterBuffer { 0.0f };
+    int   scatterWritePtr    = 0;
+    float scatterReadPtr     = 0.0f;
+    int   scatterPattern     = 0;
+    int   scatterPhase       = 0;      // current position in pattern cycle
+    int   scatterCycleLength = 0;      // length of one pattern cycle in samples
+    bool  scatterActive      = false;  // whether currently scattering
+    float scatterSpeed       = 1.0f;
+    juce::Random scatterRandom;
+
+    // Ring Mod
+    float ringPhase     = 0.0f;
+    float ringFeedback  = 0.0f;
 
     // Parameters Cache
     double sampleRate { 44100.0 };

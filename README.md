@@ -77,11 +77,36 @@ Additional Notes:
 - Note: Vowel Mod changes the amount of modulation coming in from the modulation matrix, if you are modulating it. So to hear it simply, you can self-modulate this operator, and then tweak the Vowel Mod, and it will change the sound then.
 #### Tape
 - Options: Wobble, Age, Saturation, Bias
-#### Distortion
-#### Resonator
-#### Reverb
-#### Chorus
-#### Delay
+- For Bias to be heard saturation must be on at least a little bit, the bias biases the saturation.
+#### Bitcrush
+- Options: Bits (1-16), Rate, Jitter, Noise (added white noise sample)
+- You have to have mix set twice to use this! Care!
+#### Allpass Delay
+- Options: Time, Feedback, Diffusion, Damping
+- Time: 0.0 = 10ms, 1.0 = 1000ms
+- Damping: one-pole LP in feedback path
+- Diffusion 0.0 = clean echo, 1.0 = heavily smeared
+- Feedback - adding feedback before return
+
+#### Allpass Reverb
+- Options: Size, Decay, Diffusion, Damping
+- Size: 0.0 = small room (20ms), 1.0 = large hall (500ms)
+- DECAY — feedback amount controls tail length
+- POST-DIFFUSION — smear the output for density
+- DAMPING in the tank feedback path
+
+
+#### Compressor
+- Options: Threshold, Ratio, Attack, Release
+
+#### Varispeed
+- Options: Speed, Acceleration, Depth, Mode
+-Speed controls the amount that the speed should vary by.
+-Acceleration is how fast the effect changes the speed of the incoming audio.
+-Depth controls how much the speed varies around the target speed.
+- Mode is 'Direction'. If it's under .45, it's slowing down. if it's over .55, it's speeding up. if it's in the middle, it's not doing either.
+### More?
+Honestly, ask me for an effect and I can probably get it in here. The lookup machine is magic usually.
 
 ### Ext. In
 It's an external in! You can route external sound into the synth if you want now, and it will go through the modulation matrix like everything else (and will be affected by the filters). It is only open if midi data is going into the plugin though.

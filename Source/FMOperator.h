@@ -185,6 +185,86 @@ public:
                                                                   saturation, bias, currentSampleRate);
                 outputSample = std::isfinite (output) ? output : 0.0f;
             }
+	    else if (filterType == 8) // Bitcrush
+            {
+                float bits   = (ratio - 0.01f) / (16.0f - 0.01f);
+                float rate   = juce::jlimit (0.0f, 1.0f, (detune + 50.0f) / 100.0f);
+                float jitter = phaseKnob / 360.0f;
+                float noise  = juce::jlimit (0.0f, 1.0f, foldKnob);
+            
+                float output = internalFilter.processSampleBitcrush (audioInputSum, bits, rate,
+                                                                      jitter, noise, currentSampleRate);
+                outputSample = std::isfinite (output) ? output : 0.0f;
+            }
+	    else if (filterType == 9) // Allpass Delay
+            {
+                float time      = (ratio - 0.01f) / (16.0f - 0.01f);
+                float feedback  = juce::jlimit (0.0f, 0.95f, (detune + 50.0f) / 100.0f);
+                float diffusion = phaseKnob / 360.0f;
+                float damping   = juce::jlimit (0.0f, 1.0f, foldKnob);
+            
+                float output = internalFilter.processSampleAllpassDelay (audioInputSum, time, feedback,
+                                                                          diffusion, damping, currentSampleRate);
+                outputSample = std::isfinite (output) ? std::tanh (output) : 0.0f;
+            }
+            else if (filterType == 10) // Allpass Reverb
+            {
+                float size      = (ratio - 0.01f) / (16.0f - 0.01f);
+                float decay     = juce::jlimit (0.0f, 0.98f, (detune + 50.0f) / 100.0f);
+                float diffusion = phaseKnob / 360.0f;
+                float damping   = juce::jlimit (0.0f, 1.0f, foldKnob);
+            
+                float output = internalFilter.processSampleAllpassReverb (audioInputSum, size, decay,
+                                                                           diffusion, damping, currentSampleRate);
+                outputSample = std::isfinite (output) ? std::tanh (output) : 0.0f;
+            }
+	    else if (filterType == 11) // Compressor
+            {
+                float threshold = (ratio - 0.01f) / (16.0f - 0.01f);
+                float compRatio = juce::jlimit (0.0f, 1.0f, (detune + 50.0f) / 100.0f);
+                float attack    = phaseKnob / 360.0f;
+                float release   = juce::jlimit (0.0f, 1.0f, foldKnob);
+            
+                float output = internalFilter.processSampleCompressor (audioInputSum, threshold,
+                                                                        compRatio, attack, release,
+                                                                        currentSampleRate);
+                outputSample = std::isfinite (output) ? output : 0.0f;
+            }
+            else if (filterType == 12) // Varispeed
+            {
+                float speed        = (ratio - 0.01f) / (16.0f - 0.01f);
+                float acceleration = juce::jlimit (0.0f, 1.0f, (detune + 50.0f) / 100.0f);
+                float depth        = phaseKnob / 360.0f;
+                float mode         = juce::jlimit (0.0f, 1.0f, foldKnob);
+            
+                float output = internalFilter.processSampleVarispeed (audioInputSum, speed, acceleration,
+                                                                       depth, mode, currentSampleRate);
+                outputSample = std::isfinite (output) ? output : 0.0f;
+            }
+	    else if (filterType == 13) // Scatter
+            {
+                float pattern = (ratio - 0.01f) / (16.0f - 0.01f);
+                float size    = juce::jlimit (0.0f, 1.0f, (detune + 50.0f) / 100.0f);
+                float speed   = phaseKnob / 360.0f;
+                float depth   = juce::jlimit (0.0f, 1.0f, foldKnob);
+            
+                float output = internalFilter.processSampleScatter (audioInputSum, pattern, size,
+                                                                     speed, depth, currentSampleRate);
+                outputSample = std::isfinite (output) ? output : 0.0f;
+            }
+	    else if (filterType == 14) // Ring Modulator
+            {
+                // Frequency: ratio knob maps to 0.1Hz - 5000Hz exponentially
+                float normalizedRatio = (ratio - 0.01f) / (16.0f - 0.01f);
+                float frequency       = 0.1f * std::pow (50000.0f, normalizedRatio);
+                float shape           = juce::jlimit (0.0f, 1.0f, (detune + 50.0f) / 100.0f);
+                float depth           = phaseKnob / 360.0f;
+                float feedback        = juce::jlimit (0.0f, 0.95f, foldKnob);
+            
+                float output = internalFilter.processSampleRingMod (audioInputSum, frequency, shape,
+                                                                     depth, feedback, currentSampleRate);
+                outputSample = std::isfinite (output) ? output : 0.0f;
+            }
         }
         else // Here are our oscillators, Wave and Additive. They all need these:
         {

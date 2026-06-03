@@ -473,6 +473,84 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
                         processed = std::isfinite (processed) ? processed : 0.0f;
                         break;
                     }
+		    case 8: // Bitcrush
+                    {
+                        float bits   = normalizedRatio;
+                        float rate   = dampingAmt;
+                        float jitter = phase / 360.0f;
+                        float noise  = juce::jlimit (0.0f, 1.0f, fold);
+                        processed = fxFilters[slot].processSampleBitcrush (inputSample, bits, rate,
+                                                                            jitter, noise, getSampleRate());
+                        processed = std::isfinite (processed) ? processed : 0.0f;
+                        break;
+                    }
+		    case 9: // Allpass Delay
+                    {
+                        float time      = normalizedRatio;
+                        float feedback  = dampingAmt;
+                        float diffusion = phase / 360.0f;
+                        float damping   = juce::jlimit (0.0f, 1.0f, fold);
+                        processed = fxFilters[slot].processSampleAllpassDelay (inputSample, time, feedback,
+                                                                                diffusion, damping, getSampleRate());
+                        processed = std::isfinite (processed) ? std::tanh (processed) : 0.0f;
+                        break;
+                    }
+                    case 10: // Allpass Reverb
+                    {
+                        float size      = normalizedRatio;
+                        float decay     = dampingAmt;
+                        float diffusion = phase / 360.0f;
+                        float damping   = juce::jlimit (0.0f, 1.0f, fold);
+                        processed = fxFilters[slot].processSampleAllpassReverb (inputSample, size, decay,
+                                                                                 diffusion, damping, getSampleRate());
+                        processed = std::isfinite (processed) ? std::tanh (processed) : 0.0f;
+                        break;
+                    }
+		    case 11: // Compressor
+                    {
+                        float threshold = normalizedRatio;
+                        float compRatio = dampingAmt;
+                        float attack    = phase / 360.0f;
+                        float release   = juce::jlimit (0.0f, 1.0f, fold);
+                        processed = fxFilters[slot].processSampleCompressor (inputSample, threshold,
+                                                                              compRatio, attack, release,
+                                                                              getSampleRate());
+                        processed = std::isfinite (processed) ? processed : 0.0f;
+                        break;
+                    }
+                    case 12: // Varispeed
+                    {
+                        float speed        = normalizedRatio;
+                        float acceleration = dampingAmt;
+                        float depth        = phase / 360.0f;
+                        float mode         = juce::jlimit (0.0f, 1.0f, fold);
+                        processed = fxFilters[slot].processSampleVarispeed (inputSample, speed, acceleration,
+                                                                             depth, mode, getSampleRate());
+                        processed = std::isfinite (processed) ? processed : 0.0f;
+                        break;
+                    }
+		    case 13: // Scatter
+                    {
+                        float pattern = normalizedRatio;
+                        float size    = dampingAmt;
+                        float speed   = phase / 360.0f;
+                        float depth   = juce::jlimit (0.0f, 1.0f, fold);
+                        processed = fxFilters[slot].processSampleScatter (inputSample, pattern, size,
+                                                                           speed, depth, getSampleRate());
+                        processed = std::isfinite (processed) ? processed : 0.0f;
+                        break;
+                    }
+		    case 14: // Ring Modulator
+                    {
+                        float frequency = 0.1f * std::pow (50000.0f, normalizedRatio);
+                        float shape     = dampingAmt;
+                        float depth     = phase / 360.0f;
+                        float feedback  = juce::jlimit (0.0f, 0.95f, fold);
+                        processed = fxFilters[slot].processSampleRingMod (inputSample, frequency, shape,
+                                                                           depth, feedback, getSampleRate());
+                        processed = std::isfinite (processed) ? processed : 0.0f;
+                        break;
+                    }
                     default:
                         processed = inputSample;
                         break;

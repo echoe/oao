@@ -18,26 +18,21 @@ FMPluginAudioProcessor::FMPluginAudioProcessor()
     }
 
     synth.addSound (new FMSound());
-    // Cache effect param pointers — must happen after createParameterLayout() runs
-    // (which it does via the apvts initialiser above)
-    chorusMixParam     = apvts.getRawParameterValue ("CHORUS_MIX");
-    chorusRateParam    = apvts.getRawParameterValue ("CHORUS_RATE");
-    chorusDepthParam   = apvts.getRawParameterValue ("CHORUS_DEPTH");
-    delayMixParam      = apvts.getRawParameterValue ("DELAY_MIX");
-    delayTimeParam     = apvts.getRawParameterValue ("DELAY_TIME");
-    delayFeedbackParam = apvts.getRawParameterValue ("DELAY_FEEDBACK");
-    reverbMixParam     = apvts.getRawParameterValue ("REVERB_MIX");
-    reverbRoomParam    = apvts.getRawParameterValue ("REVERB_ROOM");
-
-    // Sanity check — these will print if a param ID is mistyped
-    jassert (chorusMixParam     != nullptr);
-    jassert (chorusRateParam    != nullptr);
-    jassert (chorusDepthParam   != nullptr);
-    jassert (delayMixParam      != nullptr);
-    jassert (delayTimeParam     != nullptr);
-    jassert (delayFeedbackParam != nullptr);
-    jassert (reverbMixParam     != nullptr);
-    jassert (reverbRoomParam    != nullptr);
+    for (int i = 0; i < numFxSlots; ++i)
+    {
+        juce::String s = juce::String (i + 1);
+        fxTypeParams[i]   = apvts.getRawParameterValue ("FX_TYPE_"   + s);
+        fxSyncParams[i]   = apvts.getRawParameterValue ("FX_SYNC_"   + s);
+        fxMixParams[i]    = apvts.getRawParameterValue ("FX_MIX_"    + s);
+        fxRatioParams[i]  = apvts.getRawParameterValue ("FX_RATIO_"  + s);
+        fxDetuneParams[i] = apvts.getRawParameterValue ("FX_DETUNE_" + s);
+        fxPhaseParams[i]  = apvts.getRawParameterValue ("FX_PHASE_"  + s);
+        fxFoldParams[i]   = apvts.getRawParameterValue ("FX_FOLD_"   + s);
+    
+        jassert (fxTypeParams[i]   != nullptr);
+        jassert (fxMixParams[i]    != nullptr);
+        jassert (fxRatioParams[i]  != nullptr);
+    }
 }
 
 FMPluginAudioProcessor::~FMPluginAudioProcessor() {}
@@ -61,8 +56,8 @@ juce::AudioProcessorValueTreeState::ParameterLayout FMPluginAudioProcessor::crea
     std::vector<std::unique_ptr<juce::RangedAudioParameter>> params;
     juce::StringArray modeChoices { "Wave", "Additive", "Filter", "Ext. In" };
     juce::StringArray waveShapeChoices { "Sine", "Triangle", "Saw", "Square", "White Noise", "Pink Noise" };
-    juce::StringArray filterTypeChoices { "Lowpass", "Highpass", "Bandpass", "Comb", "Granular", "Formant" };
-    
+    auto filterTypeChoices = ProjectConfig::getFilterTypeChoices();
+
     // Generate parameters for each operator dynamically
     for (int i = 0; i < ProjectConfig::numOperators; ++i)
     {
@@ -94,29 +89,22 @@ juce::AudioProcessorValueTreeState::ParameterLayout FMPluginAudioProcessor::crea
     for (int i = 0; i < numFxSlots; ++i)
     {
         juce::String s = juce::String (i + 1);
-    
-        juce::StringArray fxChoices = {
-            "None", "Lowpass", "Highpass", "Bandpass", "Comb", "Granular",
-            "Tape", "Distortion", "Spectral Resonator", "Chorus",
-            "Allpass Delay", "Allpass Reverb"
-        }; // we want to make this fxChoices actually use the filterTypeChoices above instead
-    
         params.push_back (std::make_unique<juce::AudioParameterChoice> (
-            juce::ParameterID { "FX_TYPE_" + s, 1 }, "FX " + s + " Type", fxChoices, 0));
+            juce::ParameterID { "FX_TYPE_" + s, 1 }, "FX " + s + " Type", filterTypeChoices, 0));
         params.push_back (std::make_unique<juce::AudioParameterBool> (
             juce::ParameterID { "FX_SYNC_" + s, 1 }, "FX " + s + " Sync", false));
         params.push_back (std::make_unique<juce::AudioParameterFloat> (
             juce::ParameterID { "FX_MIX_" + s, 1 }, "FX " + s + " Mix", 0.0f, 1.0f, 1.0f));
         params.push_back (std::make_unique<juce::AudioParameterFloat> (
-            juce::ParameterID { "FX_A_" + s, 1 }, "FX " + s + " A", 0.0f, 1.0f, 0.5f));
+            juce::ParameterID { "FX_RATIO_" + s, 1 }, "FX " + s + " Ratio", 0.01f, 16.0f, 1.0f));
         params.push_back (std::make_unique<juce::AudioParameterFloat> (
-            juce::ParameterID { "FX_B_" + s, 1 }, "FX " + s + " B", 0.0f, 1.0f, 0.5f));
+            juce::ParameterID { "FX_DETUNE_" + s, 1 }, "FX " + s + " Detune", -50.0f, 50.0f, 0.0f));
         params.push_back (std::make_unique<juce::AudioParameterFloat> (
-            juce::ParameterID { "FX_C_" + s, 1 }, "FX " + s + " C", 0.0f, 1.0f, 0.0f));
+            juce::ParameterID { "FX_PHASE_" + s, 1 }, "FX " + s + " Phase", 0.0f, 360.0f, 0.0f));
         params.push_back (std::make_unique<juce::AudioParameterFloat> (
-            juce::ParameterID { "FX_D_" + s, 1 }, "FX " + s + " D", 0.0f, 1.0f, 0.5f));
+            juce::ParameterID { "FX_FOLD_" + s, 1 }, "FX " + s + " Fold", 0.0f, 1.0f, 0.0f));
     }
-    
+
     // Generate Modulation Matrix Nodes (NxN Grid)
     for (int src = 0; src < ProjectConfig::numOperators; ++src)
     {
@@ -155,10 +143,10 @@ juce::AudioProcessorValueTreeState::ParameterLayout FMPluginAudioProcessor::crea
         "Op 4 Ratio",  "Op 4 Detune", "Op 4 Phase", "Op 4 Fold", "Op 4 Level",
         "Op 5 Ratio",  "Op 5 Detune", "Op 5 Phase", "Op 5 Fold", "Op 5 Level",
         "Op 6 Ratio",  "Op 6 Detune", "Op 6 Phase", "Op 6 Fold", "Op 6 Level",
-        // Effects targets (8)
-        "Chorus Mix", "Chorus Rate", "Chorus Depth",
-        "Delay Mix",  "Delay Time",  "Delay Feedback",
-        "Reverb Mix", "Reverb Room"
+        // Effects targets (15)
+	"Fx 1 Ratio",  "Fx 1 Detune", "Fx 1 Phase", "Fx 1 Fold", "Fx 1 Level",
+	"Fx 2 Ratio",  "Fx 2 Detune", "Fx 2 Phase", "Fx 2 Fold", "Fx 2 Level",
+	"Fx 3 Ratio",  "Fx 3 Detune", "Fx 3 Phase", "Fx 3 Fold", "Fx 3 Level",
     };
     
     for (int slot = 1; slot <= 6; ++slot)
@@ -174,19 +162,6 @@ juce::AudioProcessorValueTreeState::ParameterLayout FMPluginAudioProcessor::crea
             juce::ParameterID { "MOD_AMT_" + s, 1 },
             "Mod Amount " + s, -1.0f, 1.0f, 0.0f));
     }
-    // --- CHORUS PARAMETERS ---
-    params.push_back (std::make_unique<juce::AudioParameterFloat> ("CHORUS_MIX", "Chorus Mix", 0.0f, 1.0f, 0.0f));
-    params.push_back (std::make_unique<juce::AudioParameterFloat> ("CHORUS_RATE", "Chorus Rate (Hz)", 0.1f, 5.0f, 1.0f));
-    params.push_back (std::make_unique<juce::AudioParameterFloat> ("CHORUS_DEPTH", "Chorus Depth", 0.0f, 1.0f, 0.25f));
-    
-    // --- DELAY PARAMETERS ---
-    params.push_back (std::make_unique<juce::AudioParameterFloat> ("DELAY_MIX", "Delay Mix", 0.0f, 1.0f, 0.0f));
-    params.push_back (std::make_unique<juce::AudioParameterFloat> ("DELAY_TIME", "Delay Time (ms)", 50.0f, 1000.0f, 300.0f));
-    params.push_back (std::make_unique<juce::AudioParameterFloat> ("DELAY_FEEDBACK", "Delay Feedback", 0.0f, 0.95f, 0.3f));
-    
-    // --- REVERB PARAMETERS ---
-    params.push_back (std::make_unique<juce::AudioParameterFloat> ("REVERB_MIX", "Reverb Mix", 0.0f, 1.0f, 0.0f));
-    params.push_back (std::make_unique<juce::AudioParameterFloat> ("REVERB_ROOM", "Room Size", 0.0f, 1.0f, 0.5f));
     
     // Gain
     params.push_back (std::make_unique<juce::AudioParameterFloat> (
@@ -244,9 +219,6 @@ void FMPluginAudioProcessor::setPolyphony (int numVoices)
 
 void FMPluginAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
-    spec.sampleRate = sampleRate;
-    spec.maximumBlockSize = samplesPerBlock;
-    spec.numChannels = getTotalNumOutputChannels();
     waveTable.prepare(); // Build tables before use
     // prepare synth voices
     synth.setCurrentPlaybackSampleRate (sampleRate);
@@ -258,29 +230,12 @@ void FMPluginAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlo
             voice->prepare (sampleRate, samplesPerBlock, &waveTable);
         }
     }
-    // prepare effects with default values
-    chorusModule.prepare (spec);
-    chorusModule.setCentreDelay (7.0f); // ms
-    chorusModule.setFeedback (0.2f);
-    chorusModule.setMix (0.0f);        // Controlled by APVTS later
-    reverbModule.prepare (spec);
-    reverbParams.roomSize = 0.5f;
-    reverbParams.damping = 0.3f;
-    reverbParams.wetLevel = 0.0f;       // Controlled by APVTS later
-    reverbParams.dryLevel = 1.0f;
-    reverbModule.setParameters (reverbParams);
-    // Prepare Delay Buffers (Allocate enough memory for a 2-second maximum delay)
-    juce::dsp::ProcessSpec delaySpec;
-    delaySpec.sampleRate       = sampleRate;
-    delaySpec.maximumBlockSize = static_cast<juce::uint32> (samplesPerBlock);
-    delaySpec.numChannels      = 1; // Each line handles one channel
-    
-    delayLineL.prepare (delaySpec);
-    delayLineR.prepare (delaySpec);
-    delayLineL.reset();
-    delayLineR.reset();
     setOversamplingFactor(1); //prime this setting
-
+    for (int i = 0; i < numFxSlots; ++i) // prep effects lanes
+    {
+        fxFilters[i].prepare (sampleRate);
+        fxFilters[i].reset();
+    }
 }
 
 void FMPluginAudioProcessor::releaseResources() {}
@@ -385,89 +340,156 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
         synth.renderNextBlock (buffer, midiMessages, 0, buffer.getNumSamples());
     }
 
-    // MODULATION MATRIX: READ BASE PARAMS + ACCUMULATE VOICE MOD OFFSETS
-    float totalChorusMix     = chorusMixParam->load     (std::memory_order_relaxed);
-    float totalChorusRate    = chorusRateParam->load    (std::memory_order_relaxed);
-    float totalChorusDepth   = chorusDepthParam->load   (std::memory_order_relaxed);
-    float totalDelayMix      = delayMixParam->load      (std::memory_order_relaxed);
-    float totalDelayTime     = delayTimeParam->load     (std::memory_order_relaxed);
-    float totalDelayFeedback = delayFeedbackParam->load (std::memory_order_relaxed);
-    float totalReverbMix     = reverbMixParam->load     (std::memory_order_relaxed);
-    float totalReverbRoom    = reverbRoomParam->load    (std::memory_order_relaxed);
+    // EFFECTS PAGE — series processing 1 → 2 → 3
+    // First we get any modulation
+    std::array<float, 3> fxRatioModSum  { 0.0f, 0.0f, 0.0f };
+    std::array<float, 3> fxDetuneModSum { 0.0f, 0.0f, 0.0f };
+    std::array<float, 3> fxPhaseModSum  { 0.0f, 0.0f, 0.0f };
+    std::array<float, 3> fxFoldModSum   { 0.0f, 0.0f, 0.0f };
+    std::array<float, 3> fxLevelModSum  { 0.0f, 0.0f, 0.0f };
+    
     for (int v = 0; v < synth.getNumVoices(); ++v)
     {
         if (auto* voice = dynamic_cast<FMVoice*> (synth.getVoice (v)))
         {
             if (voice->isVoiceActive())
             {
-                totalChorusMix     += voice->chorusMixMod.load     (std::memory_order_relaxed);
-                totalChorusRate    += voice->chorusRateMod.load    (std::memory_order_relaxed);
-                totalChorusDepth   += voice->chorusDepthMod.load   (std::memory_order_relaxed);
-                totalDelayMix      += voice->delayMixMod.load      (std::memory_order_relaxed);
-                totalDelayTime     += voice->delayTimeMod.load     (std::memory_order_relaxed);
-                totalDelayFeedback += voice->delayFeedbackMod.load (std::memory_order_relaxed);
-                totalReverbMix     += voice->reverbMixMod.load     (std::memory_order_relaxed);
-                totalReverbRoom    += voice->reverbRoomMod.load    (std::memory_order_relaxed);
+                for (int i = 0; i < 3; ++i)
+                {
+                    fxRatioModSum[i]  += voice->fxRatioMods[i].load  (std::memory_order_relaxed);
+                    fxDetuneModSum[i] += voice->fxDetuneMods[i].load (std::memory_order_relaxed);
+                    fxPhaseModSum[i]  += voice->fxPhaseMods[i].load  (std::memory_order_relaxed);
+                    fxFoldModSum[i]   += voice->fxFoldMods[i].load   (std::memory_order_relaxed);
+                    fxLevelModSum[i]  += voice->fxLevelMods[i].load  (std::memory_order_relaxed);
+    
+                    voice->fxRatioMods[i].store  (0.0f, std::memory_order_relaxed);
+                    voice->fxDetuneMods[i].store (0.0f, std::memory_order_relaxed);
+                    voice->fxPhaseMods[i].store  (0.0f, std::memory_order_relaxed);
+                    voice->fxFoldMods[i].store   (0.0f, std::memory_order_relaxed);
+                    voice->fxLevelMods[i].store  (0.0f, std::memory_order_relaxed);
+                }
+            }
+        }
+    }
+    // Now we start the effects loop
+    {
+        auto* leftData  = buffer.getWritePointer (0);
+        auto* rightData = buffer.getWritePointer (1);
+        int   numSamples = buffer.getNumSamples();
+    
+        for (int slot = 0; slot < numFxSlots; ++slot)
+        {
+            int   filterType = static_cast<int> (fxTypeParams[slot]->load  (std::memory_order_relaxed));
+            float ratio  = fxRatioParams[slot]->load  (std::memory_order_relaxed) + fxRatioModSum[slot];
+            float detune = fxDetuneParams[slot]->load (std::memory_order_relaxed) + fxDetuneModSum[slot];
+            float phase  = fxPhaseParams[slot]->load  (std::memory_order_relaxed) + fxPhaseModSum[slot];
+            float fold   = fxFoldParams[slot]->load   (std::memory_order_relaxed) + fxFoldModSum[slot];
+            float mix    = juce::jlimit (0.0f, 1.0f,
+                           fxMixParams[slot]->load (std::memory_order_relaxed) + fxLevelModSum[slot]);
+	    bool  isSynced   = fxSyncParams[slot]->load   (std::memory_order_relaxed) > 0.5f;
+   
+	    if (filterType != lastFxFilterType[slot])
+            {
+                fxFilters[slot].reset();
+                lastFxFilterType[slot] = filterType;
+            }
+
+            if (filterType == 0) continue; // None — skip entirely
+    
+            // Compute cutoff from ratio knob (same mapping as operators)
+            float normalizedRatio = (ratio - 0.01f) / (16.0f - 0.01f);
+            float baseCutoff      = 20.0f * std::pow (1000.0f, normalizedRatio);
+    
+            // Tempo sync — snap cutoff to rhythmic subdivision
+            if (isSynced && activeBPM > 0.0f)
+            {
+                // Map phase knob to subdivision (0=1/16, 0.25=1/8, 0.5=1/4, 0.75=1/2, 1.0=1/1)
+                float normalizedPhase = phase / 360.0f;
+                float subdivisions[]  = { 16.0f, 8.0f, 4.0f, 2.0f, 1.0f };
+                int   subIdx          = juce::jlimit (0, 4, static_cast<int> (normalizedPhase * 5.0f));
+                float beatsPerCycle   = 1.0f / subdivisions[subIdx];
+                baseCutoff            = (activeBPM / 60.0f) / beatsPerCycle;
+                baseCutoff            = juce::jlimit (20.0f, static_cast<float> (getSampleRate()) * 0.49f, baseCutoff);
+            }
+    
+            float dampingAmt      = juce::jlimit (0.001f, 0.95f, (detune + 50.0f) / 100.0f);
+            float feedbackAmt     = juce::jlimit (-0.95f, 0.95f, (fold * 2.0f) - 1.0f);
+            float coupledRes      = dampingAmt * dampingAmt;
+    
+            for (int i = 0; i < numSamples; ++i)
+            {
+                // Mix L+R to mono for processing, then spread back to stereo
+                float inputSample = (leftData[i] + rightData[i]) * 0.5f;
+                float processed   = 0.0f;
+    
+                switch (filterType)
+                {
+                    case 1: // Lowpass
+                    case 2: // Highpass
+                    case 3: // Bandpass
+                    {
+                        fxFilters[slot].setResonance (coupledRes);
+                        float k = fxFilters[slot].getPrecalculatedK();
+                        processed = fxFilters[slot].processSampleAudioRate (inputSample, baseCutoff, k);
+                        break;
+                    }
+                    case 4: // Comb
+                    {
+                        processed = fxFilters[slot].processSampleComb (inputSample, baseCutoff, feedbackAmt, dampingAmt);
+                        processed = std::isfinite (processed) ? std::tanh (processed) : 0.0f;
+                        break;
+                    }
+                    case 5: // Granular
+                    {
+                        float grainDurationMs = juce::jmap (normalizedRatio, 0.0f, 1.0f, 10.0f, 1000.0f);
+                        float scatterAmt      = juce::jlimit (0.0f, 1.0f, phase / 360.0f);
+                        processed = fxFilters[slot].processSampleGranular (inputSample, baseCutoff, scatterAmt, grainDurationMs, feedbackAmt, dampingAmt);
+                        processed = std::isfinite (processed) ? std::tanh (processed) : 0.0f;
+                        break;
+                    }
+		    case 6: // Formant
+                    {
+                        float normalizedRatio  = (ratio - 0.01f) / (16.0f - 0.01f);
+                        float baseVowel        = normalizedRatio * 4.0f;
+                        float modDepth         = phase / 360.0f;
+                        float dynamicVowel     = juce::jlimit (0.0f, 4.0f,
+                                                     baseVowel + (fxPhaseModSum[slot] * modDepth * 4.0f));
+                        float normalizedDetune = (detune + 50.0f) / 100.0f;
+                        float qFactor          = juce::jmap (normalizedDetune, 0.0f, 1.0f, 2.0f, 15.0f);
+                        float drive            = 1.0f + (fold * 4.0f);
+                        float drivenInput      = std::tanh (inputSample * drive);
+                        float output           = fxFilters[slot].processSampleFormant (drivenInput, dynamicVowel, qFactor);
+                        processed              = std::isfinite (output) ? std::tanh (output) : 0.0f;
+                        break;
+                    }
+		    case 7: // Tape
+                    {
+                        float wobbleRate = normalizedRatio;
+                        float age        = dampingAmt;
+                        float saturation = phase / 360.0f;
+                        float bias       = juce::jlimit (0.0f, 1.0f, fold);
+                        processed = fxFilters[slot].processSampleTape (inputSample, wobbleRate, age,
+                                                                        saturation, bias, getSampleRate());
+                        processed = std::isfinite (processed) ? processed : 0.0f;
+                        break;
+                    }
+                    default:
+                        processed = inputSample;
+                        break;
+                }
+    
+                // Wet/dry mix and write back to stereo
+                float mixed      = processed * mix + inputSample * (1.0f - mix);
+                leftData[i]      = mixed;
+                rightData[i]     = mixed;
             }
         }
     }
 
-    // Clamp to safe ranges matching parameter definitions
-    totalChorusMix     = juce::jlimit (0.0f,   1.0f,    totalChorusMix);
-    totalChorusRate    = juce::jlimit (0.1f,   5.0f,    totalChorusRate);
-    totalChorusDepth   = juce::jlimit (0.0f,   1.0f,    totalChorusDepth);
-    totalDelayMix      = juce::jlimit (0.0f,   1.0f,    totalDelayMix);
-    totalDelayTime     = juce::jlimit (50.0f,  1000.0f, totalDelayTime);
-    totalDelayFeedback = juce::jlimit (0.0f,   0.95f,   totalDelayFeedback);
-    totalReverbMix     = juce::jlimit (0.0f,   1.0f,    totalReverbMix);
-    totalReverbRoom    = juce::jlimit (0.0f,   1.0f,    totalReverbRoom);
-
-    // 4. MASTER GAIN
+    // Master Gain
     juce::dsp::AudioBlock<float> block (buffer);
     if (auto* gainParam = apvts.getRawParameterValue ("GAIN_CEIL"))
         block.multiplyBy (juce::Decibels::decibelsToGain (gainParam->load()));
-
-    // 5. CHORUS
-    chorusModule.setMix   (totalChorusMix);
-    chorusModule.setRate  (totalChorusRate);
-    chorusModule.setDepth (totalChorusDepth);
-
-    juce::dsp::ProcessContextReplacing<float> context (block);
-    chorusModule.process (context);
-
-    // 6. DELAY
-    {
-        float delaySamples = (totalDelayTime / 1000.0f) * static_cast<float> (getSampleRate());
-        delaySamples = juce::jlimit (1.0f,
-                                     static_cast<float> (delayLineL.getMaximumDelayInSamples()),
-                                     delaySamples);
-
-        delayLineL.setDelay (delaySamples);
-        delayLineR.setDelay (delaySamples);
-
-        auto* leftData   = buffer.getWritePointer (0);
-        auto* rightData  = buffer.getWritePointer (1);
-        int   numSamples = buffer.getNumSamples();
-
-        for (int i = 0; i < numSamples; ++i)
-        {
-            float delayedL = delayLineL.popSample (0);
-            float delayedR = delayLineR.popSample (0);
-
-            delayLineL.pushSample (0, leftData[i]  + delayedL * totalDelayFeedback);
-            delayLineR.pushSample (0, rightData[i] + delayedR * totalDelayFeedback);
-
-            leftData[i]  += delayedL * totalDelayMix;
-            rightData[i] += delayedR * totalDelayMix;
-        }
-    }
-
-    // 7. REVERB
-    reverbParams.wetLevel = totalReverbMix;
-    reverbParams.dryLevel = 1.0f - (totalReverbMix * 0.5f);
-    reverbParams.roomSize = totalReverbRoom;
-    reverbModule.setParameters (reverbParams);
-    reverbModule.process (context);
 
     // Feed oscilloscope — mix L+R to mono
     {
@@ -483,7 +505,7 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
         scopeWritePos.store (writePos, std::memory_order_relaxed);
     }
 
-    // 8. OUTPUT SOFT CLIP
+    // Output (soft clipping)
     for (int channel = 0; channel < totalNumOutputChannels; ++channel)
     {
         auto* channelData = buffer.getWritePointer (channel);
@@ -514,12 +536,6 @@ void FMPluginAudioProcessor::setStateInformation (const void* data, int sizeInBy
 
 void FMPluginAudioProcessor::reset() // This function solves issues if you're looping a bar in a VST.
 {
-    // Clear effect states. There are two delays (one left, one right).
-    delayLineL.reset();
-    delayLineR.reset();
-    chorusModule.reset();
-    reverbModule.reset();
-    
     // Tell the synth engine to kill hanging voice notes
     synth.allNotesOff (0, false);
     // Also clear filters, which aren't cleared by the above.
@@ -530,6 +546,11 @@ void FMPluginAudioProcessor::reset() // This function solves issues if you're lo
                 voice->resetVoiceState();
             }
         }
+    // and clear effect filters
+    for (int i = 0; i < numFxSlots; ++i)
+    {
+        fxFilters[i].reset();
+    }
 }
 
 // Necessary to avoid createPluginFilter() error and actually create the plugin.

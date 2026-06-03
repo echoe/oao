@@ -58,7 +58,10 @@ Additional Notes:
 Additional Notes:
 - It's a 32-partial additive oscillator, if you were wondering! I thought about it and it made the most sense to me just for CPU usage reasons. But IDK, maybe it's fine to be 32 or 64? You can change this to however many partials you want and build it yourself, just change 'numPartials' in 'FMOperator.h' and rebuild the synth yourself :)
 
-### Filter: 
+### Filter:
+#### None
+- Options: It doesn't do anything
+- Use this as a passthrough! 
 #### SVF (Lowpass, Highpass, Bandpass)
 - Options: Cutoff, Resonance, Keytrack, Feedback
 - They're the normal filters of those kinds. The implementation here is JUCE-standard.
@@ -72,6 +75,13 @@ Additional Notes:
 #### Formant
 - Options: Vowel, Nasal, Vowel Mod, Drive
 - Note: Vowel Mod changes the amount of modulation coming in from the modulation matrix, if you are modulating it. So to hear it simply, you can self-modulate this operator, and then tweak the Vowel Mod, and it will change the sound then.
+#### Tape
+- Options: Wobble, Age, Saturation, Bias
+#### Distortion
+#### Resonator
+#### Reverb
+#### Chorus
+#### Delay
 
 ### Ext. In
 It's an external in! You can route external sound into the synth if you want now, and it will go through the modulation matrix like everything else (and will be affected by the filters). It is only open if midi data is going into the plugin though.
@@ -89,13 +99,7 @@ It's an external in! You can route external sound into the synth if you want now
 - The default 'Init' state just has Operator 1 audible. You can check this when you open the synth up by opening up this page and looking on the far right.
 
 ## Effects
-- Basic effects taken straight from default juce effects!
-### Chorus
--Mix, Rate, and Depth.
-### Delay
--Mix, Time, and Feedback,
-### Reverb
--Mix and Room.
+- Use any three of the filters that you want! They always run in serial but you can order them in any way so it doesn't really matter. You can also target them in the extra modulation matrix :)
 
 ## Other Features:
 - You can sync an operator to DAW tempo and use it as an LFO. Do you want more LFOs? Why have LFOs when you can just have more operators??

@@ -43,8 +43,8 @@ struct CompactOperatorGroup : public juce::Component
         waveShapeSelector.addItemList ({ "Sine", "Triangle", "Saw", "Square", "White Noise", "Pink Noise" }, 1);
         addAndMakeVisible (waveShapeSelector);
         
-        filterTypeSelector.addItemList ({ "Lowpass", "Highpass", "Bandpass", "Comb", "Granular", "Formant" }, 1);
-        addAndMakeVisible (filterTypeSelector);
+        filterTypeSelector.addItemList (ProjectConfig::getFilterTypeChoices(), 1);
+	addAndMakeVisible (filterTypeSelector);
 
         // APVTS Links
         syncAttach    = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (apvts, "TEMPO_SYNC_" + opNum, syncButton);
@@ -116,66 +116,52 @@ struct CompactOperatorGroup : public juce::Component
 
 private:
     // Combined logic method avoids layout text fighting
-    void updateUIState() // Update the state of the UI depending on the settings!
+    void updateUIState()
     {
-        int selectedMode = modeSelector.getSelectedId();
-        bool isWaveMode = (selectedMode == 1);
-	bool isAdditiveMode = (selectedMode == 2);
-        bool isFilterMode = (selectedMode == 3);
-	bool isExtAudioMode = (selectedMode == 4);
-        bool isSynced = syncButton.getToggleState();
-	// Check for granular filter
-	int selectedFilter = filterTypeSelector.getSelectedId();
-	bool isGranular = (isFilterMode && selectedFilter == 5); // 5 is Granular
-        bool isFormant = (isFilterMode && selectedFilter == 6); // 6 is Formant
-	waveShapeSelector.setVisible (isWaveMode);
+        int selectedMode   = modeSelector.getSelectedId();
+        bool isWaveMode    = (selectedMode == 1);
+        bool isAdditiveMode = (selectedMode == 2);
+        bool isFilterMode  = (selectedMode == 3);
+        bool isExtAudioMode = (selectedMode == 4);
+        bool isSynced      = syncButton.getToggleState();
+    
+        int selectedFilter = filterTypeSelector.getSelectedId();
+    
+        waveShapeSelector.setVisible (isWaveMode);
         filterTypeSelector.setVisible (isFilterMode);
-
-	if (isExtAudioMode)
-	{
-	    ratioLabel.setText ("Gain", juce::dontSendNotification);
+    
+        if (isExtAudioMode)
+        {
+            ratioLabel.setText  ("Gain", juce::dontSendNotification);
             detuneLabel.setText ("Tone", juce::dontSendNotification);
-            phaseLabel.setText ("Mod", juce::dontSendNotification);
-            foldLabel.setText ("Fold", juce::dontSendNotification);
-	}
-	else if (isGranular)
-	{
-	    ratioLabel.setText ("Grain Size", juce::dontSendNotification);
-            detuneLabel.setText ("Damping", juce::dontSendNotification);
-            phaseLabel.setText ("Scatter", juce::dontSendNotification);
-            foldLabel.setText ("Feedback", juce::dontSendNotification);
-	}
-	else if (isFormant)
-	{
-	    ratioLabel.setText ("Vowel", juce::dontSendNotification);
-            detuneLabel.setText ("Nasal", juce::dontSendNotification);
-            phaseLabel.setText ("Vowel Mod", juce::dontSendNotification);
-            foldLabel.setText("Drive", juce::dontSendNotification);
-	}
-	else if (isFilterMode)
-        {
-            ratioLabel.setText ("Cutoff", juce::dontSendNotification);
-            detuneLabel.setText ("Resonance", juce::dontSendNotification);
-            phaseLabel.setText ("Keytrack", juce::dontSendNotification);
-	    foldLabel.setText("Feedback", juce::dontSendNotification);
+            phaseLabel.setText  ("Mod",  juce::dontSendNotification);
+            foldLabel.setText   ("Fold", juce::dontSendNotification);
         }
-	else if (isAdditiveMode)
-	{
-            ratioLabel.setText (isSynced ? "Sync Rate" : "Ratio", juce::dontSendNotification);
-            detuneLabel.setText ("Tilt", juce::dontSendNotification);
-            phaseLabel.setText ("Stretch", juce::dontSendNotification);
-            foldLabel.setText ("Odd/Even", juce::dontSendNotification);
-	}
-        else
+        else if (isAdditiveMode)
         {
-            ratioLabel.setText (isSynced ? "Sync Rate" : "Ratio", juce::dontSendNotification);
+            ratioLabel.setText  (isSynced ? "Sync Rate" : "Ratio", juce::dontSendNotification);
+            detuneLabel.setText ("Tilt",     juce::dontSendNotification);
+            phaseLabel.setText  ("Stretch",  juce::dontSendNotification);
+            foldLabel.setText   ("Odd/Even", juce::dontSendNotification);
+        }
+        else if (isFilterMode)
+        {
+            // Use shared label lookup — filterTypeSelector is 1-indexed, getFilterKnobLabels is 0-indexed
+            auto labels = ProjectConfig::getFilterKnobLabels (selectedFilter - 1);
+            ratioLabel.setText  (labels[0], juce::dontSendNotification);
+            detuneLabel.setText (labels[1], juce::dontSendNotification);
+            phaseLabel.setText  (labels[2], juce::dontSendNotification);
+            foldLabel.setText   (labels[3], juce::dontSendNotification);
+        }
+        else // Wave mode
+        {
+            ratioLabel.setText  (isSynced ? "Sync Rate" : "Ratio", juce::dontSendNotification);
             detuneLabel.setText ("Detune", juce::dontSendNotification);
-            phaseLabel.setText ("Phase", juce::dontSendNotification);
-	    foldLabel.setText ("Fold", juce::dontSendNotification);
+            phaseLabel.setText  ("Phase",  juce::dontSendNotification);
+            foldLabel.setText   ("Fold",   juce::dontSendNotification);
         }
-
+    
         ratioSlider.setTextValueSuffix (isSynced ? "x" : "");
-
         if (getWidth() > 0 && getHeight() > 0)
             resized();
     }

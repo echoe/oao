@@ -1,6 +1,7 @@
 #pragma once
 #include <JuceHeader.h>
 #include "PluginProcessor.h"
+#include "Constants.h"
 
 class EffectsSlot : public juce::Component
 {
@@ -9,22 +10,10 @@ public:
     {
         juce::String s = juce::String (slotIndex + 1);
 
-        // Filter type selector
-        filterSelector.addItem ("None",               1);
-        filterSelector.addItem ("Lowpass",            2);
-        filterSelector.addItem ("Highpass",           3);
-        filterSelector.addItem ("Bandpass",           4);
-        filterSelector.addItem ("Comb",               5);
-        filterSelector.addItem ("Granular",           6);
-        filterSelector.addItem ("Tape",               7);
-        filterSelector.addItem ("Distortion",         8);
-        filterSelector.addItem ("Spectral Resonator", 9);
-        filterSelector.addItem ("Chorus",             10);
-        filterSelector.addItem ("Allpass Delay",      11);
-        filterSelector.addItem ("Allpass Reverb",     12);
-        filterSelector.setSelectedId (1, juce::dontSendNotification);
+        // Filter type selector. We grab the list from Constants.h
+        filterSelector.addItemList (ProjectConfig::getFilterTypeChoices(), 1);
+	filterSelector.setSelectedId (1, juce::dontSendNotification);
         addAndMakeVisible (filterSelector);
-
         // Sync button
         syncButton.setButtonText ("Sync");
         syncButton.setClickingTogglesState (true);
@@ -55,14 +44,14 @@ public:
         addAndMakeVisible (slotLabel);
 
         // Attachments
-        filterAttach = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (
+	filterAttach = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (
             apvts, "FX_TYPE_" + s, filterSelector);
         syncAttach = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (
             apvts, "FX_SYNC_" + s, syncButton);
         mixAttach = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
             apvts, "FX_MIX_" + s, mixSlider);
-
-        const juce::StringArray knobIDs = { "FX_A_", "FX_B_", "FX_C_", "FX_D_" };
+        
+        const juce::StringArray knobIDs = { "FX_RATIO_", "FX_DETUNE_", "FX_PHASE_", "FX_FOLD_" };
         for (int i = 0; i < 4; ++i)
             knobAttachments[i] = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
                 apvts, knobIDs[i] + s, knobs[i]);
@@ -74,23 +63,10 @@ public:
 
     void updateLabels()
     {
-        int selectedId = filterSelector.getSelectedId();
-        switch (selectedId)
-        {
-            case 1:  setKnobLabels ("--",      "--",       "--",      "--");      break; // None
-            case 2:  setKnobLabels ("Cutoff",  "Resonance","Keytrack","Drive");   break; // LP
-            case 3:  setKnobLabels ("Cutoff",  "Resonance","Keytrack","Drive");   break; // HP
-            case 4:  setKnobLabels ("Cutoff",  "Resonance","Keytrack","Drive");   break; // BP
-            case 5:  setKnobLabels ("Cutoff",  "Feedback", "Keytrack","Damping"); break; // Comb
-            case 6:  setKnobLabels ("Size",    "Damping",  "Scatter", "Feedback");break; // Granular
-            case 7:  setKnobLabels ("Wobble",  "Age",      "Saturation","Speed"); break; // Tape
-            case 8:  setKnobLabels ("Drive",   "Tone",     "Mix",     "Flavor");  break; // Distortion
-            case 9:  setKnobLabels ("Freq",    "Resonance","Spread",  "Decay");   break; // Spectral
-            case 10: setKnobLabels ("Rate",    "Depth",    "Spread",  "Feedback");break; // Chorus
-            case 11: setKnobLabels ("Time",    "Feedback", "Spread",  "Damping"); break; // AP Delay
-            case 12: setKnobLabels ("Size",    "Diffusion","Decay",   "Damping"); break; // AP Reverb
-            default: setKnobLabels ("A",       "B",        "C",       "D");       break;
-        }
+        int typeIndex = filterSelector.getSelectedId() - 1; // ComboBox is 1-indexed
+        auto labels = ProjectConfig::getFilterKnobLabels (typeIndex);
+        for (int i = 0; i < 4; ++i)
+            knobLabels[i].setText (labels[i], juce::dontSendNotification);
     }
 
     void paint (juce::Graphics& g) override

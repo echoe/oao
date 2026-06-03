@@ -83,7 +83,7 @@ public:
             f_s1[i] = 0.0f;
             f_s2[i] = 0.0f;
         }
-        lastCombDamping = 0.0f;
+        lastCombDamping = 0.0f; //comb
         
         if (!combBuffer.empty())
             std::fill (combBuffer.begin(), combBuffer.end(), 0.0f);
@@ -91,8 +91,14 @@ public:
         writePtr = 0;
 
         for (auto& g : grains) {
-            g.isActive = false;
+            g.isActive = false; //granular
         }
+	//tape
+	tapePhase    = 0.0f;
+	tapeWritePtr = 0;
+	tapeReadPtr  = 0.0f;
+	tapeLastSample = 0.0f;
+	std::fill (std::begin (tapeDelayBuffer), std::end (tapeDelayBuffer), 0.0f);
     }
 
     void noteStarted()
@@ -343,6 +349,76 @@ public:
         return outputAccumulator + input; // Wet + Dry
     }
 
+    float processSampleTape (float input, float wobbleRate, float age,
+                         float saturation, float bias,
+                         double sampleRate)
+    {
+        // -------------------------------------------------------
+        // 1. BIAS — affects how the tape magnetizes before saturation
+        // bias: 0.0 = underbias (harsh/bright), 0.5 = optimal, 1.0 = overbias (dull/soft)
+        // -------------------------------------------------------
+        float biasOffset  = (bias - 0.5f) * 2.0f;  // -1.0 to 1.0
+        float biasedInput = input + biasOffset * input * input;
+        biasedInput       = juce::jlimit (-1.0f, 1.0f, biasedInput);
+    
+        // -------------------------------------------------------
+        // 2. SATURATION — tape drive after bias
+        // -------------------------------------------------------
+        float driveAmt  = 1.0f + saturation * 8.0f;
+        float saturated = std::tanh (biasedInput * driveAmt) / std::tanh (driveAmt);
+    
+        // -------------------------------------------------------
+        // 3. WOW/FLUTTER — modulate delay time with an LFO
+        // -------------------------------------------------------
+        float baseDelaySamples = static_cast<float> (sampleRate) * 0.005f; // 5ms base
+    
+        float wowRate    = wobbleRate * 2.0f;
+        float wowAmt     = std::sin (tapePhase) * 0.6f;
+        float flutterAmt = std::sin (tapePhase * 7.0f) * 0.4f;
+        float wobble     = (wowAmt + flutterAmt) * wobbleRate;
+    
+        tapePhase += (wowRate * juce::MathConstants<float>::twoPi)
+                     / static_cast<float> (sampleRate);
+        if (tapePhase >= juce::MathConstants<float>::twoPi)
+            tapePhase -= juce::MathConstants<float>::twoPi;
+    
+        int bufferSize = 8192;
+        tapeDelayBuffer[tapeWritePtr] = saturated;
+        tapeWritePtr = (tapeWritePtr + 1) % bufferSize;
+    
+        float delaySamples = juce::jlimit (1.0f, static_cast<float> (bufferSize - 4),
+                                            baseDelaySamples + wobble * baseDelaySamples);
+        tapeReadPtr = static_cast<float> (tapeWritePtr) - delaySamples;
+        while (tapeReadPtr < 0.0f) tapeReadPtr += static_cast<float> (bufferSize);
+    
+        // Hermite interpolation
+        int   idx1 = static_cast<int> (tapeReadPtr) % bufferSize;
+        float frac = tapeReadPtr - std::floor (tapeReadPtr);
+        int   idx0 = (idx1 - 1 + bufferSize) % bufferSize;
+        int   idx2 = (idx1 + 1) % bufferSize;
+        int   idx3 = (idx1 + 2) % bufferSize;
+    
+        float y0 = tapeDelayBuffer[idx0];
+        float y1 = tapeDelayBuffer[idx1];
+        float y2 = tapeDelayBuffer[idx2];
+        float y3 = tapeDelayBuffer[idx3];
+    
+        float c0 = y1;
+        float c1 = 0.5f * (y2 - y0);
+        float c2 = y0 - 2.5f * y1 + 2.0f * y2 - 0.5f * y3;
+        float c3 = 0.5f * (y3 - y0) + 1.5f * (y1 - y2);
+        float output = ((c3 * frac + c2) * frac + c1) * frac + c0;
+    
+        // -------------------------------------------------------
+        // 4. AGE — one-pole low-pass for HF loss
+        // -------------------------------------------------------
+        float ageCoeff = 1.0f - (age * 0.92f);
+        output         = output * ageCoeff + tapeLastSample * (1.0f - ageCoeff);
+        tapeLastSample = output;
+    
+        return std::isfinite (output) ? output : 0.0f;
+    }
+
     int getCurrentType() const noexcept { return static_cast<int>(currentType); }
 
 protected:
@@ -380,6 +456,14 @@ protected:
     static constexpr int maxGrains = 16; // Adjust based on CPU limits
     std::vector<Grain> grains;
     uint32_t lcgState { 12345 }; // Seed for fastRandom()
+
+    // Tape filter state
+    float tapePhase        = 0.0f;  // wobble LFO phase
+    float tapeDelayBuffer[8192] { 0.0f }; // short delay for wow/flutter
+    int   tapeWritePtr     = 0;
+    float tapeReadPtr      = 0.0f;
+    float tapeLastSample   = 0.0f; // for age/HF loss one-pole filter
+    float tapeSatDrive     = 1.0f;
 
     // Parameters Cache
     double sampleRate { 44100.0 };

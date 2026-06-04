@@ -551,6 +551,17 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
                         processed = std::isfinite (processed) ? processed : 0.0f;
                         break;
                     }
+		    case 15: // Chorus
+                    {
+                        float rate   = normalizedRatio;
+                        float depth  = dampingAmt;
+                        float spread = phase / 360.0f;
+                        float voices = juce::jlimit (0.0f, 1.0f, fold);
+                        processed = fxFilters[slot].processSampleChorus (inputSample, rate, depth,
+                                                                          spread, voices, getSampleRate());
+                        processed = std::isfinite (processed) ? processed : 0.0f;
+                        break;
+                    }
                     default:
                         processed = inputSample;
                         break;

@@ -18,33 +18,26 @@ struct CompactOperatorGroup : public juce::Component
             label.setJustificationType (juce::Justification::centred);
             addAndMakeVisible (label);
         };
-    
         setupSlider (ratioSlider, ratioLabel, "Ratio", true);
         setupSlider (detuneSlider, detuneLabel, "Detune", true);
         setupSlider (phaseSlider, phaseLabel, "Phase", true);
         setupSlider (foldSlider, foldLabel, "Fold", true);
-    
         setupSlider (attackSlider, attackLabel, "Attack", false);
         setupSlider (decaySlider, decayLabel, "Decay", false);
         setupSlider (sustainSlider, sustainLabel, "Suspend", false);
         setupSlider (releaseSlider, releaseLabel, "Release", false);
-    
         opHeaderLabel.setText ("OPERATOR " + opNum, juce::dontSendNotification);
         opHeaderLabel.setFont (juce::FontOptions (13.0f, juce::Font::bold));
         addAndMakeVisible (opHeaderLabel);
-
         syncButton.setButtonText ("Sync");
         syncButton.setClickingTogglesState (true);
         addAndMakeVisible (syncButton);
-        
         modeSelector.addItemList ({ "Wave", "Additive", "Filter", "Ext. In" }, 1);
         addAndMakeVisible (modeSelector);
-
         waveShapeSelector.addItemList ({ "Sine", "Triangle", "Saw", "Square", "White Noise", "Pink Noise" }, 1);
         addAndMakeVisible (waveShapeSelector);
-        
         filterTypeSelector.addItemList (ProjectConfig::getFilterTypeChoices(), 1);
-	addAndMakeVisible (filterTypeSelector);
+addAndMakeVisible (filterTypeSelector);
 
         // APVTS Links
         syncAttach    = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (apvts, "TEMPO_SYNC_" + opNum, syncButton);
@@ -52,12 +45,10 @@ struct CompactOperatorGroup : public juce::Component
         detuneAttach  = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (apvts, "DETUNE_" + opNum, detuneSlider);
         phaseAttach   = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (apvts, "PHASE_" + opNum, phaseSlider);
         foldAttach    = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (apvts, "FOLD_" + opNum, foldSlider);
-    
         attackAttach  = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (apvts, "ATTACK_" + opNum, attackSlider);
         decayAttach   = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (apvts, "DECAY_" + opNum, decaySlider);
         sustainAttach = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (apvts, "SUSTAIN_" + opNum, sustainSlider);
         releaseAttach = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (apvts, "RELEASE_" + opNum, releaseSlider);
-        
         modeAttach      = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (apvts, "MODE_" + opNum, modeSelector);
         waveShapeAttach = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (apvts, "WAVE_SHAPE_" + opNum, waveShapeSelector);
         filterTypeAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (apvts, "FILTER_TYPE_" + opNum, filterTypeSelector);
@@ -65,8 +56,7 @@ struct CompactOperatorGroup : public juce::Component
         // Safe UI state triggers using the stored class member reference
         modeSelector.onChange = [this]() { updateUIState(); };
         syncButton.onClick    = [this]() { updateUIState(); };
-	filterTypeSelector.onChange = [this]() {updateUIState(); };
-    
+        filterTypeSelector.onChange = [this]() {updateUIState(); };
         updateUIState();
     }
 
@@ -83,7 +73,7 @@ struct CompactOperatorGroup : public juce::Component
     {
         auto area = getLocalBounds().reduced (6);
         auto topStrip = area.removeFromTop (22);
-	int topStripSize = topStrip.getWidth();
+int topStripSize = topStrip.getWidth();
         // 1. Position the Header and Sync Button
         opHeaderLabel.setBounds (topStrip.removeFromLeft (topStripSize*0.25f));
         syncButton.setBounds (topStrip.removeFromLeft (topStripSize*0.2f).reduced (1));
@@ -91,8 +81,8 @@ struct CompactOperatorGroup : public juce::Component
         modeSelector.setBounds (topStrip.removeFromLeft (topStripSize*0.25f).reduced (1));
         // 3. The remaining space goes to the conditional dropdowns. if/else.
         if (filterTypeSelector.isVisible())
-	{
-	    filterTypeSelector.setBounds (topStrip.reduced (1));
+{
+    filterTypeSelector.setBounds (topStrip.reduced (1));
         }
         else
         {
@@ -227,4 +217,4 @@ public:
 
 private:
     std::vector<std::unique_ptr<CompactOperatorGroup>> opModules;
-};
+}; 

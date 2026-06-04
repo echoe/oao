@@ -76,11 +76,7 @@ struct ModMatrixSlot : public juce::Component
         amountSlider.setBounds   (area.reduced (2, 0));
     }
 
-    void paint (juce::Graphics& g) override
-    {
-        // Subtle alternating row tint — slotIndex is determined by position in parent
-        g.fillAll (juce::Colours::black.withAlpha (0.08f));
-    }
+    void paint (juce::Graphics& g) override {}
 
 private:
     juce::Label    rowLabel;
@@ -150,12 +146,12 @@ public:
 
     void paint (juce::Graphics& g) override
     {
-        g.fillAll (juce::Colours::darkgrey.darker (0.3f));
+        // commented to use default g.fillAll (juce::Colours::darkgrey.darker (0.3f));
 
         // Title
         g.setColour (juce::Colours::white);
         g.setFont (juce::jlimit (8.0f, 18.0f, cellSize * 0.20f));
-        g.drawText (matrixTitle, getLocalBounds().removeFromTop (40), juce::Justification::centred);
+        g.drawText (matrixTitle, getLocalBounds().removeFromTop (30), juce::Justification::centred);
 
         // Row/column labels for the NxN grid
         g.setColour (juce::Colours::lightgrey);
@@ -186,15 +182,15 @@ public:
         g.setFont (juce::jlimit (8.0f, 18.0f, cellSize * 0.15f));
         juce::String sideTitle = (paramPrefix == "MOD_") ? "MOD ROUTING" : "CARRIER OUTPUTS";
         g.drawText (sideTitle,
-                    static_cast<int> (splitX) + 8, 30,
-                    getWidth() - static_cast<int> (splitX) - 16, 18,
+                    static_cast<int> (splitX) + 8, 10,
+                    getWidth() - static_cast<int> (splitX) -16, 18,
                     juce::Justification::centred);
     }
 
     void resized() override
     {
         auto area = getLocalBounds();
-        area.removeFromTop (50);
+        area.removeFromTop (30);
     
         int totalW       = area.getWidth();
         auto gridArea    = area.removeFromLeft (static_cast<int> (totalW * splitRatio));
@@ -248,7 +244,7 @@ private:
 
     // Grid geometry — tweak these to taste
     int gridX     = 45;
-    int gridY     = 50;
+    int gridY     = 70;
     int cellSize  = 90;
     static constexpr float splitRatio = 0.65f;
 

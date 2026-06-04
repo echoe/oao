@@ -141,6 +141,10 @@ public:
 	// ring mod
 	ringPhase    = 0.0f;
         ringFeedback = 0.0f;
+	// chorus
+	chorusDelayBuffer.fill (0.0f);
+        chorusWritePtr = 0;
+        chorusLFOPhases.fill (0.0f);
     }
 
     void noteStarted()
@@ -897,6 +901,91 @@ public:
         return modulated * depth + input * (1.0f - depth);
     }
 
+    float processSampleChorus (float input, float rate, float depth,
+                                float spread, float voices,
+                                double sampleRate)
+    {
+        // -------------------------------------------------------
+        // 1. WRITE TO DELAY BUFFER
+        // -------------------------------------------------------
+        chorusDelayBuffer[chorusWritePtr] = input;
+        chorusWritePtr = (chorusWritePtr + 1) % chorusDelaySize;
+    
+        // -------------------------------------------------------
+        // 2. NUMBER OF VOICES
+        // -------------------------------------------------------
+        int numVoices = juce::jlimit (1, numChorusVoices,
+                           static_cast<int> (1.0f + voices * 3.0f)); // 1-4 voices
+    
+        // -------------------------------------------------------
+        // 3. BASE PARAMETERS
+        // -------------------------------------------------------
+        // Rate: 0.0 = 0.1Hz, 1.0 = 5Hz
+        float lfoRate   = 0.1f + rate * 4.9f;
+    
+        // Depth: controls delay modulation range (1ms - 20ms)
+        float depthMs   = 1.0f + depth * 19.0f;
+        float depthSamples = depthMs / 1000.0f * static_cast<float> (sampleRate);
+    
+        // Base delay: center of modulation (5ms - 30ms)
+        float baseDelayMs      = 5.0f + depth * 25.0f;
+        float baseDelaySamples = baseDelayMs / 1000.0f * static_cast<float> (sampleRate);
+    
+        // -------------------------------------------------------
+        // 4. ACCUMULATE VOICES
+        // -------------------------------------------------------
+        float output = 0.0f;
+    
+        for (int v = 0; v < numVoices; ++v)
+        {
+            // Each voice has a phase offset based on spread
+            float phaseOffset = spread * juce::MathConstants<float>::twoPi
+                                * static_cast<float> (v) / static_cast<float> (numVoices);
+    
+            // Advance LFO
+            float lfoPhaseIncrement = lfoRate * juce::MathConstants<float>::twoPi
+                                      / static_cast<float> (sampleRate);
+            chorusLFOPhases[v] += lfoPhaseIncrement;
+            if (chorusLFOPhases[v] >= juce::MathConstants<float>::twoPi)
+                chorusLFOPhases[v] -= juce::MathConstants<float>::twoPi;
+    
+            // LFO value with voice phase offset
+            float lfo = std::sin (chorusLFOPhases[v] + phaseOffset);
+    
+            // Modulated delay time
+            float delaySamples = juce::jlimit (1.0f, static_cast<float> (chorusDelaySize - 4),
+                                     baseDelaySamples + lfo * depthSamples);
+    
+            // Read position
+            float readPos = static_cast<float> (chorusWritePtr) - delaySamples;
+            while (readPos < 0.0f) readPos += static_cast<float> (chorusDelaySize);
+    
+            // Hermite interpolation
+            int   idx1 = static_cast<int> (readPos) % chorusDelaySize;
+            float frac = readPos - std::floor (readPos);
+            int   idx0 = (idx1 - 1 + chorusDelaySize) % chorusDelaySize;
+            int   idx2 = (idx1 + 1) % chorusDelaySize;
+            int   idx3 = (idx1 + 2) % chorusDelaySize;
+    
+            float y0 = chorusDelayBuffer[idx0];
+            float y1 = chorusDelayBuffer[idx1];
+            float y2 = chorusDelayBuffer[idx2];
+            float y3 = chorusDelayBuffer[idx3];
+    
+            float c0 = y1;
+            float c1 = 0.5f * (y2 - y0);
+            float c2 = y0 - 2.5f * y1 + 2.0f * y2 - 0.5f * y3;
+            float c3 = 0.5f * (y3 - y0) + 1.5f * (y1 - y2);
+            output += ((c3 * frac + c2) * frac + c1) * frac + c0;
+        }
+    
+        // Normalize by voice count
+        output /= static_cast<float> (numVoices);
+    
+        // Mix with dry signal
+        return output * 0.7f + input * 0.3f;
+    }
+
     int getCurrentType() const noexcept { return static_cast<int>(currentType); }
 
 protected:
@@ -996,6 +1085,13 @@ protected:
     // Ring Mod
     float ringPhase     = 0.0f;
     float ringFeedback  = 0.0f;
+
+    // Chorus state
+    static constexpr int chorusDelaySize = 48000;
+    static constexpr int numChorusVoices = 4;
+    std::array<float, chorusDelaySize> chorusDelayBuffer { 0.0f };
+    int   chorusWritePtr = 0;
+    std::array<float, numChorusVoices> chorusLFOPhases { 0.0f, 0.0f, 0.0f, 0.0f };
 
     // Parameters Cache
     double sampleRate { 44100.0 };

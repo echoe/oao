@@ -71,7 +71,7 @@ public:
 
     void paint (juce::Graphics& g) override
     {
-        g.fillAll (juce::Colours::darkgrey.darker (0.2f));
+        //g.fillAll (juce::Colours::darkgrey.darker (0.2f));
         g.setColour (juce::Colours::white.withAlpha (0.1f));
         g.drawRect (getLocalBounds(), 1);
     }
@@ -144,7 +144,7 @@ public:
 
     void paint (juce::Graphics& g) override
     {
-        g.fillAll (juce::Colours::darkgrey.darker (0.3f));
+        //g.fillAll (juce::Colours::darkgrey.darker (0.3f));
 
         // Draw flow arrows between slots
         g.setColour (juce::Colours::white.withAlpha (0.3f));

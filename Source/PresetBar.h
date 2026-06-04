@@ -99,7 +99,7 @@ public:
 
     void paint (juce::Graphics& g) override
     {
-        g.fillAll (juce::Colours::black.brighter (0.1f));
+        //g.fillAll (juce::Colours::black.brighter (0.1f));
         g.setColour (juce::Colours::white.withAlpha (0.15f));
         g.drawHorizontalLine (getHeight() - 1, 0.0f, static_cast<float> (getWidth()));
     }

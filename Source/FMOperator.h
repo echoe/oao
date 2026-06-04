@@ -265,6 +265,17 @@ public:
                                                                      depth, feedback, currentSampleRate);
                 outputSample = std::isfinite (output) ? output : 0.0f;
             }
+	    else if (filterType == 15) // Chorus
+            {
+                float rate   = (ratio - 0.01f) / (16.0f - 0.01f);
+                float depth  = juce::jlimit (0.0f, 1.0f, (detune + 50.0f) / 100.0f);
+                float spread = phaseKnob / 360.0f;
+                float voices = juce::jlimit (0.0f, 1.0f, foldKnob);
+            
+                float output = internalFilter.processSampleChorus (audioInputSum, rate, depth,
+                                                                    spread, voices, currentSampleRate);
+                outputSample = std::isfinite (output) ? output : 0.0f;
+            }
         }
         else // Here are our oscillators, Wave and Additive. They all need these:
         {

@@ -6,16 +6,20 @@
 #include "PresetBar.h"
 #include "EffectsPage.h"
 #include "Oscilloscope.h"
-
+#include "OAOColors.h"
+#include "OAOLookAndFeel.h"
+#include "SettingsPage.h"
 
 class FMPluginAudioProcessorEditor : public juce::AudioProcessorEditor
 {
 public:
-    enum class PageView { Operators, Matrix, AudioMatrix, Effects };
+    enum class PageView { Operators, Matrix, AudioMatrix, Effects, Settings };
 
     // Simply declare the constructor and destructor here. No curly braces!
     FMPluginAudioProcessorEditor (FMPluginAudioProcessor&);
     ~FMPluginAudioProcessorEditor() override;
+    
+    //setLookAndFeel (nullptr);
 
     void setPage (PageView pageToDisplay);
     void paint (juce::Graphics& g) override;
@@ -24,13 +28,16 @@ public:
 private:
     FMPluginAudioProcessor& audioProcessor;
     PresetBar presetBar; // <-- Preset support
+    OAOColors       oaoColors;
+    OAOLookAndFeel  oaoLookAndFeel { oaoColors };
     std::unique_ptr<Oscilloscope> oscilloscope;
     juce::Label titleLabel;
-    juce::TextButton opsPageButton, matrixPageButton, audioMatrixPageButton, effectsPageButton;
+    juce::TextButton opsPageButton, matrixPageButton, audioMatrixPageButton, effectsPageButton, settingsPageButton;
     OperatorsPage opsPage;
     MatrixPage matrixPage;
     MatrixPage audioMatrixPage;
     EffectsPage effectsPage;
+    SettingsPage    settingsPage   { oaoColors, oaoLookAndFeel };
 
     PageView currentPage = PageView::Operators;
     juce::Slider gainSlider;

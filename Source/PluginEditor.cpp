@@ -10,13 +10,28 @@ FMPluginAudioProcessorEditor::FMPluginAudioProcessorEditor (FMPluginAudioProcess
       opsPage (p.apvts),     // Pass APVTS context straight down
       matrixPage (p.apvts, "MOD_", "Modulation Matrix"),   // Pass APVTS context straight down
       audioMatrixPage (p.apvts, "AUDIO_ROUTE_", "Audio Matrix"), // APVTS context etc.
-      effectsPage (p.apvts) // APVTS context etc.
+      effectsPage (p.apvts), // APVTS context etc.
+      settingsPage (oaoColors, oaoLookAndFeel) // APVTS context etc.? Don't know why this isn't there
 {
+    // Load saved colors first
+    oaoColors.loadFromFile();
+
+    // Apply look and feel globally
+    setLookAndFeel (&oaoLookAndFeel);
+
+    // Settings page
+    settingsPage.onColorsChanged = [this]
+    {
+        oaoLookAndFeel.applyColors();
+        repaint();
+    };
+
     addAndMakeVisible (presetBar);
     addAndMakeVisible (opsPage);
     addAndMakeVisible (matrixPage);
     addAndMakeVisible (audioMatrixPage);
     addAndMakeVisible (effectsPage);
+    addAndMakeVisible (settingsPage);
 
     presetBar.onScaleChanged = [this] (float scale)
     {
@@ -29,11 +44,11 @@ FMPluginAudioProcessorEditor::FMPluginAudioProcessorEditor (FMPluginAudioProcess
 
     // Navigation Buttons Configuration
     addAndMakeVisible (opsPageButton);
-    opsPageButton.setButtonText ("Operators & Envelopes");
+    opsPageButton.setButtonText ("Operators");
     opsPageButton.onClick = [this] { setPage (PageView::Operators); };
 
     addAndMakeVisible (matrixPageButton);
-    matrixPageButton.setButtonText ("Modulation Matrix");
+    matrixPageButton.setButtonText ("Mod Matrix");
     matrixPageButton.onClick = [this] { setPage (PageView::Matrix); };
 
     addAndMakeVisible (audioMatrixPageButton);
@@ -43,6 +58,10 @@ FMPluginAudioProcessorEditor::FMPluginAudioProcessorEditor (FMPluginAudioProcess
     addAndMakeVisible (effectsPageButton);
     effectsPageButton.setButtonText ("Effects");
     effectsPageButton.onClick = [this] { setPage (PageView::Effects); };
+
+    addAndMakeVisible (settingsPageButton);
+    settingsPageButton.setButtonText ("Settings");
+    settingsPageButton.onClick = [this] { setPage (PageView::Settings); };
 
     // Gain slider, since a JUCE limiter simply does not work. Configure slider style!
     gainSlider.setSliderStyle (juce::Slider::LinearHorizontal);
@@ -71,7 +90,10 @@ FMPluginAudioProcessorEditor::FMPluginAudioProcessorEditor (FMPluginAudioProcess
     setSize (ProjectConfig::pluginSizeX, ProjectConfig::pluginSizeY); // Expanded boundary footprint to comfortably show labels
 }
 
-FMPluginAudioProcessorEditor::~FMPluginAudioProcessorEditor() {}
+FMPluginAudioProcessorEditor::~FMPluginAudioProcessorEditor()
+{
+setLookAndFeel (nullptr); // ✅ Crucial for JUCE UI teardown
+}
 
 void FMPluginAudioProcessorEditor::setPage (PageView pageToDisplay)
 {
@@ -81,16 +103,18 @@ void FMPluginAudioProcessorEditor::setPage (PageView pageToDisplay)
     matrixPage.setVisible (currentPage == PageView::Matrix);
     audioMatrixPage.setVisible (currentPage == PageView::AudioMatrix);
     effectsPage.setVisible (currentPage == PageView::Effects);
+    settingsPage.setVisible (currentPage == PageView::Settings);
     // Ensure the top button highlight states visually match the current selection
     opsPageButton.setToggleState (currentPage == PageView::Operators, juce::dontSendNotification);
     matrixPageButton.setToggleState (currentPage == PageView::Matrix, juce::dontSendNotification);
     audioMatrixPageButton.setToggleState (currentPage == PageView::AudioMatrix, juce::dontSendNotification);
     effectsPageButton.setToggleState (currentPage == PageView::Effects, juce::dontSendNotification);
+    settingsPageButton.setToggleState (currentPage == PageView::Settings, juce::dontSendNotification);
 }
 
 void FMPluginAudioProcessorEditor::paint (juce::Graphics& g)
 {
-    g.fillAll (juce::Colours::black.withAlpha (0.9f));
+    g.fillAll (oaoColors.background);
 }
 
 void FMPluginAudioProcessorEditor::resized()
@@ -115,14 +139,16 @@ void FMPluginAudioProcessorEditor::resized()
 
     // Dedicate the subsequent 40px block underneath the PresetBar to UI Navigation Page switching
     auto navArea = area.removeFromTop (40);
-    int buttonWidth = getWidth() / 4;
+    int buttonWidth = getWidth() / 5;
     opsPageButton.setBounds (navArea.removeFromLeft (buttonWidth).reduced (4));
     matrixPageButton.setBounds (navArea.removeFromLeft (buttonWidth).reduced (4));
     audioMatrixPageButton.setBounds (navArea.removeFromLeft (buttonWidth).reduced (4));
-    effectsPageButton.setBounds (navArea.reduced (4));
+    effectsPageButton.setBounds      (navArea.removeFromLeft (buttonWidth).reduced (4));
+    settingsPageButton.setBounds     (navArea.reduced (4));
     // The active page occupies the remaining container bounds
     opsPage.setBounds (area);
     matrixPage.setBounds (area);
     audioMatrixPage.setBounds (area);
     effectsPage.setBounds (area);
+    settingsPage.setBounds (area);
 }

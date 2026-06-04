@@ -33,7 +33,7 @@ FMPluginAudioProcessorEditor::FMPluginAudioProcessorEditor (FMPluginAudioProcess
     addAndMakeVisible (effectsPage);
     addAndMakeVisible (settingsPage);
 
-    presetBar.onScaleChanged = [this] (float scale)
+    settingsPage.onScaleChanged = [this] (float scale)
     {
         // Your base size — adjust to match your actual default dimensions
         int baseWidth  = ProjectConfig::pluginSizeX;

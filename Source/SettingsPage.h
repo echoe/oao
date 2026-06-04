@@ -6,8 +6,10 @@
 class SettingsPage : public juce::Component, public juce::ChangeListener
 {
 public:
-    // Called when colors change so the editor can refresh
     std::function<void()> onColorsChanged;
+    
+    // ✅ Added the callback for the main editor
+    std::function<void(float)> onScaleChanged;
 
     SettingsPage (OAOColors& c, OAOLookAndFeel& laf) 
         : colors (c), lookAndFeel (laf)
@@ -28,6 +30,29 @@ public:
         minimalBtn.onClick    = [this] { colors.setMinimal();    refreshAll(); };
         warmBtn.onClick       = [this] { colors.setWarmAnalog(); refreshAll(); };
 
+        // Scale selector (50% to 200% in 25% steps)
+        scaleLabel.setText ("UI Scale:", juce::dontSendNotification);
+        scaleLabel.setJustificationType (juce::Justification::centredRight);
+        addAndMakeVisible (scaleLabel);
+        
+        int id = 1;
+        for (int percent = 50; percent <= 200; percent += 25)
+        {
+            scaleSelector.addItem (juce::String (percent) + "%", id++);
+            if (percent == 100)
+                scaleSelector.setSelectedId (id - 1, juce::dontSendNotification);
+        }
+        addAndMakeVisible (scaleSelector);
+        
+        scaleSelector.onChange = [this]
+        {
+            int selectedId  = scaleSelector.getSelectedId();
+            float percent   = 50.0f + (selectedId - 1) * 25.0f; 
+            float scale     = percent / 100.0f;
+            if (onScaleChanged)
+                onScaleChanged (scale);
+        };
+
         // HSB sliders for each color
         setupColorSection (backgroundSection, "Background",  colors.background);
         setupColorSection (primarySection,    "Primary",     colors.primary);
@@ -40,25 +65,27 @@ public:
         g.fillAll (colors.background);
 
         g.setColour (colors.text);
-        g.setFont (juce::Font (juce::FontOptions (18.0f)));
+        g.setFont (juce::FontOptions().withHeight(18.0f)); // Updated to JUCE 8 spec
         g.drawText ("Settings", getLocalBounds().removeFromTop (40),
                     juce::Justification::centred);
 
         g.setColour (colors.primary.withAlpha (0.3f));
         g.drawHorizontalLine (40, 8.0f, static_cast<float> (getWidth()) - 8.0f);
-
-        g.setColour (colors.textDim);
-        g.setFont (juce::Font (juce::FontOptions (12.0f)));
-        g.drawText ("Presets", 8, 48, 80, 20, juce::Justification::centredLeft);
-        g.drawText ("Colors",  8, 100, 80, 20, juce::Justification::centredLeft);
     }
 
     void resized() override
     {
         auto area = getLocalBounds().reduced (8);
-        area.removeFromTop (48);
+        area.removeFromTop (48); // Clear the header space
 
-        // Preset buttons row
+        // --- ROW 1: UI SCALE ---
+        auto scaleRow = area.removeFromTop (30);
+        scaleLabel.setBounds (scaleRow.removeFromLeft (60));
+        scaleSelector.setBounds (scaleRow.removeFromLeft (80).reduced(2));
+        
+        area.removeFromTop (16); // Gap
+
+        // --- ROW 2: PRESET BUTTONS ---
         auto presetRow  = area.removeFromTop (30);
         int  btnW       = presetRow.getWidth() / 4;
         synthwaveBtn.setBounds  (presetRow.removeFromLeft (btnW).reduced (2));
@@ -66,14 +93,17 @@ public:
         minimalBtn.setBounds    (presetRow.removeFromLeft (btnW).reduced (2));
         warmBtn.setBounds       (presetRow.reduced (2));
 
-        area.removeFromTop (16);
+        area.removeFromTop (16); // Gap
 
-        // Color sections
-        int sectionH = (area.getHeight()) / 4;
-        layoutSection (backgroundSection, area.removeFromTop (sectionH));
-        layoutSection (primarySection,    area.removeFromTop (sectionH));
-        layoutSection (secondarySection,  area.removeFromTop (sectionH));
-        layoutSection (surfaceSection,    area.removeFromTop (sectionH));
+        // --- ROW 3: COLOR PICKERS (SIDE-BY-SIDE) ---
+        // Give them a nice tall chunk of space so the text, box, and button can stack
+        auto colorRow = area.removeFromTop (160); 
+        int sectionW = colorRow.getWidth() / 4;
+        
+        layoutSection (backgroundSection, colorRow.removeFromLeft (sectionW));
+        layoutSection (primarySection,    colorRow.removeFromLeft (sectionW));
+        layoutSection (secondarySection,  colorRow.removeFromLeft (sectionW));
+        layoutSection (surfaceSection,    colorRow.removeFromLeft (sectionW));
     }
 
 private:
@@ -81,63 +111,59 @@ private:
     {
         juce::Label      nameLabel;
         juce::Label      previewBox;
-        juce::TextButton editButton; // <-- Replaces the 3 sliders and labels
+        juce::TextButton editButton; 
         juce::Colour* targetColor = nullptr;
     };
+    
     void setupColorSection (ColorSection& section, const juce::String& name,
                             juce::Colour& targetColor)
     {
         section.targetColor = &targetColor;
     
         section.nameLabel.setText (name, juce::dontSendNotification);
+        section.nameLabel.setJustificationType (juce::Justification::centred); // Center text
         addAndMakeVisible (section.nameLabel);
     
         addAndMakeVisible (section.previewBox);
         section.previewBox.setColour (juce::Label::backgroundColourId, targetColor);
     
-        // Setup the new Edit Button
         section.editButton.setButtonText ("Edit");
         addAndMakeVisible (section.editButton);
     
         section.editButton.onClick = [this, &section]()
         {
-            // Create the color selector
             auto* colorSelector = new juce::ColourSelector();
             colorSelector->setName (section.nameLabel.getText());
             colorSelector->setCurrentColour (*section.targetColor);
             colorSelector->setSize (300, 300);
     
-            // Tell the color picker to send updates to SettingsPage
             colorSelector->addChangeListener (this);
     
-            // Launch it in a popup box attached to the edit button!
             juce::CallOutBox::launchAsynchronously (std::unique_ptr<juce::Component>(colorSelector),
                                                     section.editButton.getScreenBounds(),
                                                     nullptr);
         };
     }
 
+    // ✅ Redesigned to stack elements vertically within the horizontal column
     void layoutSection (ColorSection& section, juce::Rectangle<int> area)
     {
-        area.reduce (4, 2);
-        section.nameLabel.setBounds (area.removeFromLeft (60));
-        section.previewBox.setBounds (area.removeFromLeft (60).reduced (2));
-        area.removeFromLeft (8);
-
-        section.editButton.setBounds (area.removeFromLeft (60).reduced(2));
+        area.reduce (4, 0); // Side padding
+        
+        // Stack top-to-bottom
+        section.nameLabel.setBounds (area.removeFromTop (24));
+        area.removeFromTop (4); // Gap
+        section.previewBox.setBounds (area.removeFromTop (60));
+        area.removeFromTop (8); // Gap
+        section.editButton.setBounds (area.removeFromTop (24));
     }
 
     void refreshAll()
     {
-        // Update preview boxes to reflect current slider values
-        backgroundSection.previewBox.setColour (juce::Label::backgroundColourId, 
-                                                 colors.background);
-        primarySection.previewBox.setColour    (juce::Label::backgroundColourId, 
-                                                 colors.primary);
-        secondarySection.previewBox.setColour  (juce::Label::backgroundColourId, 
-                                                 colors.secondary);
-        surfaceSection.previewBox.setColour    (juce::Label::backgroundColourId, 
-                                                 colors.surface);
+        backgroundSection.previewBox.setColour (juce::Label::backgroundColourId, colors.background);
+        primarySection.previewBox.setColour    (juce::Label::backgroundColourId, colors.primary);
+        secondarySection.previewBox.setColour  (juce::Label::backgroundColourId, colors.secondary);
+        surfaceSection.previewBox.setColour    (juce::Label::backgroundColourId, colors.surface);
 
         lookAndFeel.applyColors();
         colors.saveToFile();
@@ -148,24 +174,25 @@ private:
 
     void changeListenerCallback (juce::ChangeBroadcaster* source) override
     {
-        // If the change came from a ColourSelector...
         if (auto* cs = dynamic_cast<juce::ColourSelector*> (source))
         {
             juce::Colour newColor = cs->getCurrentColour();
             juce::String pickerName = cs->getName();
 
-            // Figure out which color we are editing based on the name we gave it
             if (pickerName == "Background") colors.background = newColor;
             if (pickerName == "Primary")    colors.primary = newColor;
             if (pickerName == "Secondary")  colors.secondary = newColor;
             if (pickerName == "Surface")    colors.surface = newColor;
 
-            refreshAll(); // Saves to file, triggers LookAndFeel, repaints
+            refreshAll(); 
         }
     }
 
     OAOColors&        colors;
     OAOLookAndFeel&   lookAndFeel;
+
+    juce::ComboBox    scaleSelector;
+    juce::Label       scaleLabel;
 
     juce::TextButton  synthwaveBtn, industrialBtn, minimalBtn, warmBtn;
 

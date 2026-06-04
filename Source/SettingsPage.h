@@ -58,6 +58,7 @@ public:
         setupColorSection (primarySection,    "Primary",     colors.primary);
         setupColorSection (secondarySection,  "Secondary",   colors.secondary);
         setupColorSection (surfaceSection,    "Surface",     colors.surface);
+	setupColorSection (textSection, "Text", colors.text);
     }
 
     void paint (juce::Graphics& g) override
@@ -76,13 +77,13 @@ public:
     void resized() override
     {
         auto area = getLocalBounds().reduced (8);
-        area.removeFromTop (48); // Clear the header space
+        area.removeFromTop (48);
 
         // --- ROW 1: UI SCALE ---
         auto scaleRow = area.removeFromTop (30);
         scaleLabel.setBounds (scaleRow.removeFromLeft (60));
         scaleSelector.setBounds (scaleRow.removeFromLeft (80).reduced(2));
-        
+
         area.removeFromTop (16); // Gap
 
         // --- ROW 2: PRESET BUTTONS ---
@@ -95,15 +96,19 @@ public:
 
         area.removeFromTop (16); // Gap
 
-        // --- ROW 3: COLOR PICKERS (SIDE-BY-SIDE) ---
-        // Give them a nice tall chunk of space so the text, box, and button can stack
-        auto colorRow = area.removeFromTop (160); 
-        int sectionW = colorRow.getWidth() / 4;
-        
+        // --- ROW 3: ALL 5 COLOR PICKERS ---
+        auto colorRow = area.removeFromTop (160); // 160px height for big preview squares
+
+        // ✅ Divide by 5 instead of 4!
+        int sectionW = colorRow.getWidth() / 5;
+
         layoutSection (backgroundSection, colorRow.removeFromLeft (sectionW));
         layoutSection (primarySection,    colorRow.removeFromLeft (sectionW));
         layoutSection (secondarySection,  colorRow.removeFromLeft (sectionW));
         layoutSection (surfaceSection,    colorRow.removeFromLeft (sectionW));
+
+        // ✅ Add the text section into whatever space is left on the right
+        layoutSection (textSection,       colorRow);
     }
 
 private:
@@ -164,6 +169,7 @@ private:
         primarySection.previewBox.setColour    (juce::Label::backgroundColourId, colors.primary);
         secondarySection.previewBox.setColour  (juce::Label::backgroundColourId, colors.secondary);
         surfaceSection.previewBox.setColour    (juce::Label::backgroundColourId, colors.surface);
+	textSection.previewBox.setColour       (juce::Label::backgroundColourId, colors.text);
 
         lookAndFeel.applyColors();
         colors.saveToFile();
@@ -183,6 +189,7 @@ private:
             if (pickerName == "Primary")    colors.primary = newColor;
             if (pickerName == "Secondary")  colors.secondary = newColor;
             if (pickerName == "Surface")    colors.surface = newColor;
+            if (pickerName == "Text")       colors.text = newColor;
 
             refreshAll(); 
         }
@@ -200,4 +207,5 @@ private:
     ColorSection primarySection;
     ColorSection secondarySection;
     ColorSection surfaceSection;
+    ColorSection textSection;
 };

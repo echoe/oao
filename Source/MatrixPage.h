@@ -1,6 +1,7 @@
 #pragma once
 #include <JuceHeader.h>
 #include "Constants.h"
+#include "OAOColors.h"
 
 // Shared choice lists — keep these in sync with PluginProcessor.cpp
 namespace ModChoices
@@ -30,7 +31,8 @@ namespace ModChoices
 // --- ONE ROW OF THE MODULATION MATRIX ---
 struct ModMatrixSlot : public juce::Component
 {
-    ModMatrixSlot (juce::AudioProcessorValueTreeState& apvts, int slotIndex)
+    ModMatrixSlot (juce::AudioProcessorValueTreeState& apvts, int slotIndex, OAOColors& c)
+        : colors(c)
     {
         juce::String s = juce::String (slotIndex + 1); // slots are 1-indexed in param IDs
 
@@ -78,7 +80,33 @@ struct ModMatrixSlot : public juce::Component
 
     void paint (juce::Graphics& g) override {}
 
+    void lookAndFeelChanged() override
+    {
+        juce::Component::lookAndFeelChanged();
+
+        // 3. Force the Row Label text color
+        rowLabel.setColour (juce::Label::textColourId, colors.text);
+
+        // 4. Force the ComboBox colors
+        sourceSelector.setColour (juce::ComboBox::backgroundColourId, colors.surface);
+        sourceSelector.setColour (juce::ComboBox::textColourId, colors.text);
+
+        targetSelector.setColour (juce::ComboBox::backgroundColourId, colors.surface);
+        targetSelector.setColour (juce::ComboBox::textColourId, colors.text);
+
+        // 5. Do the slider text boxes just like the main page
+        amountSlider.setColour (juce::Slider::textBoxBackgroundColourId, colors.surface);
+        amountSlider.setColour (juce::Slider::textBoxTextColourId, colors.text);
+
+        // Nudge everything
+        rowLabel.sendLookAndFeelChange();
+        sourceSelector.sendLookAndFeelChange();
+        targetSelector.sendLookAndFeelChange();
+        amountSlider.sendLookAndFeelChange();
+    }
+
 private:
+    OAOColors& colors;
     juce::Label    rowLabel;
     juce::ComboBox sourceSelector, targetSelector;
     juce::Slider   amountSlider;
@@ -92,10 +120,12 @@ private:
 class MatrixPage : public juce::Component
 {
 public:
+    // 1. Add OAOColors& to the constructor
     MatrixPage (juce::AudioProcessorValueTreeState& apvts,
                 const juce::String& prefix,
-                const juce::String& title)
-        : paramPrefix (prefix), matrixTitle (title)
+                const juce::String& title,
+                OAOColors& c) // <--- Added here
+        : paramPrefix (prefix), matrixTitle (title), colors (c)
     {
         // NxN FM grid — param IDs must be "FM_src_dest" (or whatever prefix+"src_dest")
         for (int src = 0; src < ProjectConfig::numOperators; ++src)
@@ -119,7 +149,7 @@ public:
         {
             for (int i = 0; i < 6; ++i)
             {
-                modSlots.push_back (std::make_unique<ModMatrixSlot> (apvts, i));
+                modSlots.push_back (std::make_unique<ModMatrixSlot> (apvts, i, colors));
                 addAndMakeVisible (*modSlots.back());
             }
         }
@@ -146,15 +176,12 @@ public:
 
     void paint (juce::Graphics& g) override
     {
-        // commented to use default g.fillAll (juce::Colours::darkgrey.darker (0.3f));
-
         // Title
-        g.setColour (juce::Colours::white);
+	g.setColour (colors.text);
         g.setFont (juce::jlimit (8.0f, 18.0f, cellSize * 0.20f));
         g.drawText (matrixTitle, getLocalBounds().removeFromTop (30), juce::Justification::centred);
 
         // Row/column labels for the NxN grid
-        g.setColour (juce::Colours::lightgrey);
         g.setFont (juce::jlimit (8.0f, 18.0f, cellSize * 0.15f));
 
         for (int i = 0; i < ProjectConfig::numOperators; ++i)
@@ -173,18 +200,19 @@ public:
         }
 
         // Sidebar divider
-        g.setColour (juce::Colours::white.withAlpha (0.12f));
         float splitX = getWidth() * splitRatio;
-        g.drawVerticalLine (static_cast<int> (splitX), 45.0f, getHeight() - 10.0f);
 
         // Sidebar header
-        g.setColour (juce::Colours::white.withAlpha (0.55f));
         g.setFont (juce::jlimit (8.0f, 18.0f, cellSize * 0.15f));
         juce::String sideTitle = (paramPrefix == "MOD_") ? "MOD ROUTING" : "CARRIER OUTPUTS";
         g.drawText (sideTitle,
                     static_cast<int> (splitX) + 8, 10,
                     getWidth() - static_cast<int> (splitX) -16, 18,
                     juce::Justification::centred);
+        // change color to draw line
+	g.setColour (colors.primary.withAlpha (0.3f));
+        g.drawVerticalLine (static_cast<int> (splitX), 45.0f, getHeight() - 10.0f);
+
     }
 
     void resized() override
@@ -238,10 +266,56 @@ public:
 	repaint();
     }
 
+    void lookAndFeelChanged() override
+    {
+        juce::Component::lookAndFeelChanged();
+
+        // Use the colors from your struct! (Change these to whichever ones you prefer)
+        auto newBgColor    = colors.surface;
+        auto newTextColour = colors.text;
+        auto newOutline    = juce::Colours::transparentBlack;
+
+        for (auto* s : matrixSliders)
+        {
+            if (s != nullptr)
+            {
+                s->setColour (juce::Slider::textBoxBackgroundColourId, newBgColor);
+                s->setColour (juce::Slider::textBoxTextColourId, newTextColour);
+                s->setColour (juce::Slider::textBoxOutlineColourId, newOutline);
+                s->sendLookAndFeelChange();
+            }
+        }
+
+        for (auto* s : outputSliders)
+        {
+            if (s != nullptr)
+            {
+                s->setColour (juce::Slider::textBoxBackgroundColourId, newBgColor);
+                s->setColour (juce::Slider::textBoxTextColourId, newTextColour);
+                s->setColour (juce::Slider::textBoxOutlineColourId, newOutline);
+                s->sendLookAndFeelChange();
+            }
+        }
+
+        for (auto& slot : modSlots)
+        {
+            if (slot != nullptr)
+                slot->lookAndFeelChanged();
+        }
+	for (auto* label : outputLabels)
+        {
+            if (label != nullptr)
+            {
+                label->setColour (juce::Label::textColourId, colors.text);
+                label->sendLookAndFeelChange();
+            }
+        }
+    }
+
 private:
     juce::String paramPrefix;
     juce::String matrixTitle;
-
+    OAOColors& colors; // Store colors reference
     // Grid geometry — tweak these to taste
     int gridX     = 45;
     int gridY     = 70;

@@ -87,4 +87,43 @@ struct OAOColors
         text       = juce::Colour (0xFFFFE8CC);
         textDim    = juce::Colour (0xFF806040);
     }
+    void setMintyBreeze()
+    {
+        background = juce::Colour (0xFFF4FDFF);
+        primary    = juce::Colour (0xFFBAE8E8);
+        secondary  = juce::Colour (0xFF2C698D);
+        surface    = juce::Colour (0xFFE3F6F5);
+        text       = juce::Colour (0xFF272643);
+        textDim    = juce::Colour (0xFF667788);
+    }
+
+    void setPeachBlossom()
+    {
+        background = juce::Colour (0xFFFFF5E4);
+        primary    = juce::Colour (0xFFFFD1D1);
+        secondary  = juce::Colour (0xFFFF9494);
+        surface    = juce::Colour (0xFFFFE3E1);
+        text       = juce::Colour (0xFF5C3D2E);
+        textDim    = juce::Colour (0xFF997766);
+    }
+
+    void setLavenderHaze()
+    {
+        background = juce::Colour (0xFFF3E8FF);
+        primary    = juce::Colour (0xFFDCBFFF);
+        secondary  = juce::Colour (0xFFD0A2F7);
+        surface    = juce::Colour (0xFFE5D4FF);
+        text       = juce::Colour (0xFF4A306D);
+        textDim    = juce::Colour (0xFF8866AA);
+    }
+
+    void setNordicMorning()
+    {
+        background = juce::Colour (0xFFF0F4F8);
+        primary    = juce::Colour (0xFFBCCCDC);
+        secondary  = juce::Colour (0xFFF57B51);
+        surface    = juce::Colour (0xFFD9E2EC);
+        text       = juce::Colour (0xFF102A43);
+        textDim    = juce::Colour (0xFF667788);
+    }
 };

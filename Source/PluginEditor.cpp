@@ -7,22 +7,26 @@ FMPluginAudioProcessorEditor::FMPluginAudioProcessorEditor (FMPluginAudioProcess
     : AudioProcessorEditor (&p), 
       audioProcessor (p),
       presetBar (p), //initialize preset bar	
-      opsPage (p.apvts),     // Pass APVTS context straight down
-      matrixPage (p.apvts, "MOD_", "Modulation Matrix"),   // Pass APVTS context straight down
-      audioMatrixPage (p.apvts, "AUDIO_ROUTE_", "Audio Matrix"), // APVTS context etc.
-      effectsPage (p.apvts), // APVTS context etc.
-      settingsPage (oaoColors, oaoLookAndFeel) // APVTS context etc.? Don't know why this isn't there
+      opsPage (p.apvts, oaoColors),     // Pass APVTS context straight down
+      matrixPage (p.apvts, "MOD_", "Modulation Matrix", oaoColors),
+      audioMatrixPage (p.apvts, "AUDIO_ROUTE_", "Audio Matrix", oaoColors),
+      effectsPage (p.apvts, oaoColors),
+      settingsPage (oaoColors, oaoLookAndFeel) //until here. 
 {
-    // Load saved colors first
+    // Load saved colors, apply to look&feel, then set look&feel
     oaoColors.loadFromFile();
-
-    // Apply look and feel globally
+    oaoLookAndFeel.applyColors();
     setLookAndFeel (&oaoLookAndFeel);
 
     // Settings page
     settingsPage.onColorsChanged = [this]
     {
         oaoLookAndFeel.applyColors();
+	opsPage.lookAndFeelChanged();
+	matrixPage.lookAndFeelChanged();
+	audioMatrixPage.lookAndFeelChanged();
+	effectsPage.lookAndFeelChanged();
+	this->lookAndFeelChanged();
         repaint();
     };
 
@@ -33,9 +37,8 @@ FMPluginAudioProcessorEditor::FMPluginAudioProcessorEditor (FMPluginAudioProcess
     addAndMakeVisible (effectsPage);
     addAndMakeVisible (settingsPage);
 
-    settingsPage.onScaleChanged = [this] (float scale)
+    settingsPage.onScaleChanged = [this] (float scale) //ensures settings page can change scale
     {
-        // Your base size — adjust to match your actual default dimensions
         int baseWidth  = ProjectConfig::pluginSizeX;
         int baseHeight = ProjectConfig::pluginSizeY;
         setSize (static_cast<int> (baseWidth * scale), static_cast<int> (baseHeight * scale));
@@ -63,36 +66,34 @@ FMPluginAudioProcessorEditor::FMPluginAudioProcessorEditor (FMPluginAudioProcess
     settingsPageButton.setButtonText ("Settings");
     settingsPageButton.onClick = [this] { setPage (PageView::Settings); };
 
-    // Gain slider, since a JUCE limiter simply does not work. Configure slider style!
+    // Gain slider/label in case you worry about deafening yourself.
     gainSlider.setSliderStyle (juce::Slider::LinearHorizontal);
     gainSlider.setTextBoxStyle (juce::Slider::TextBoxLeft, false, 45, 18);
     addAndMakeVisible (gainSlider);
-
-    // Add a text label
     gainLabel.setText ("Gain", juce::dontSendNotification);
     gainLabel.setJustificationType (juce::Justification::centredRight);
     addAndMakeVisible (gainLabel);
-
-    // Secure the attachment bridge
     gainAttach = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
         p.apvts, "GAIN_CEIL", gainSlider);
 
-    // Add title
+    // synth title :)
     titleLabel.setText ("OAO", juce::dontSendNotification);
     titleLabel.setJustificationType (juce::Justification::centred);
     titleLabel.setFont (juce::Font (juce::FontOptions().withHeight (18.0f).withStyle ("Bold")));
-    titleLabel.setColour (juce::Label::textColourId, juce::Colours::white);
     addAndMakeVisible (titleLabel);
+    
+    //oscilloscope
     oscilloscope = std::make_unique<Oscilloscope> (audioProcessor);
     addAndMakeVisible (*oscilloscope);
 
+    // set initial defaults
     setPage (PageView::Operators);
-    setSize (ProjectConfig::pluginSizeX, ProjectConfig::pluginSizeY); // Expanded boundary footprint to comfortably show labels
+    setSize (ProjectConfig::pluginSizeX, ProjectConfig::pluginSizeY);
 }
 
 FMPluginAudioProcessorEditor::~FMPluginAudioProcessorEditor()
 {
-setLookAndFeel (nullptr); // ✅ Crucial for JUCE UI teardown
+setLookAndFeel (nullptr); // To make sure plugin doesn't crash DAW when closed
 }
 
 void FMPluginAudioProcessorEditor::setPage (PageView pageToDisplay)
@@ -114,7 +115,7 @@ void FMPluginAudioProcessorEditor::setPage (PageView pageToDisplay)
 
 void FMPluginAudioProcessorEditor::paint (juce::Graphics& g)
 {
-    g.fillAll (oaoColors.background);
+     g.fillAll (oaoColors.background);
 }
 
 void FMPluginAudioProcessorEditor::resized()
@@ -151,4 +152,14 @@ void FMPluginAudioProcessorEditor::resized()
     audioMatrixPage.setBounds (area);
     effectsPage.setBounds (area);
     settingsPage.setBounds (area);
+}
+
+void FMPluginAudioProcessorEditor::lookAndFeelChanged()
+{
+    juce::AudioProcessorEditor::lookAndFeelChanged();
+
+    gainSlider.setColour (juce::Slider::textBoxBackgroundColourId, oaoColors.surface);
+    gainSlider.setColour (juce::Slider::textBoxTextColourId, oaoColors.text);
+    gainSlider.sendLookAndFeelChange();
+
 }

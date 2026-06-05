@@ -2,11 +2,12 @@
 #pragma once
 #include <JuceHeader.h>
 #include "Constants.h"
+#include "OAOColors.h"
 
 struct CompactOperatorGroup : public juce::Component
 {
-    CompactOperatorGroup (juce::AudioProcessorValueTreeState& valueTreeState, int opIndex)
-        : apvts (valueTreeState), opNum (juce::String (opIndex + 1))
+    CompactOperatorGroup (juce::AudioProcessorValueTreeState& valueTreeState, int opIndex, OAOColors& c)
+        : apvts (valueTreeState), opNum (juce::String (opIndex + 1)), colors (c)
     {
         auto setupSlider = [this] (juce::Slider& slider, juce::Label& label, const juce::String& text, bool rotary)
         {
@@ -62,10 +63,10 @@ addAndMakeVisible (filterTypeSelector);
 
     void paint (juce::Graphics& g) override
     {
-        g.setColour (juce::Colours::white.withAlpha (0.15f));
+        g.setColour (colors.text.withAlpha (0.15f));
         g.drawRoundedRectangle (getLocalBounds().toFloat().reduced (2.0f), 4.0f, 1.0f);
 
-        g.setColour (juce::Colours::white.withAlpha (0.02f));
+        g.setColour (colors.text.withAlpha (0.02f));
         g.fillRoundedRectangle (getLocalBounds().toFloat().reduced (2.0f), 4.0f);
     }
 
@@ -81,8 +82,8 @@ int topStripSize = topStrip.getWidth();
         modeSelector.setBounds (topStrip.removeFromLeft (topStripSize*0.25f).reduced (1));
         // 3. The remaining space goes to the conditional dropdowns. if/else.
         if (filterTypeSelector.isVisible())
-{
-    filterTypeSelector.setBounds (topStrip.reduced (1));
+        {
+            filterTypeSelector.setBounds (topStrip.reduced (1));
         }
         else
         {
@@ -104,8 +105,54 @@ int topStripSize = topStrip.getWidth();
         auto relArea = area;                              releaseLabel.setBounds (relArea.removeFromTop (20)); releaseSlider.setBounds (relArea);
     }
 
+    void lookAndFeelChanged() override
+    {
+        juce::Component::lookAndFeelChanged();
+
+        // 1. Update Labels
+        opHeaderLabel.setColour (juce::Label::textColourId, colors.text);
+        ratioLabel.setColour    (juce::Label::textColourId, colors.text);
+        detuneLabel.setColour   (juce::Label::textColourId, colors.text);
+        phaseLabel.setColour    (juce::Label::textColourId, colors.text);
+        foldLabel.setColour     (juce::Label::textColourId, colors.text);
+        attackLabel.setColour   (juce::Label::textColourId, colors.text);
+        decayLabel.setColour    (juce::Label::textColourId, colors.text);
+        sustainLabel.setColour  (juce::Label::textColourId, colors.text);
+        releaseLabel.setColour  (juce::Label::textColourId, colors.text);
+
+        syncButton.setColour (juce::ToggleButton::textColourId, colors.text);
+
+        // 2. Helper lambda to update ComboBoxes cleanly
+        auto updateComboBox = [this](juce::ComboBox& cb) {
+            cb.setColour (juce::ComboBox::backgroundColourId, colors.surface);
+            cb.setColour (juce::ComboBox::textColourId, colors.text);
+            cb.sendLookAndFeelChange();
+        };
+
+        updateComboBox (modeSelector);
+        updateComboBox (waveShapeSelector);
+        updateComboBox (filterTypeSelector);
+
+        // 3. Helper lambda to update Sliders cleanly
+        auto updateSlider = [this](juce::Slider& s) {
+            s.setColour (juce::Slider::textBoxBackgroundColourId, colors.surface);
+            s.setColour (juce::Slider::textBoxTextColourId, colors.text);
+            s.sendLookAndFeelChange();
+        };
+
+        updateSlider (ratioSlider);
+        updateSlider (detuneSlider);
+        updateSlider (phaseSlider);
+        updateSlider (foldSlider);
+        updateSlider (attackSlider);
+        updateSlider (decaySlider);
+        updateSlider (sustainSlider);
+        updateSlider (releaseSlider);
+    }
+
 private:
     // Combined logic method avoids layout text fighting
+    OAOColors& colors;
     void updateUIState()
     {
         int selectedMode   = modeSelector.getSelectedId();
@@ -185,14 +232,28 @@ private:
 class OperatorsPage : public juce::Component
 {
 public:
-    OperatorsPage (juce::AudioProcessorValueTreeState& apvts)
+    OperatorsPage (juce::AudioProcessorValueTreeState& apvts, OAOColors& c) : colors (c)
     {
         for (int i = 0; i < ProjectConfig::numOperators; ++i)
         {
-            opModules.push_back (std::make_unique<CompactOperatorGroup> (apvts, i));
+            // FIX: Pass 'colors' as the 3rd argument here!
+            opModules.push_back (std::make_unique<CompactOperatorGroup> (apvts, i, colors));
             addAndMakeVisible (*opModules.back());
         }
     }
+
+    // NEW: Trigger updates in the children
+    void lookAndFeelChanged() override
+    {
+        juce::Component::lookAndFeelChanged();
+
+        for (auto& module : opModules)
+        {
+            if (module != nullptr)
+                module->lookAndFeelChanged();
+        }
+    }
+
     void resized() override
     {
         auto area = getLocalBounds();
@@ -216,5 +277,6 @@ public:
     }
 
 private:
+    OAOColors& colors; // FIX: This was missing, causing a compiler error!
     std::vector<std::unique_ptr<CompactOperatorGroup>> opModules;
-}; 
+};

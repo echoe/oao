@@ -19,11 +19,10 @@ public:
     FMPluginAudioProcessorEditor (FMPluginAudioProcessor&);
     ~FMPluginAudioProcessorEditor() override;
     
-    //setLookAndFeel (nullptr);
-
     void setPage (PageView pageToDisplay);
     void paint (juce::Graphics& g) override;
     void resized() override;
+    void lookAndFeelChanged() override;
 
 private:
     FMPluginAudioProcessor& audioProcessor;

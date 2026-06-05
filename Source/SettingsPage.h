@@ -24,11 +24,19 @@ public:
         setupPreset (industrialBtn, "Industrial");
         setupPreset (minimalBtn,    "Minimal");
         setupPreset (warmBtn,       "Warm Analog");
+        setupPreset (mintBtn,     "Minty");
+        setupPreset (peachBtn,    "Peach");
+        setupPreset (lavenderBtn, "Lavender");
+        setupPreset (nordicBtn,   "Nordic");
 
         synthwaveBtn.onClick  = [this] { colors.setSynthwave();  refreshAll(); };
         industrialBtn.onClick = [this] { colors.setIndustrial(); refreshAll(); };
         minimalBtn.onClick    = [this] { colors.setMinimal();    refreshAll(); };
         warmBtn.onClick       = [this] { colors.setWarmAnalog(); refreshAll(); };
+        mintBtn.onClick     = [this] { colors.setMintyBreeze();  refreshAll(); };
+        peachBtn.onClick    = [this] { colors.setPeachBlossom(); refreshAll(); };
+        lavenderBtn.onClick = [this] { colors.setLavenderHaze(); refreshAll(); };
+        nordicBtn.onClick   = [this] { colors.setNordicMorning(); refreshAll(); };
 
         // Scale selector (50% to 200% in 25% steps)
         scaleLabel.setText ("UI Scale:", juce::dontSendNotification);
@@ -93,6 +101,12 @@ public:
         industrialBtn.setBounds (presetRow.removeFromLeft (btnW).reduced (2));
         minimalBtn.setBounds    (presetRow.removeFromLeft (btnW).reduced (2));
         warmBtn.setBounds       (presetRow.reduced (2));
+        area.removeFromTop (4); // Small gap between rows
+        auto presetRow2 = area.removeFromTop (30);
+        mintBtn.setBounds     (presetRow2.removeFromLeft (btnW).reduced (2));
+        peachBtn.setBounds    (presetRow2.removeFromLeft (btnW).reduced (2));
+        lavenderBtn.setBounds (presetRow2.removeFromLeft (btnW).reduced (2));
+        nordicBtn.setBounds   (presetRow2.reduced (2));
 
         area.removeFromTop (16); // Gap
 
@@ -165,15 +179,33 @@ private:
 
     void refreshAll()
     {
+        // 1. Update your preview boxes (you already have this)
         backgroundSection.previewBox.setColour (juce::Label::backgroundColourId, colors.background);
         primarySection.previewBox.setColour    (juce::Label::backgroundColourId, colors.primary);
         secondarySection.previewBox.setColour  (juce::Label::backgroundColourId, colors.secondary);
         surfaceSection.previewBox.setColour    (juce::Label::backgroundColourId, colors.surface);
-	textSection.previewBox.setColour       (juce::Label::backgroundColourId, colors.text);
-
+        textSection.previewBox.setColour       (juce::Label::backgroundColourId, colors.text);
+    
+        // 2. Update the text color of all your labels!
+        scaleLabel.setColour (juce::Label::textColourId, colors.text);
+        backgroundSection.nameLabel.setColour (juce::Label::textColourId, colors.text);
+        primarySection.nameLabel.setColour    (juce::Label::textColourId, colors.text);
+        secondarySection.nameLabel.setColour  (juce::Label::textColourId, colors.text);
+        surfaceSection.nameLabel.setColour    (juce::Label::textColourId, colors.text);
+        textSection.nameLabel.setColour       (juce::Label::textColourId, colors.text);
+   
+        scaleSelector.setColour (juce::ComboBox::backgroundColourId, colors.surface);
+        scaleSelector.setColour (juce::ComboBox::textColourId, colors.text);
+        scaleSelector.setColour (juce::ComboBox::arrowColourId, colors.text); // Optional, but keeps it cohesive
+        scaleSelector.sendLookAndFeelChange();
+        // 3. Apply the global look and feel
         lookAndFeel.applyColors();
         colors.saveToFile();
-
+    
+        // 4. Force SettingsPage itself to redraw its background and new label colors
+        repaint();
+    
+        // 5. Tell the rest of the app to update
         if (onColorsChanged)
             onColorsChanged();
     }
@@ -201,7 +233,7 @@ private:
     juce::ComboBox    scaleSelector;
     juce::Label       scaleLabel;
 
-    juce::TextButton  synthwaveBtn, industrialBtn, minimalBtn, warmBtn;
+    juce::TextButton  synthwaveBtn, industrialBtn, minimalBtn, warmBtn, mintBtn, peachBtn, lavenderBtn, nordicBtn;
 
     ColorSection backgroundSection;
     ColorSection primarySection;

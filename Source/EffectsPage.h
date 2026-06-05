@@ -2,11 +2,13 @@
 #include <JuceHeader.h>
 #include "PluginProcessor.h"
 #include "Constants.h"
+#include "OAOColors.h"
 
 class EffectsSlot : public juce::Component
 {
 public:
-    EffectsSlot (juce::AudioProcessorValueTreeState& apvts, int slotIndex)
+    EffectsSlot (juce::AudioProcessorValueTreeState& apvts, int slotIndex, OAOColors& c)
+	    : colors (c)
     {
         juce::String s = juce::String (slotIndex + 1);
 
@@ -71,9 +73,40 @@ public:
 
     void paint (juce::Graphics& g) override
     {
-        //g.fillAll (juce::Colours::darkgrey.darker (0.2f));
-        g.setColour (juce::Colours::white.withAlpha (0.1f));
+        g.setColour (colors.primary.withAlpha (0.1f));
         g.drawRect (getLocalBounds(), 1);
+    }
+
+    void lookAndFeelChanged() override
+    {
+        juce::Component::lookAndFeelChanged();
+
+        // Update Labels
+        slotLabel.setColour (juce::Label::textColourId, colors.text);
+        mixLabel.setColour (juce::Label::textColourId, colors.text);
+        
+        for (int i = 0; i < 4; ++i)
+            knobLabels[i].setColour (juce::Label::textColourId, colors.text);
+
+        // Update ComboBox
+        filterSelector.setColour (juce::ComboBox::backgroundColourId, colors.surface);
+        filterSelector.setColour (juce::ComboBox::textColourId, colors.text);
+
+        // Update Mix Slider
+        mixSlider.setColour (juce::Slider::textBoxBackgroundColourId, colors.surface);
+        mixSlider.setColour (juce::Slider::textBoxTextColourId, colors.text);
+
+        // Update the 4 Parameter Knobs
+        for (int i = 0; i < 4; ++i)
+        {
+            knobs[i].setColour (juce::Slider::textBoxBackgroundColourId, colors.surface);
+            knobs[i].setColour (juce::Slider::textBoxTextColourId, colors.text);
+            knobs[i].sendLookAndFeelChange();
+        }
+
+        // Nudge the others
+        filterSelector.sendLookAndFeelChange();
+        mixSlider.sendLookAndFeelChange();
     }
 
     void resized() override
@@ -114,7 +147,7 @@ private:
         knobLabels[2].setText (c, juce::dontSendNotification);
         knobLabels[3].setText (d, juce::dontSendNotification);
     }
-
+    OAOColors& colors;
     juce::Label    slotLabel;
     juce::ComboBox filterSelector;
     juce::TextButton syncButton;
@@ -133,21 +166,20 @@ private:
 class EffectsPage : public juce::Component
 {
 public:
-    EffectsPage (juce::AudioProcessorValueTreeState& apvts)
+    EffectsPage (juce::AudioProcessorValueTreeState& apvts, OAOColors& c)
+	    : colors(c)
     {
         for (int i = 0; i < 3; ++i)
         {
-            slots.push_back (std::make_unique<EffectsSlot> (apvts, i));
+            slots.push_back (std::make_unique<EffectsSlot> (apvts, i, colors));
             addAndMakeVisible (*slots.back());
         }
     }
 
     void paint (juce::Graphics& g) override
     {
-        //g.fillAll (juce::Colours::darkgrey.darker (0.3f));
-
         // Draw flow arrows between slots
-        g.setColour (juce::Colours::white.withAlpha (0.3f));
+        g.setColour (colors.text.withAlpha (0.3f));
         g.setFont (18.0f);
         int slotH = getHeight() / 3;
         for (int i = 0; i < 2; ++i)
@@ -156,6 +188,17 @@ public:
             g.drawText (juce::String (juce::CharPointer_UTF8 ("\xe2\x86\x93")),
                         getWidth() / 2 - 10, arrowY - 12, 20, 20,
                         juce::Justification::centred);
+        }
+    }
+
+    void lookAndFeelChanged() override
+    {
+        juce::Component::lookAndFeelChanged();
+
+        for (auto& slot : slots)
+        {
+            if (slot != nullptr)
+                slot->lookAndFeelChanged();
         }
     }
 
@@ -172,5 +215,6 @@ public:
     }
 
 private:
+    OAOColors& colors;
     std::vector<std::unique_ptr<EffectsSlot>> slots;
 };

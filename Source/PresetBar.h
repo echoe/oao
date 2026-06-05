@@ -74,7 +74,7 @@ public:
 
     void paint (juce::Graphics& g) override
     {
-        g.setColour (juce::Colours::white.withAlpha (0.15f));
+        //g.setColour (juce::Colours::white.withAlpha (0.15f));
         g.drawHorizontalLine (getHeight() - 1, 0.0f, static_cast<float> (getWidth()));
     }
 

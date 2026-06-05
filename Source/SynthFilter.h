@@ -75,11 +75,11 @@ public:
         return 1.0f / targetResonance;
     }
 
-    void reset() // Reset buffers
+    void reset() // Reset all effect buffers
     {
         s1 = 0.0f;
         s2 = 0.0f;
-	for (int i = 0; i < 3; ++i) { //formant buffer reset
+        for (int i = 0; i < 3; ++i) { //formant buffer reset
             f_s1[i] = 0.0f;
             f_s2[i] = 0.0f;
         }
@@ -93,14 +93,14 @@ public:
         for (auto& g : grains) {
             g.isActive = false; //granular
         }
-	//tape
-	tapePhase    = 0.0f;
-	tapeWritePtr = 0;
-	tapeReadPtr  = 0.0f;
-	tapeLastSample = 0.0f;
-	std::fill (std::begin (tapeDelayBuffer), std::end (tapeDelayBuffer), 0.0f);
-	//bitcrush
-	crushHeld    = 0.0f;
+        //tape
+        tapePhase    = 0.0f;
+        tapeWritePtr = 0;
+        tapeReadPtr  = 0.0f;
+        tapeLastSample = 0.0f;
+        std::fill (std::begin (tapeDelayBuffer), std::end (tapeDelayBuffer), 0.0f);
+        //bitcrush
+        crushHeld    = 0.0f;
         crushCounter = 0;
         // Allpass delay reset
         apDelayBuffer.fill (0.0f);
@@ -121,16 +121,16 @@ public:
             apRevStageBuffers[i].fill (0.0f);
             apRevStageWritePtrs[i] = 0;
         }
-	// compressor
-	compEnvelope = 0.0f;
+        // compressor
+        compEnvelope = 0.0f;
         compGainDb   = 0.0f;
-	// varispeed
-	std::fill (std::begin (varispeedBuffer), std::end (varispeedBuffer), 0.0f);
+        // varispeed
+        std::fill (std::begin (varispeedBuffer), std::end (varispeedBuffer), 0.0f);
         varispeedWritePtr    = 0;
         varispeedReadPtr     = 0.0f;
         varispeedCurrentSpeed = 1.0f;
-	// scatter
-	scatterBuffer.fill (0.0f);
+        // scatter
+        scatterBuffer.fill (0.0f);
         scatterWritePtr    = 0;
         scatterReadPtr     = 0.0f;
         scatterPattern     = 0;
@@ -138,13 +138,32 @@ public:
         scatterCycleLength = 0;
         scatterActive      = false;
         scatterSpeed       = 1.0f;
-	// ring mod
-	ringPhase    = 0.0f;
+        // ring mod
+        ringPhase    = 0.0f;
         ringFeedback = 0.0f;
-	// chorus
-	chorusDelayBuffer.fill (0.0f);
+        // chorus
+        chorusDelayBuffer.fill (0.0f);
         chorusWritePtr = 0;
         chorusLFOPhases.fill (0.0f);
+        // phaser
+        phaserAllpassState.fill (0.0f);
+        phaserLFOPhase = 0.0f;
+        phaserFeedback = 0.0f;
+        // distortion
+        distToneState  = 0.0f;
+        distLastSign   = 1.0f;
+        distGlitchCount = 0;
+	// djfx
+	djfxBuffer.fill (0.0f);
+        djfxWritePtr    = 0;
+        djfxReadPtr     = 0.0f;
+        djfxCapturing   = false;
+        djfxCaptureSize  = 0;
+        djfxCaptureCount = 0;
+        djfxDriftPhase   = 0.0f;
+	// color resonator
+	resS1.fill (0.0f);
+        resS2.fill (0.0f);
     }
 
     void noteStarted()
@@ -986,6 +1005,383 @@ public:
         return output * 0.7f + input * 0.3f;
     }
 
+float processSamplePhaser (float input, float rate, float depth,
+                            float stages, float feedback,
+                            double sampleRate)
+    {
+        // -------------------------------------------------------
+        // 1. LFO
+        // -------------------------------------------------------
+        float lfoRate = 0.05f + rate * 4.95f; // 0.05Hz to 5Hz
+        phaserLFOPhase += (lfoRate * juce::MathConstants<float>::twoPi)
+                          / static_cast<float> (sampleRate);
+        if (phaserLFOPhase >= juce::MathConstants<float>::twoPi)
+            phaserLFOPhase -= juce::MathConstants<float>::twoPi;
+    
+        float lfo = (std::sin (phaserLFOPhase) + 1.0f) * 0.5f; // 0.0 to 1.0
+    
+        // -------------------------------------------------------
+        // 2. MODULATED ALLPASS COEFFICIENT
+        // depth controls how wide the notch sweeps
+        // 0.0 = subtle, 1.0 = full sweep
+        // -------------------------------------------------------
+        float minFreq  = 200.0f;
+        float maxFreq  = juce::jmap (depth, 0.0f, 1.0f, 800.0f, 8000.0f);
+        float sweepFreq = minFreq + lfo * (maxFreq - minFreq);
+    
+        // Convert frequency to allpass coefficient
+        float w = std::tan (juce::MathConstants<float>::pi * sweepFreq
+                            / static_cast<float> (sampleRate));
+        float coeff = (w - 1.0f) / (w + 1.0f);
+    
+        // -------------------------------------------------------
+        // 3. NUMBER OF STAGES
+        // stages 0.0-1.0 maps to 2, 4, 6, 8 stages
+        // -------------------------------------------------------
+        int numStages = 2 + (static_cast<int> (stages * 3.0f) * 2);
+        numStages     = juce::jlimit (2, numPhaserStages, numStages);
+    
+        // -------------------------------------------------------
+        // 4. FEEDBACK — feed output back into input
+        // -------------------------------------------------------
+        float feedbackAmt = juce::jlimit (-0.95f, 0.95f, (feedback * 2.0f) - 1.0f);
+        float inputWithFeedback = input + phaserFeedback * feedbackAmt;
+    
+        // -------------------------------------------------------
+        // 5. CASCADE ALLPASS STAGES
+        // -------------------------------------------------------
+        float output = inputWithFeedback;
+        for (int i = 0; i < numStages; ++i)
+        {
+            float delayed        = phaserAllpassState[i];
+            phaserAllpassState[i] = output + delayed * (-coeff);
+            output               = delayed + output * coeff;
+        }
+    
+        phaserFeedback = output;
+    
+        // -------------------------------------------------------
+        // 6. MIX — classic phaser is 50% dry + 50% wet
+        // -------------------------------------------------------
+        return (input + output) * 0.5f;
+    }
+
+    float processSampleDistortion (float input, float drive, float flavor,
+                                    float tone, float degradation,
+                                    double sampleRate)
+    {
+        // -------------------------------------------------------
+        // 1. DRIVE — input gain
+        // -------------------------------------------------------
+        float driveAmt = 1.0f + drive * 40.0f; // 1x to 41x
+        float driven   = input * driveAmt;
+    
+        // -------------------------------------------------------
+        // 2. FLAVOR — morphs between distortion types
+        // 0.0-0.25: Soft clip (tanh)
+        // 0.25-0.5: Hard clip
+        // 0.5-0.75: Foldback
+        // 0.75-1.0: Digital (sign function / bit mangle)
+        // -------------------------------------------------------
+        float distorted = 0.0f;
+    
+        if (flavor < 0.25f)
+        {
+            // Soft clip — smooth tanh saturation
+            float blend   = flavor / 0.25f;
+            float soft    = std::tanh (driven);
+            float harder  = std::tanh (driven * 2.0f) * 0.5f;
+            distorted     = soft * (1.0f - blend) + harder * blend;
+        }
+        else if (flavor < 0.5f)
+        {
+            // Hard clip
+            float blend   = (flavor - 0.25f) / 0.25f;
+            float soft    = std::tanh (driven * 2.0f) * 0.5f;
+            float hard    = juce::jlimit (-1.0f, 1.0f, driven);
+            distorted     = soft * (1.0f - blend) + hard * blend;
+        }
+        else if (flavor < 0.75f)
+        {
+            // Foldback distortion
+            float blend   = (flavor - 0.5f) / 0.25f;
+            float hard    = juce::jlimit (-1.0f, 1.0f, driven);
+            float folded  = driven;
+            // Fold the signal back when it exceeds -1/+1
+            while (folded > 1.0f)  folded = 2.0f  - folded;
+            while (folded < -1.0f) folded = -2.0f - folded;
+            distorted     = hard * (1.0f - blend) + folded * blend;
+        }
+        else
+        {
+            // Digital — blend from foldback to sign-function harshness
+            float blend   = (flavor - 0.75f) / 0.25f;
+            float folded  = driven;
+            while (folded > 1.0f)  folded = 2.0f  - folded;
+            while (folded < -1.0f) folded = -2.0f - folded;
+            // Sign function with drive — very harsh digital sound
+            float digital = driven >= 0.0f ? 1.0f : -1.0f;
+            digital      *= juce::jlimit (0.0f, 1.0f, std::abs (driven));
+            distorted     = folded * (1.0f - blend) + digital * blend;
+        }
+    
+        // -------------------------------------------------------
+        // 3. DEGRADATION — digital artifacts
+        // Three layers: zero-crossing glitch, sample mangling, 
+        // and random dropout
+        // -------------------------------------------------------
+        if (degradation > 0.001f)
+        {
+            // Layer 1: Zero-crossing glitch — freezes signal at crossings
+            float currentSign = distorted >= 0.0f ? 1.0f : -1.0f;
+            if (currentSign != distLastSign)
+            {
+                distGlitchCount++;
+                if (distRandom.nextFloat() < degradation * 0.3f)
+                {
+                    // Freeze at zero for a few samples
+                    distorted = distorted * (1.0f - degradation * 0.5f);
+                }
+            }
+            distLastSign = currentSign;
+    
+            // Layer 2: Sample mangling — randomly replace samples with
+            // held or inverted values
+            if (distRandom.nextFloat() < degradation * 0.05f)
+            {
+                // Randomly invert, zero, or square the sample
+                int manglerType = distRandom.nextInt (3);
+                if      (manglerType == 0) distorted = -distorted;
+                else if (manglerType == 1) distorted = 0.0f;
+                else                       distorted = distorted >= 0.0f ? 1.0f : -1.0f;
+            }
+    
+            // Layer 3: Random dropout — brief silences
+            if (distRandom.nextFloat() < degradation * 0.02f)
+                distorted = 0.0f;
+        }
+    
+        // -------------------------------------------------------
+        // 4. TONE — post-distortion one-pole filter
+        // 0.0 = dark (heavy low-pass), 0.5 = neutral, 1.0 = bright
+        // -------------------------------------------------------
+        float toneCutoff = 200.0f + tone * 19800.0f; // 200Hz to 20kHz
+        float toneAlpha  = 1.0f - std::exp (-2.0f * juce::MathConstants<float>::pi
+                                            * toneCutoff / static_cast<float> (sampleRate));
+        distToneState   += toneAlpha * (distorted - distToneState);
+    
+        // Blend between low-passed (dark) and original (bright)
+        float toned = distToneState * (1.0f - tone) + distorted * tone;
+    
+        // -------------------------------------------------------
+        // 5. COMPENSATE GAIN — normalize output level
+        // -------------------------------------------------------
+        float gainCompensation = 1.0f / std::sqrt (driveAmt);
+        return juce::jlimit (-1.0f, 1.0f, toned * gainCompensation);
+    }
+
+    float processSampleDJFXDelay (float input, float bufferAmt, float speed,
+                                   float on, float drift,
+                                   double sampleRate)
+    {
+        // -------------------------------------------------------
+        // 1. ON/OFF — below 0.5 passes dry signal through
+        // -------------------------------------------------------
+        if (on < 0.5f)
+        {
+            // Still write to buffer so it's ready when engaged
+            djfxBuffer[djfxWritePtr] = input;
+            djfxWritePtr = (djfxWritePtr + 1) % djfxBufferSize;
+            djfxReadPtr  = static_cast<float> (djfxWritePtr);
+            return input;
+        }
+    
+        // -------------------------------------------------------
+        // 2. BUFFER SIZE — how much audio is captured
+        // -------------------------------------------------------
+        float bufferMs    = juce::jmap (bufferAmt, 0.0f, 1.0f, 10.0f, 2000.0f);
+        int   captureSize = juce::jlimit (1, djfxBufferSize - 1,
+                                static_cast<int> (bufferMs / 1000.0f * sampleRate));
+    
+        // Write input to buffer continuously
+        djfxBuffer[djfxWritePtr] = input;
+        djfxWritePtr = (djfxWritePtr + 1) % djfxBufferSize;
+    
+        // -------------------------------------------------------
+        // 3. SPEED — maps -100 to +100
+        // -100 = full reverse, 0 = stopped, 100 = normal speed
+        // -------------------------------------------------------
+        float normalizedSpeed = speed * 2.0f - 1.0f; // 0-1 knob to -1 to +1
+        float playbackSpeed   = normalizedSpeed;      // -1.0 to 1.0
+    
+        // -------------------------------------------------------
+        // 4. DRIFT — random pitch instability
+        // -------------------------------------------------------
+        if (drift > 0.001f)
+        {
+            djfxDriftPhase += 0.003f; // slow drift LFO
+            if (djfxDriftPhase >= juce::MathConstants<float>::twoPi)
+                djfxDriftPhase -= juce::MathConstants<float>::twoPi;
+    
+            float driftLFO    = std::sin (djfxDriftPhase) * drift * 0.15f;
+            float driftRandom = (djfxRandom.nextFloat() * 2.0f - 1.0f) * drift * 0.05f;
+            playbackSpeed    += driftLFO + driftRandom;
+        }
+    
+        // -------------------------------------------------------
+        // 5. ADVANCE READ POINTER
+        // -------------------------------------------------------
+        djfxReadPtr += playbackSpeed;
+    
+        // Keep read pointer within capture window
+        float rawCaptureStart = static_cast<float> (djfxWritePtr - captureSize + djfxBufferSize);
+        float captureStart = std::fmodf (rawCaptureStart, static_cast<float> (djfxBufferSize));
+    
+        // Wrap within the capture window rather than the whole buffer
+        while (djfxReadPtr >= captureStart + captureSize)
+            djfxReadPtr -= captureSize;
+        while (djfxReadPtr < captureStart)
+            djfxReadPtr += captureSize;
+    
+        // Keep in valid buffer range
+        while (djfxReadPtr >= static_cast<float> (djfxBufferSize))
+            djfxReadPtr -= static_cast<float> (djfxBufferSize);
+        while (djfxReadPtr < 0.0f)
+            djfxReadPtr += static_cast<float> (djfxBufferSize);
+    
+        // -------------------------------------------------------
+        // 6. HERMITE INTERPOLATION
+        // -------------------------------------------------------
+        int   idx1 = static_cast<int> (djfxReadPtr) % djfxBufferSize;
+        float frac = djfxReadPtr - std::floor (djfxReadPtr);
+        int   idx0 = (idx1 - 1 + djfxBufferSize) % djfxBufferSize;
+        int   idx2 = (idx1 + 1) % djfxBufferSize;
+        int   idx3 = (idx1 + 2) % djfxBufferSize;
+    
+        float y0 = djfxBuffer[idx0];
+        float y1 = djfxBuffer[idx1];
+        float y2 = djfxBuffer[idx2];
+        float y3 = djfxBuffer[idx3];
+    
+        float c0 = y1;
+        float c1 = 0.5f * (y2 - y0);
+        float c2 = y0 - 2.5f * y1 + 2.0f * y2 - 0.5f * y3;
+        float c3 = 0.5f * (y3 - y0) + 1.5f * (y1 - y2);
+        float output = ((c3 * frac + c2) * frac + c1) * frac + c0;
+    
+        return std::isfinite (output) ? output : 0.0f;
+    }
+
+    float processSampleHarmonicResonator (float input, float root, float scale,
+                                           float brightness, float depth,
+                                           double sampleRate)
+    {
+        // -------------------------------------------------------
+        // 1. ROOT NOTE — maps 0-1 to 12 semitones (A=0 to G#=1)
+        // Base frequency derived from root note, centered around A3 (220Hz)
+        // -------------------------------------------------------
+        int   rootSemitone = juce::jlimit (0, 11, static_cast<int> (root * 12.0f));
+        float rootFreq     = 220.0f * std::pow (2.0f, rootSemitone / 12.0f);
+    
+        // -------------------------------------------------------
+        // 2. SCALE — interval patterns for each scale type
+        // Each array contains semitone intervals above the root
+        // -------------------------------------------------------
+        const int scaleIntervals[5][7] = {
+            { 0, 2, 4, 7, 9, 11, 12 }, // Major
+            { 0, 2, 3, 7, 9, 10, 12 }, // Minor
+            { 0, 2, 4, 7, 9,  0,  0 }, // Pentatonic (5 notes)
+            { 0, 2, 4, 6, 8, 10, 12 }, // Whole Tone
+            { 0, 1, 2, 3, 4,  5,  6 }, // Chromatic (first 7)
+        };
+        const int scaleNoteCounts[5] = { 7, 7, 5, 7, 7 };
+    
+        int scaleIdx  = juce::jlimit (0, 4, static_cast<int> (scale * 5.0f));
+        int noteCount = scaleNoteCounts[scaleIdx];
+    
+        // -------------------------------------------------------
+        // 3. BRIGHTNESS — which octave register the resonators sit in
+        // 0.0 = fundamental octave, 1.0 = 3 octaves up (shimmery)
+        // -------------------------------------------------------
+        float octaveShift = 1.0f + brightness * 3.0f; // 1x to 8x frequency multiplier
+    
+        // -------------------------------------------------------
+        // 4. DEPTH — resonance Q factor
+        // 0.0 = subtle, 1.0 = very resonant/ringing
+        // -------------------------------------------------------
+        float q = juce::jmap (depth, 0.0f, 1.0f, 1.0f, 40.0f);
+    
+        // -------------------------------------------------------
+        // 5. PROCESS EACH SCALE NOTE through a resonant bandpass
+        // -------------------------------------------------------
+        float output    = 0.0f;
+        int   bandIdx   = 0;
+    
+        for (int note = 0; note < noteCount && bandIdx < numResonatorBands; ++note)
+        {
+            // Frequency for this scale note, shifted by brightness octave
+            float semitones = static_cast<float> (scaleIntervals[scaleIdx][note]);
+            float bandFreq  = rootFreq * std::pow (2.0f, semitones / 12.0f) * octaveShift;
+            bandFreq        = juce::jlimit (20.0f, static_cast<float> (sampleRate) * 0.45f, bandFreq);
+    
+            // Biquad bandpass coefficients
+            float w0    = 2.0f * juce::MathConstants<float>::pi * bandFreq
+                          / static_cast<float> (sampleRate);
+            float sinW0 = std::sin (w0);
+            float cosW0 = std::cos (w0);
+            float alpha = sinW0 / (2.0f * q);
+    
+            float b0 =  alpha;
+            float b2 = -alpha;
+            float a0 =  1.0f + alpha;
+            float a1 = -2.0f * cosW0;
+            float a2 =  1.0f - alpha;
+    
+            // Normalize
+            b0 /= a0; b2 /= a0; a1 /= a0; a2 /= a0;
+    
+            // Process biquad (transposed direct form II)
+            float bandOut    = b0 * input + resS1[bandIdx];
+            resS1[bandIdx]   = -a1 * bandOut + resS2[bandIdx];
+            resS2[bandIdx]   = -a2 * bandOut + b2 * input;
+    
+            output += bandOut;
+            bandIdx++;
+        }
+    
+        // Also add the root one octave up for shimmer
+        if (bandIdx < numResonatorBands)
+        {
+            float shimmerFreq = rootFreq * octaveShift * 2.0f;
+            shimmerFreq       = juce::jlimit (20.0f, static_cast<float> (sampleRate) * 0.45f, shimmerFreq);
+    
+            float w0    = 2.0f * juce::MathConstants<float>::pi * shimmerFreq
+                          / static_cast<float> (sampleRate);
+            float sinW0 = std::sin (w0);
+            float cosW0 = std::cos (w0);
+            float alpha = sinW0 / (2.0f * q * 0.5f); // slightly wider for shimmer
+    
+            float b0 =  alpha / (1.0f + alpha);
+            float b2 = -alpha / (1.0f + alpha);
+            float a1 = -2.0f * cosW0 / (1.0f + alpha);
+            float a2 = (1.0f - alpha) / (1.0f + alpha);
+    
+            float bandOut      = b0 * input + resS1[bandIdx];
+            resS1[bandIdx]     = -a1 * bandOut + resS2[bandIdx];
+            resS2[bandIdx]     = -a2 * bandOut + b2 * input;
+            output            += bandOut * 0.5f; // shimmer at half level
+        }
+    
+        // -------------------------------------------------------
+        // 6. MIX — normalize by band count and blend with dry
+        // -------------------------------------------------------
+        float wetGain = 1.0f / std::sqrt (static_cast<float> (noteCount + 1));
+        float wet     = output * wetGain;
+    
+        // Add dry signal underneath for the "transform" feel
+        return std::isfinite (wet) ? (wet + input * 0.3f) : input;
+    }
+
     int getCurrentType() const noexcept { return static_cast<int>(currentType); }
 
 protected:
@@ -1092,6 +1488,33 @@ protected:
     std::array<float, chorusDelaySize> chorusDelayBuffer { 0.0f };
     int   chorusWritePtr = 0;
     std::array<float, numChorusVoices> chorusLFOPhases { 0.0f, 0.0f, 0.0f, 0.0f };
+
+    static constexpr int numPhaserStages = 8;
+    std::array<float, numPhaserStages> phaserAllpassState { 0.0f };
+    float phaserLFOPhase  = 0.0f;
+    float phaserFeedback  = 0.0f;
+
+    // Distortion state
+    float distToneState  = 0.0f; // one-pole tone filter state
+    float distLastSign   = 1.0f; // for zero-crossing degradation
+    int   distGlitchCount = 0;   // glitch counter
+    juce::Random distRandom;
+
+    // DJFX Delay state
+    static constexpr int djfxBufferSize = 96000; // 2 seconds at 48kHz
+    std::array<float, djfxBufferSize> djfxBuffer { 0.0f };
+    int   djfxWritePtr     = 0;
+    float djfxReadPtr      = 0.0f;
+    bool  djfxCapturing    = false;
+    int   djfxCaptureSize  = 0;
+    int   djfxCaptureCount = 0;
+    float djfxDriftPhase   = 0.0f;
+    juce::Random djfxRandom;
+
+    // Harmonic Resonator state
+    static constexpr int numResonatorBands = 8;
+    std::array<float, numResonatorBands> resS1 { 0.0f };
+    std::array<float, numResonatorBands> resS2 { 0.0f };
 
     // Parameters Cache
     double sampleRate { 44100.0 };

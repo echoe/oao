@@ -6,7 +6,7 @@ class Oscilloscope : public juce::Component,
                      public juce::Timer
 {
 public:
-    Oscilloscope (FMPluginAudioProcessor& p) : processor (p)
+    Oscilloscope (FMPluginAudioProcessor& p, OAOColors& c) : processor (p) , colors (c)
     {
         startTimerHz (30);
     }
@@ -15,10 +15,11 @@ public:
 
     void paint (juce::Graphics& g) override
     {
-        g.fillAll (juce::Colours::black);
-
+        //g.fillAll (juce::Colours::black);
+        g.fillAll (colors.background);
+        g.setColour (colors.primary);
         // Centre line
-        g.setColour (juce::Colours::darkgrey);
+        //g.setColour (juce::Colours::darkgrey);
         g.drawHorizontalLine (getHeight() / 2, 0.0f, (float)getWidth());
 
         // Waveform
@@ -53,4 +54,5 @@ public:
 
 private:
     FMPluginAudioProcessor& processor;
+    OAOColors& colors;
 };

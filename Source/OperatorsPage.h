@@ -72,37 +72,79 @@ addAndMakeVisible (filterTypeSelector);
 
     void resized() override
     {
-        auto area = getLocalBounds().reduced (6);
-        auto topStrip = area.removeFromTop (22);
-int topStripSize = topStrip.getWidth();
-        // 1. Position the Header and Sync Button
-        opHeaderLabel.setBounds (topStrip.removeFromLeft (topStripSize*0.25f));
-        syncButton.setBounds (topStrip.removeFromLeft (topStripSize*0.2f).reduced (1));
-        // 2. FIX: Carve out 75 pixels for the Mode Selector dropdown!
-        modeSelector.setBounds (topStrip.removeFromLeft (topStripSize*0.25f).reduced (1));
-        // 3. The remaining space goes to the conditional dropdowns. if/else.
+        auto area        = getLocalBounds().reduced (getWidth() * 0.02f);
+        float w          = static_cast<float> (area.getWidth());
+        float h          = static_cast<float> (area.getHeight());
+    
+        // --- TOP STRIP ---
+        auto topStrip = area.removeFromTop (h * 0.12f);
+        opHeaderLabel.setBounds (topStrip.removeFromLeft (w * 0.25f));
+        syncButton.setBounds    (topStrip.removeFromLeft (w * 0.15f).reduced (1));
+        modeSelector.setBounds  (topStrip.removeFromLeft (w * 0.25f).reduced (1));
+    
         if (filterTypeSelector.isVisible())
-        {
             filterTypeSelector.setBounds (topStrip.reduced (1));
-        }
         else
-        {
-            waveShapeSelector.setBounds (topStrip.reduced (1));
-        }
+            waveShapeSelector.setBounds  (topStrip.reduced (1));
     
-        auto knobZone = area.removeFromTop (area.getHeight() / 2 + 5);
-        int knobWidth = knobZone.getWidth() / 4;
+        area.removeFromTop (h * 0.005f);
+	// Knob zone //
+        auto knobZone  = area.removeFromTop (area.getHeight() * 0.55f);
+        float labelH   = knobZone.getHeight() * 0.25f;
+        int   knobWidth = knobZone.getWidth() / 4;
+        
+        auto rArea = knobZone.removeFromLeft (knobWidth);
+        ratioLabel.setBounds  (rArea.removeFromTop (labelH));
+        ratioSlider.setBounds (rArea);
+        
+        auto dArea = knobZone.removeFromLeft (knobWidth);
+        detuneLabel.setBounds  (dArea.removeFromTop (labelH));
+        detuneSlider.setBounds (dArea);
+        
+        auto pArea = knobZone.removeFromLeft (knobWidth);
+        phaseLabel.setBounds  (pArea.removeFromTop (labelH));
+        phaseSlider.setBounds (pArea);
+        
+        auto lArea = knobZone;
+        foldLabel.setBounds  (lArea.removeFromTop (labelH));
+        foldSlider.setBounds (lArea);
     
-        auto rArea = knobZone.removeFromLeft (knobWidth); ratioLabel.setBounds (rArea.removeFromTop (15)); ratioSlider.setBounds (rArea);
-        auto dArea = knobZone.removeFromLeft (knobWidth); detuneLabel.setBounds (dArea.removeFromTop (15)); detuneSlider.setBounds (dArea);
-        auto pArea = knobZone.removeFromLeft (knobWidth); phaseLabel.setBounds (pArea.removeFromTop (15));  phaseSlider.setBounds (pArea);
-        auto lArea = knobZone; foldLabel.setBounds (lArea.removeFromTop (15)); foldSlider.setBounds (lArea);
+        // --- ENVELOPE SLIDERS (bottom half) ---
+        float envLabelH  = area.getHeight() * 0.25f;
+        int   sliderWidth = area.getWidth() / 4;
     
-        int sliderWidth = area.getWidth() / 4;
-        auto aArea = area.removeFromLeft (sliderWidth);   attackLabel.setBounds (aArea.removeFromTop (20));   attackSlider.setBounds (aArea);
-        auto decArea = area.removeFromLeft (sliderWidth);  decayLabel.setBounds (decArea.removeFromTop (20)); decaySlider.setBounds (decArea);
-        auto sArea = area.removeFromLeft (sliderWidth);    sustainLabel.setBounds (sArea.removeFromTop (20)); sustainSlider.setBounds (sArea);
-        auto relArea = area;                              releaseLabel.setBounds (relArea.removeFromTop (20)); releaseSlider.setBounds (relArea);
+        auto aArea = area.removeFromLeft (sliderWidth);
+        attackLabel.setBounds  (aArea.removeFromTop (envLabelH));
+        attackSlider.setBounds (aArea);
+    
+        auto decArea = area.removeFromLeft (sliderWidth);
+        decayLabel.setBounds  (decArea.removeFromTop (envLabelH));
+        decaySlider.setBounds (decArea);
+    
+        auto sArea = area.removeFromLeft (sliderWidth);
+        sustainLabel.setBounds  (sArea.removeFromTop (envLabelH));
+        sustainSlider.setBounds (sArea);
+    
+        auto relArea = area;
+        releaseLabel.setBounds  (relArea.removeFromTop (envLabelH));
+        releaseSlider.setBounds (relArea);
+
+	// text labels //
+        int textBoxW = static_cast<int> (knobWidth * 0.8f);
+        int textBoxH = static_cast<int> (labelH * 0.6f);
+        
+        ratioSlider.setTextBoxStyle  (juce::Slider::TextBoxBelow, false, textBoxW, textBoxH);
+        detuneSlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, textBoxW, textBoxH);
+        phaseSlider.setTextBoxStyle  (juce::Slider::TextBoxBelow, false, textBoxW, textBoxH);
+        foldSlider.setTextBoxStyle   (juce::Slider::TextBoxBelow, false, textBoxW, textBoxH);
+    
+        int envTextBoxW = static_cast<int> (sliderWidth * 0.9f);
+        int envTextBoxH = static_cast<int> (area.getHeight() * 0.24f); // relative to full remaining area
+        
+        attackSlider.setTextBoxStyle  (juce::Slider::TextBoxBelow, false, envTextBoxW, envTextBoxH);
+        decaySlider.setTextBoxStyle   (juce::Slider::TextBoxBelow, false, envTextBoxW, envTextBoxH);
+        sustainSlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, envTextBoxW, envTextBoxH);
+        releaseSlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, envTextBoxW, envTextBoxH);    	
     }
 
     void lookAndFeelChanged() override
@@ -119,7 +161,6 @@ int topStripSize = topStrip.getWidth();
         decayLabel.setColour    (juce::Label::textColourId, colors.text);
         sustainLabel.setColour  (juce::Label::textColourId, colors.text);
         releaseLabel.setColour  (juce::Label::textColourId, colors.text);
-
         syncButton.setColour (juce::ToggleButton::textColourId, colors.text);
 
         // 2. Helper lambda to update ComboBoxes cleanly
@@ -252,6 +293,13 @@ public:
             if (module != nullptr)
                 module->lookAndFeelChanged();
         }
+    }
+
+    void repaintAll()
+    {
+        for (auto& op : opModules)
+            op->repaint();
+        repaint();
     }
 
     void resized() override

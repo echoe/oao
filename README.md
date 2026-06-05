@@ -87,26 +87,41 @@ Additional Notes:
 - Damping: one-pole LP in feedback path
 - Diffusion 0.0 = clean echo, 1.0 = heavily smeared
 - Feedback - adding feedback before return
-
 #### Allpass Reverb
 - Options: Size, Decay, Diffusion, Damping
 - Size: 0.0 = small room (20ms), 1.0 = large hall (500ms)
 - DECAY — feedback amount controls tail length
 - POST-DIFFUSION — smear the output for density
 - DAMPING in the tank feedback path
-
-
 #### Compressor
 - Options: Threshold, Ratio, Attack, Release
-
 #### Varispeed
 - Options: Speed, Acceleration, Depth, Mode
 -Speed controls the amount that the speed should vary by.
 -Acceleration is how fast the effect changes the speed of the incoming audio.
 -Depth controls how much the speed varies around the target speed.
 - Mode is 'Direction'. If it's under .45, it's slowing down. if it's over .55, it's speeding up. if it's in the middle, it's not doing either.
+#### Scatter
+- Options: Pattern, Size, Speed, Depth
+#### Ring Mod
+- Options: Frequency, Shape, Depth, Feedback
+#### Chorus
+- Options: Rate, Depth, Spread, Voices
+#### Phaser
+- Options: Rate, Depth, Stages, Feedback
+#### Distortion
+- Options: Drive, Flavor, Tone, Degradation
+#### Harmonic Resonator
+- Options: Root, Scale, Brightness, Depth
+Note: The scales are major, minor, pentatonic, whole, and chromatic.
+
 ### More?
-Honestly, ask me for an effect and I can probably get it in here. The lookup machine is magic usually.
+The process to add more effects is very easy:
+-Add necessary state variables to SynthFilter.h's private section, and any variables it needs to reset to the reset() call.
+-Add a processing function to SynthFilter.h that actually takes input and processes the input into the effect result.
+-Update Constants.h to add the effect in the FilterChoices array and in the case settings.
+-In FMOperator.h, process the knobs to be correct given their start positions (which are from the default Wave 'Operators' page, these knobs are just relabeled with every change), and then pass them to the processing function.
+-In the processBlock effects loop in PluginProcessor.cpp, so the Effects page can work, add the case there. This is pretty much the same as FMOperator.h but with some differences that are pretty self-evident looking at the 16 (!) current examples.
 
 ### Ext. In
 It's an external in! You can route external sound into the synth if you want now, and it will go through the modulation matrix like everything else (and will be affected by the filters). It is only open if midi data is going into the plugin though.
@@ -136,8 +151,12 @@ It's an external in! You can route external sound into the synth if you want now
 - An Init button to avoid the randomization and get back to a normal state when it becomes too much.
 - A gain function to attempt to control the noisiness of FM (optimistic).
 - A soft clipper on the end of the chain and at every step of the audio routing page.
+- Full color theming with five (wow) zones to select and eight preset themes
+
+# In progress
+Text scaling. I'm working on it, the buttons also do not scale with plugin size
 
 Pictures of the synth in use are provided in the pictures/ folder. There are also build scripts in the main folder.
-This is mostly AI-coded, but I work in IT as a job, am actively using the synth myself, and have read over all of the code and think I understand it (though how much can one understand code they haven't written themselves?). So. YMMV.
+This is mostly AI-coded, but I am actively using the synth myself and have read over all of the code and think I understand it (though how much can one understand code they haven't written themselves?). Your mileage, as always, may vary.
 
 Happy synthing!

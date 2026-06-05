@@ -10,7 +10,8 @@ struct OAOColors
     juce::Colour surface     { 0xFF1A1A2E }; // slightly lighter background
     juce::Colour text        { 0xFFE0E0FF }; // soft white-blue
     juce::Colour textDim     { 0xFF6060A0 }; // dimmed text
-
+    // scale
+    float scale = 1.0f;
     void saveToFile()
     {
         juce::PropertiesFile::Options options;

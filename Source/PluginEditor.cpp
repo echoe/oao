@@ -17,6 +17,8 @@ FMPluginAudioProcessorEditor::FMPluginAudioProcessorEditor (FMPluginAudioProcess
     oaoColors.loadFromFile();
     oaoLookAndFeel.applyColors();
     setLookAndFeel (&oaoLookAndFeel);
+    effectsPage.lookAndFeelChanged();
+    settingsPage.refreshAll(); //update settingsPage boxes
 
     // Settings page
     settingsPage.onColorsChanged = [this]
@@ -37,11 +39,22 @@ FMPluginAudioProcessorEditor::FMPluginAudioProcessorEditor (FMPluginAudioProcess
     addAndMakeVisible (effectsPage);
     addAndMakeVisible (settingsPage);
 
-    settingsPage.onScaleChanged = [this] (float scale) //ensures settings page can change scale
+    settingsPage.onScaleChanged = [this] (float scale)
     {
+        // Update scale, then run resized.
+        oaoLookAndFeel.currentScale = scale;
+        oaoColors.scale = scale;
         int baseWidth  = ProjectConfig::pluginSizeX;
         int baseHeight = ProjectConfig::pluginSizeY;
-        setSize (static_cast<int> (baseWidth * scale), static_cast<int> (baseHeight * scale));
+        setSize (static_cast<int> (baseWidth * scale),
+                 static_cast<int> (baseHeight * scale));
+        // Then refresh everything else ...
+        sendLookAndFeelChange();
+        presetBar.refreshScale();
+        opsPage.repaintAll();
+        matrixPage.refreshColors();
+        audioMatrixPage.refreshColors();
+        oaoColors.saveToFile();
         repaint();
     };
 
@@ -83,7 +96,8 @@ FMPluginAudioProcessorEditor::FMPluginAudioProcessorEditor (FMPluginAudioProcess
     addAndMakeVisible (titleLabel);
     
     //oscilloscope
-    oscilloscope = std::make_unique<Oscilloscope> (audioProcessor);
+    //oscilloscope = std::make_unique<Oscilloscope> (audioProcessor);
+    oscilloscope = std::make_unique<Oscilloscope> (audioProcessor, oaoColors);
     addAndMakeVisible (*oscilloscope);
 
     // set initial defaults
@@ -120,33 +134,42 @@ void FMPluginAudioProcessorEditor::paint (juce::Graphics& g)
 
 void FMPluginAudioProcessorEditor::resized()
 {
-    auto area = getLocalBounds();
-    // Dedicate the top 40px to Preset Management controls
-    auto topBarArea = area.removeFromTop (40);
-    // Set preset and oversampling controls area to take up the left chunk
-    auto presetArea = topBarArea.removeFromLeft(550);
+    auto area  = getLocalBounds();
+    float scale = oaoLookAndFeel.currentScale;
+
+    // Scale fixed heights with current scale
+    int topBarHeight = static_cast<int> (40 * scale);
+    int navBarHeight = static_cast<int> (40 * scale);
+
+    // Top bar
+    auto topBarArea = area.removeFromTop (topBarHeight);
+
+    // Preset bar takes the left chunk — scale its width too
+    auto presetArea = topBarArea.removeFromLeft (static_cast<int> (650 * scale));
     presetBar.setBounds (presetArea.reduced (2));
-    // Head to the absolute right side of the bar for the gain slider
-    auto gainArea = topBarArea.removeFromRight (220);
-    gainLabel.setBounds (gainArea.removeFromLeft (45));
+
+    // Gain slider on the right
+    auto gainArea = topBarArea.removeFromRight (static_cast<int> (220 * scale));
+    gainLabel.setBounds (gainArea.removeFromLeft (static_cast<int> (45 * scale)));
     gainSlider.setBounds (gainArea.reduced (2));
 
-    // oscilloscope
+    // Oscilloscope
     if (oscilloscope != nullptr)
-        oscilloscope->setBounds (topBarArea.removeFromLeft(100));
+        oscilloscope->setBounds (topBarArea.removeFromLeft (static_cast<int> (100 * scale)));
 
-    // Add title in remaining area in top 
+    // Title in remaining space
     titleLabel.setBounds (topBarArea.reduced (2));
 
-    // Dedicate the subsequent 40px block underneath the PresetBar to UI Navigation Page switching
-    auto navArea = area.removeFromTop (40);
+    // Nav buttons
+    auto navArea   = area.removeFromTop (navBarHeight);
     int buttonWidth = getWidth() / 5;
-    opsPageButton.setBounds (navArea.removeFromLeft (buttonWidth).reduced (4));
-    matrixPageButton.setBounds (navArea.removeFromLeft (buttonWidth).reduced (4));
-    audioMatrixPageButton.setBounds (navArea.removeFromLeft (buttonWidth).reduced (4));
+    opsPageButton.setBounds          (navArea.removeFromLeft (buttonWidth).reduced (4));
+    matrixPageButton.setBounds       (navArea.removeFromLeft (buttonWidth).reduced (4));
+    audioMatrixPageButton.setBounds  (navArea.removeFromLeft (buttonWidth).reduced (4));
     effectsPageButton.setBounds      (navArea.removeFromLeft (buttonWidth).reduced (4));
     settingsPageButton.setBounds     (navArea.reduced (4));
-    // The active page occupies the remaining container bounds
+
+    // Pages occupy remaining space
     opsPage.setBounds (area);
     matrixPage.setBounds (area);
     audioMatrixPage.setBounds (area);

@@ -217,16 +217,19 @@ public:
 
     void resized() override
     {
-        auto area = getLocalBounds();
-        area.removeFromTop (30);
+        auto area  = getLocalBounds();
+        float w    = static_cast<float> (area.getWidth());
+        float h    = static_cast<float> (area.getHeight());
+    
+        area.removeFromTop (h * 0.05f);
     
         int totalW       = area.getWidth();
         auto gridArea    = area.removeFromLeft (static_cast<int> (totalW * splitRatio));
-        auto sidebarArea = area.reduced (8, 4);
+        auto sidebarArea = area.reduced (w * 0.01f, h * 0.01f);
     
-        // Reserve label margins before computing cellSize
-        int labelLeft = 45;
-        int labelTop  = 20;
+        // Reserve label margins as percentages
+        int labelLeft = static_cast<int> (w * 0.04f);
+        int labelTop  = static_cast<int> (h * 0.03f);
     
         int availableW = gridArea.getWidth()  - labelLeft;
         int availableH = gridArea.getHeight() - labelTop;
@@ -234,14 +237,17 @@ public:
         cellSize = std::min (availableW, availableH) / ProjectConfig::numOperators;
         gridX    = gridArea.getX() + labelLeft;
         gridY    = gridArea.getY() + labelTop;
-   
+    
+        // Textbox sizing — legible relative to cell size
+        int textBoxW = static_cast<int> (cellSize * 0.85f);
+        int textBoxH = juce::jlimit (12, 22, static_cast<int> (cellSize * 0.22f));
+    
         int idx = 0;
         for (int src = 0; src < ProjectConfig::numOperators; ++src)
             for (int dest = 0; dest < ProjectConfig::numOperators; ++dest)
                 if (auto* s = matrixSliders[idx++])
                 {
-                    s->setTextBoxStyle (juce::Slider::TextBoxBelow, false,
-                                        cellSize - 8, juce::jlimit (10, 18, cellSize / 6));
+                    s->setTextBoxStyle (juce::Slider::TextBoxBelow, false, textBoxW, textBoxH);
                     s->setBounds (gridX + dest * cellSize,
                                   gridY + src * cellSize,
                                   cellSize - 4, cellSize - 2);
@@ -255,15 +261,22 @@ public:
         }
         else
         {
-            int rowH = sidebarArea.getHeight() / ProjectConfig::numOperators;
+            int rowH    = sidebarArea.getHeight() / ProjectConfig::numOperators;
+            int labelW  = static_cast<int> (sidebarArea.getWidth() * 0.35f);
             for (int i = 0; i < ProjectConfig::numOperators; ++i)
             {
-                auto cell = sidebarArea.removeFromTop (rowH).reduced (0, 2);
-                if (auto* lb = outputLabels[i])  lb->setBounds (cell.removeFromLeft (48));
-                if (auto* sl = outputSliders[i]) sl->setBounds (cell);
+                auto cell = sidebarArea.removeFromTop (rowH).reduced (0, h * 0.005f);
+                if (auto* lb = outputLabels[i])  lb->setBounds (cell.removeFromLeft (labelW));
+                if (auto* sl = outputSliders[i])
+                {
+                    sl->setTextBoxStyle (juce::Slider::TextBoxBelow, false,
+                                         cell.getWidth(), static_cast<int> (rowH * 0.25f));
+                    sl->setBounds (cell);
+                }
             }
         }
-	repaint();
+    
+        repaint();
     }
 
     void lookAndFeelChanged() override
@@ -310,6 +323,18 @@ public:
                 label->sendLookAndFeelChange();
             }
         }
+    }
+
+    void refreshColors()
+    {
+        for (auto* s : matrixSliders)
+            if (s != nullptr)
+            {
+                s->setColour (juce::Slider::textBoxTextColourId,       colors.text);
+                s->setColour (juce::Slider::textBoxBackgroundColourId, colors.background);
+                s->setColour (juce::Slider::textBoxOutlineColourId,    colors.primary.withAlpha (0.3f));
+            }
+        repaint();
     }
 
 private:

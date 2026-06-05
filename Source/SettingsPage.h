@@ -84,45 +84,77 @@ public:
 
     void resized() override
     {
-        auto area = getLocalBounds().reduced (8);
-        area.removeFromTop (48);
-
+        auto area = getLocalBounds().reduced (getWidth() * 0.02f);
+        area.removeFromTop (getHeight() * 0.08f); // title area
+    
         // --- ROW 1: UI SCALE ---
-        auto scaleRow = area.removeFromTop (30);
-        scaleLabel.setBounds (scaleRow.removeFromLeft (60));
-        scaleSelector.setBounds (scaleRow.removeFromLeft (80).reduced(2));
-
-        area.removeFromTop (16); // Gap
-
-        // --- ROW 2: PRESET BUTTONS ---
-        auto presetRow  = area.removeFromTop (30);
-        int  btnW       = presetRow.getWidth() / 4;
-        synthwaveBtn.setBounds  (presetRow.removeFromLeft (btnW).reduced (2));
-        industrialBtn.setBounds (presetRow.removeFromLeft (btnW).reduced (2));
-        minimalBtn.setBounds    (presetRow.removeFromLeft (btnW).reduced (2));
-        warmBtn.setBounds       (presetRow.reduced (2));
-        area.removeFromTop (4); // Small gap between rows
-        auto presetRow2 = area.removeFromTop (30);
-        mintBtn.setBounds     (presetRow2.removeFromLeft (btnW).reduced (2));
-        peachBtn.setBounds    (presetRow2.removeFromLeft (btnW).reduced (2));
-        lavenderBtn.setBounds (presetRow2.removeFromLeft (btnW).reduced (2));
+        auto scaleRow = area.removeFromTop (getHeight() * 0.07f);
+        scaleLabel.setBounds    (scaleRow.removeFromLeft (scaleRow.getWidth() * 0.15f));
+        scaleSelector.setBounds (scaleRow.removeFromLeft (scaleRow.getWidth() * 0.25f).reduced (2));
+    
+        area.removeFromTop (getHeight() * 0.03f); // gap
+    
+        // --- ROW 2: PRESET BUTTONS (two rows) ---
+        auto presetRow1 = area.removeFromTop (getHeight() * 0.07f);
+        int  btnW1      = presetRow1.getWidth() / 4;
+        synthwaveBtn.setBounds  (presetRow1.removeFromLeft (btnW1).reduced (2));
+        industrialBtn.setBounds (presetRow1.removeFromLeft (btnW1).reduced (2));
+        minimalBtn.setBounds    (presetRow1.removeFromLeft (btnW1).reduced (2));
+        warmBtn.setBounds       (presetRow1.reduced (2));
+    
+        area.removeFromTop (getHeight() * 0.01f); // small gap
+    
+        auto presetRow2 = area.removeFromTop (getHeight() * 0.07f);
+        int  btnW2      = presetRow2.getWidth() / 4;
+        mintBtn.setBounds     (presetRow2.removeFromLeft (btnW2).reduced (2));
+        peachBtn.setBounds    (presetRow2.removeFromLeft (btnW2).reduced (2));
+        lavenderBtn.setBounds (presetRow2.removeFromLeft (btnW2).reduced (2));
         nordicBtn.setBounds   (presetRow2.reduced (2));
-
-        area.removeFromTop (16); // Gap
-
-        // --- ROW 3: ALL 5 COLOR PICKERS ---
-        auto colorRow = area.removeFromTop (160); // 160px height for big preview squares
-
-        // ✅ Divide by 5 instead of 4!
-        int sectionW = colorRow.getWidth() / 5;
-
+    
+        area.removeFromTop (getHeight() * 0.03f); // gap
+    
+        // --- ROW 3: COLOR PICKERS ---
+        auto colorRow = area; // takes all remaining space
+        int  sectionW = colorRow.getWidth() / 5;
+    
         layoutSection (backgroundSection, colorRow.removeFromLeft (sectionW));
         layoutSection (primarySection,    colorRow.removeFromLeft (sectionW));
         layoutSection (secondarySection,  colorRow.removeFromLeft (sectionW));
         layoutSection (surfaceSection,    colorRow.removeFromLeft (sectionW));
-
-        // ✅ Add the text section into whatever space is left on the right
         layoutSection (textSection,       colorRow);
+    }
+
+    void refreshAll()
+    {
+        // 1. Update your preview boxes (you already have this)
+        backgroundSection.previewBox.setColour (juce::Label::backgroundColourId, colors.background);
+        primarySection.previewBox.setColour    (juce::Label::backgroundColourId, colors.primary);
+        secondarySection.previewBox.setColour  (juce::Label::backgroundColourId, colors.secondary);
+        surfaceSection.previewBox.setColour    (juce::Label::backgroundColourId, colors.surface);
+        textSection.previewBox.setColour       (juce::Label::backgroundColourId, colors.text);
+
+        // 2. Update the text color of all your labels!
+        scaleLabel.setColour (juce::Label::textColourId, colors.text);
+        backgroundSection.nameLabel.setColour (juce::Label::textColourId, colors.text);
+        primarySection.nameLabel.setColour    (juce::Label::textColourId, colors.text);
+        secondarySection.nameLabel.setColour  (juce::Label::textColourId, colors.text);
+        surfaceSection.nameLabel.setColour    (juce::Label::textColourId, colors.text);
+        textSection.nameLabel.setColour       (juce::Label::textColourId, colors.text);
+
+        scaleSelector.setColour (juce::ComboBox::backgroundColourId, colors.surface);
+        scaleSelector.setColour (juce::ComboBox::textColourId, colors.text);
+        scaleSelector.setColour (juce::ComboBox::arrowColourId, colors.text); // Optional, but keeps it cohesive
+        scaleSelector.sendLookAndFeelChange();
+        // 3. Apply the global look and feel
+        lookAndFeel.applyColors();
+        colors.saveToFile();
+
+        // 4. Force SettingsPage itself to redraw its background and new label colors
+        repaint();
+
+        // 5. Tell the rest of the app to update
+        if (onColorsChanged)
+            onColorsChanged();
     }
 
 private:
@@ -177,39 +209,6 @@ private:
         section.editButton.setBounds (area.removeFromTop (24));
     }
 
-    void refreshAll()
-    {
-        // 1. Update your preview boxes (you already have this)
-        backgroundSection.previewBox.setColour (juce::Label::backgroundColourId, colors.background);
-        primarySection.previewBox.setColour    (juce::Label::backgroundColourId, colors.primary);
-        secondarySection.previewBox.setColour  (juce::Label::backgroundColourId, colors.secondary);
-        surfaceSection.previewBox.setColour    (juce::Label::backgroundColourId, colors.surface);
-        textSection.previewBox.setColour       (juce::Label::backgroundColourId, colors.text);
-    
-        // 2. Update the text color of all your labels!
-        scaleLabel.setColour (juce::Label::textColourId, colors.text);
-        backgroundSection.nameLabel.setColour (juce::Label::textColourId, colors.text);
-        primarySection.nameLabel.setColour    (juce::Label::textColourId, colors.text);
-        secondarySection.nameLabel.setColour  (juce::Label::textColourId, colors.text);
-        surfaceSection.nameLabel.setColour    (juce::Label::textColourId, colors.text);
-        textSection.nameLabel.setColour       (juce::Label::textColourId, colors.text);
-   
-        scaleSelector.setColour (juce::ComboBox::backgroundColourId, colors.surface);
-        scaleSelector.setColour (juce::ComboBox::textColourId, colors.text);
-        scaleSelector.setColour (juce::ComboBox::arrowColourId, colors.text); // Optional, but keeps it cohesive
-        scaleSelector.sendLookAndFeelChange();
-        // 3. Apply the global look and feel
-        lookAndFeel.applyColors();
-        colors.saveToFile();
-    
-        // 4. Force SettingsPage itself to redraw its background and new label colors
-        repaint();
-    
-        // 5. Tell the rest of the app to update
-        if (onColorsChanged)
-            onColorsChanged();
-    }
-
     void changeListenerCallback (juce::ChangeBroadcaster* source) override
     {
         if (auto* cs = dynamic_cast<juce::ColourSelector*> (source))
@@ -230,8 +229,8 @@ private:
     OAOColors&        colors;
     OAOLookAndFeel&   lookAndFeel;
 
-    juce::ComboBox    scaleSelector;
-    juce::Label       scaleLabel;
+    juce::ComboBox    scaleSelector, oversamplingSelector, polyphonySelector;
+    juce::Label       scaleLabel, oversamplingLabel, polyphonyLabel;
 
     juce::TextButton  synthwaveBtn, industrialBtn, minimalBtn, warmBtn, mintBtn, peachBtn, lavenderBtn, nordicBtn;
 

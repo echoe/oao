@@ -9,12 +9,12 @@ namespace ProjectConfig
     // ModSlots, for FMVoice and FMOperator
     static constexpr int numModSlots = 6;
     // Base plugin size
-    static constexpr int pluginSizeX = 950;
-    static constexpr int pluginSizeY = 680;
+    static constexpr int pluginSizeX = 1000;
+    static constexpr int pluginSizeY = 700;
     // Filters list
     inline juce::StringArray getFilterTypeChoices()
     {
-        return { "None", "Lowpass", "Highpass", "Bandpass", "Comb", "Granular", "Formant", "Tape", "Bitcrush", "AP Delay", "AP Reverb", "Compressor", "Varispeed", "Scatter", "Ring Mod", "Chorus" };
+        return { "None", "Lowpass", "Highpass", "Bandpass", "Comb", "Granular", "Formant", "Tape", "Bitcrush", "AP Delay", "AP Reverb", "Compressor", "Varispeed", "Scatter", "Ring Mod", "Chorus", "Phaser", "Distortion", "DJFX Delay", "Harmonic Resonator" };
     }
     // Filters knobs list
     inline std::array<const char*, 4> getFilterKnobLabels (int filterTypeIndex)
@@ -37,6 +37,10 @@ namespace ProjectConfig
 	    case 13: return { "Pattern",    "Size",      "Speed",     "Depth"   }; // Scatter
 	    case 14: return { "Frequency",  "Shape",     "Depth",     "Feedback"}; // Ring Mod
 	    case 15: return { "Rate",       "Depth",     "Spread",    "Voices"  }; // Chorus
+	    case 16: return { "Rate", "Depth", "Stages", "Feedback" }; // Phaser
+            case 17: return { "Drive", "Flavor", "Tone", "Degradation" }; // Distortion
+            case 18: return { "Buffer", "Speed", "On", "Drift" }; // DJFX Delay
+            case 19: return { "Root", "Scale", "Brightness", "Depth" }; // Harmonic Resonator
 	    default: return { "A",          "B",         "C",         "D"       };
         }
     }

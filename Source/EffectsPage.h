@@ -66,14 +66,15 @@ public:
     void updateLabels()
     {
         int typeIndex = filterSelector.getSelectedId() - 1; // ComboBox is 1-indexed
-        auto labels = ProjectConfig::getFilterKnobLabels (typeIndex);
+	auto labels = ProjectConfig::getFilterKnobLabels (typeIndex);
         for (int i = 0; i < 4; ++i)
             knobLabels[i].setText (labels[i], juce::dontSendNotification);
     }
 
     void paint (juce::Graphics& g) override
     {
-        g.setColour (colors.primary.withAlpha (0.1f));
+        g.fillAll (colors.background);
+        g.setColour (colors.text.withAlpha (0.1f));
         g.drawRect (getLocalBounds(), 1);
     }
 
@@ -111,29 +112,29 @@ public:
 
     void resized() override
     {
-        auto area = getLocalBounds().reduced (8);
-
+        auto area = getLocalBounds().reduced (getWidth() * 0.02f);
+    
         // Top row: slot label, filter selector, sync button
-        auto topRow = area.removeFromTop (30);
-        slotLabel.setBounds       (topRow.removeFromLeft (40));
-        syncButton.setBounds      (topRow.removeFromRight (50).reduced (2));
-        filterSelector.setBounds  (topRow.reduced (2));
-
-        area.removeFromTop (8);
-
+        auto topRow = area.removeFromTop (getHeight() * 0.18f);
+        slotLabel.setBounds      (topRow.removeFromLeft (topRow.getWidth() * 0.08f));
+        syncButton.setBounds     (topRow.removeFromRight (topRow.getWidth() * 0.12f).reduced (2));
+        filterSelector.setBounds (topRow.reduced (2));
+    
+        area.removeFromTop (getHeight() * 0.02f);
+    
         // Mix knob on the left
-        auto mixArea = area.removeFromLeft (70);
-        mixLabel.setBounds (mixArea.removeFromBottom (18));
+        auto mixArea = area.removeFromLeft (area.getWidth() * 0.12f);
+        mixLabel.setBounds  (mixArea.removeFromBottom (getHeight() * 0.1f));
         mixSlider.setBounds (mixArea);
-
-        area.removeFromLeft (8);
-
+    
+        area.removeFromLeft (area.getWidth() * 0.01f);
+    
         // Four knobs share remaining space
         int knobW = area.getWidth() / 4;
         for (int i = 0; i < 4; ++i)
         {
             auto knobArea = area.removeFromLeft (knobW);
-            knobLabels[i].setBounds (knobArea.removeFromBottom (18));
+            knobLabels[i].setBounds (knobArea.removeFromBottom (getHeight() * 0.1f));
             knobs[i].setBounds (knobArea);
         }
     }

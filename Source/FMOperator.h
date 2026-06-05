@@ -395,8 +395,37 @@ public:
                     case 1:  rawSample = waveTable->lookupTriangle (wrappedPhase); break;
                     case 2:  rawSample = waveTable->lookupSaw      (wrappedPhase); break;
                     case 3:  rawSample = waveTable->lookupSquare   (wrappedPhase); break;
-                    case 4:  rawSample = random.nextFloat() * 2.0f - 1.0f;         break; //white noise
-                    case 5: // pink
+                    case 4: // Pulse with PWM + PolyBLEP
+                    {
+                        float dutyCycle  = juce::jmap (phaseKnob, 0.0f, 360.0f, 0.05f, 0.95f);
+                        float threshold  = dutyCycle * juce::MathConstants<float>::twoPi;
+                        rawSample        = (wrappedPhase < threshold) ? 1.0f : -1.0f;
+                    
+                        float dt = static_cast<float> (phaseIncrement / juce::MathConstants<double>::twoPi);
+                        float t  = wrappedPhase / juce::MathConstants<float>::twoPi;
+                        float t2 = std::fmod (t + (1.0f - dutyCycle), 1.0f);
+                    
+                        rawSample += polyBlep (t,  dt);  // rising edge at 0
+                        rawSample -= polyBlep (t2, dt);  // falling edge at duty cycle point
+                        break;
+                    }
+                    case 5: // Square with PWM — phase knob controls duty cycle
+                    {
+                        float dutyCycle  = juce::jmap (phaseKnob, 0.0f, 360.0f, 0.05f, 0.95f);
+                        float threshold  = dutyCycle * juce::MathConstants<float>::twoPi;
+                        rawSample        = (wrappedPhase < threshold) ? 1.0f : -1.0f;
+                    
+                        // PolyBLEP for both edges
+                        float dt = static_cast<float> (phaseIncrement / juce::MathConstants<double>::twoPi);
+                        float t  = wrappedPhase / juce::MathConstants<float>::twoPi;
+                        float t2 = std::fmod (t + (1.0f - dutyCycle), 1.0f);
+                    
+                        rawSample += polyBlep (t,  dt);
+                        rawSample -= polyBlep (t2, dt);
+                        break;
+                    }
+		    case 6:  rawSample = random.nextFloat() * 2.0f - 1.0f;         break; //white noise
+                    case 7: // pink
                     {
                         float white = random.nextFloat() * 2.0f - 1.0f;
                         pinkB0 = 0.99886f * pinkB0 + white * 0.0555179f;
@@ -440,5 +469,20 @@ private:
     juce::Random random; //white noise
     float pinkB0 = 0.0f, pinkB1 = 0.0f, pinkB2 = 0.0f;
     float pinkB3 = 0.0f, pinkB4 = 0.0f, pinkB5 = 0.0f, pinkB6 = 0.0f;
+    float polyBlep(float t, float dt)
+    {
+        // t is phase normalized to [0, 1), dt is phase increment normalized to [0, 1)
+        if (t < dt) // Near rising discontinuity
+        {
+            t /= dt;
+            return t + t - t * t - 1.0f;
+        }
+        else if (t > 1.0f - dt) // Near falling discontinuity
+        {
+            t = (t - 1.0f) / dt;
+            return t * t + t + t + 1.0f;
+        }
+        return 0.0f;
+    }
     SynthFilter internalFilter;
 };

@@ -35,7 +35,7 @@ struct CompactOperatorGroup : public juce::Component
         addAndMakeVisible (syncButton);
         modeSelector.addItemList ({ "Wave", "Additive", "Filter", "Ext. In" }, 1);
         addAndMakeVisible (modeSelector);
-        waveShapeSelector.addItemList ({ "Sine", "Triangle", "Saw", "Square", "White Noise", "Pink Noise" }, 1);
+        waveShapeSelector.addItemList ({ "Sine", "Triangle", "Saw", "Square", "Pulse", "SquarePWM", "White Noise", "Pink Noise" }, 1);
         addAndMakeVisible (waveShapeSelector);
         filterTypeSelector.addItemList (ProjectConfig::getFilterTypeChoices(), 1);
 addAndMakeVisible (filterTypeSelector);
@@ -56,9 +56,10 @@ addAndMakeVisible (filterTypeSelector);
 
         // Safe UI state triggers using the stored class member reference
         modeSelector.onChange = [this]() { updateUIState(); };
+	waveShapeSelector.onChange = [this]() { updateUIState(); };
         syncButton.onClick    = [this]() { updateUIState(); };
         filterTypeSelector.onChange = [this]() {updateUIState(); };
-        updateUIState();
+        updateUIState(); // on load
     }
 
     void paint (juce::Graphics& g) override
@@ -233,9 +234,11 @@ private:
         }
         else // Wave mode
         {
+            bool isPWM = (waveShapeSelector.getSelectedId() == 5 ||
+		   waveShapeSelector.getSelectedId() == 6);
             ratioLabel.setText  (isSynced ? "Sync Rate" : "Ratio", juce::dontSendNotification);
             detuneLabel.setText ("Detune", juce::dontSendNotification);
-            phaseLabel.setText  ("Phase",  juce::dontSendNotification);
+            phaseLabel.setText  (isPWM ? "PWM" : "Phase",  juce::dontSendNotification);
             foldLabel.setText   ("Fold",   juce::dontSendNotification);
         }
     

@@ -4,6 +4,7 @@
 #include <juce_dsp/juce_dsp.h>
 #include "FMVoice.h"
 #include "WaveTable.h"
+#include "SynthFilter.h"
 
 // Simple dummy sound struct needed by juce::Synthesiser
 struct FMSound : public juce::SynthesiserSound
@@ -48,22 +49,18 @@ private:
     juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
     void updateVoices();
     //effects
-    juce::dsp::ProcessSpec spec;
-    juce::dsp::Chorus<float> chorusModule;
-    juce::dsp::Reverb        reverbModule;
-    juce::dsp::Reverb::Parameters reverbParams;
-    juce::dsp::DelayLine<float, juce::dsp::DelayLineInterpolationTypes::Linear> delayLineL { 192000 };
-    juce::dsp::DelayLine<float, juce::dsp::DelayLineInterpolationTypes::Linear> delayLineR { 192000 };
-    float delayFeedbackL = 0.0f;
-    float delayFeedbackR = 0.0f;
-    std::atomic<float>* chorusMixParam     { nullptr };
-    std::atomic<float>* chorusRateParam    { nullptr };
-    std::atomic<float>* chorusDepthParam   { nullptr };
-    std::atomic<float>* delayMixParam      { nullptr };
-    std::atomic<float>* delayTimeParam     { nullptr };
-    std::atomic<float>* delayFeedbackParam { nullptr };
-    std::atomic<float>* reverbMixParam     { nullptr };
-    std::atomic<float>* reverbRoomParam    { nullptr };
+    static constexpr int numFxSlots = 3;
+    std::array<SynthFilter, numFxSlots> fxFilters; 
+    // Parameter pointers for each effects slot
+    std::atomic<float>* fxTypeParams[numFxSlots]   { nullptr };
+    std::atomic<float>* fxSyncParams[numFxSlots]   { nullptr };
+    std::atomic<float>* fxMixParams[numFxSlots]    { nullptr };
+    std::atomic<float>* fxRatioParams[numFxSlots]  { nullptr };
+    std::atomic<float>* fxDetuneParams[numFxSlots] { nullptr };
+    std::atomic<float>* fxPhaseParams[numFxSlots]  { nullptr };
+    std::atomic<float>* fxFoldParams[numFxSlots]   { nullptr };
+    // also for everything we need to flush on every run to not echo forever
+    std::array<int, numFxSlots> lastFxFilterType { 0, 0, 0 };
     std::unique_ptr<juce::dsp::Oversampling<float>> oversampling;
     int currentOversamplingFactor = 1;
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (FMPluginAudioProcessor)

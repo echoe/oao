@@ -7,33 +7,64 @@ FMPluginAudioProcessorEditor::FMPluginAudioProcessorEditor (FMPluginAudioProcess
     : AudioProcessorEditor (&p), 
       audioProcessor (p),
       presetBar (p), //initialize preset bar	
-      opsPage (p.apvts),     // Pass APVTS context straight down
-      matrixPage (p.apvts, "MOD_", "Modulation Matrix"),   // Pass APVTS context straight down
-      audioMatrixPage (p.apvts, "AUDIO_ROUTE_", "Audio Matrix"), // APVTS context etc.
-      effectsPage (p.apvts) // APVTS context etc.
+      opsPage (p.apvts, oaoColors),     // Pass APVTS context straight down
+      matrixPage (p.apvts, "MOD_", "Modulation Matrix", oaoColors),
+      audioMatrixPage (p.apvts, "AUDIO_ROUTE_", "Audio Matrix", oaoColors),
+      effectsPage (p.apvts, oaoColors),
+      settingsPage (oaoColors, oaoLookAndFeel) //until here. 
 {
+    // Load saved colors, apply to look&feel, then set look&feel
+    oaoColors.loadFromFile();
+    oaoLookAndFeel.applyColors();
+    setLookAndFeel (&oaoLookAndFeel);
+    effectsPage.lookAndFeelChanged();
+    settingsPage.refreshAll(); //update settingsPage boxes
+
+    // Settings page
+    settingsPage.onColorsChanged = [this]
+    {
+        oaoLookAndFeel.applyColors();
+        opsPage.lookAndFeelChanged();
+        matrixPage.lookAndFeelChanged();
+        audioMatrixPage.lookAndFeelChanged();
+        effectsPage.lookAndFeelChanged();
+        this->lookAndFeelChanged();
+        repaint();
+    };
+
     addAndMakeVisible (presetBar);
     addAndMakeVisible (opsPage);
     addAndMakeVisible (matrixPage);
     addAndMakeVisible (audioMatrixPage);
     addAndMakeVisible (effectsPage);
+    addAndMakeVisible (settingsPage);
 
-    presetBar.onScaleChanged = [this] (float scale)
+    settingsPage.onScaleChanged = [this] (float scale)
     {
-        // Your base size — adjust to match your actual default dimensions
+        // Update scale, then run resized.
+        oaoLookAndFeel.currentScale = scale;
+        oaoColors.scale = scale;
         int baseWidth  = ProjectConfig::pluginSizeX;
         int baseHeight = ProjectConfig::pluginSizeY;
-        setSize (static_cast<int> (baseWidth * scale), static_cast<int> (baseHeight * scale));
+        setSize (static_cast<int> (baseWidth * scale),
+                 static_cast<int> (baseHeight * scale));
+        // Then refresh everything else ...
+        sendLookAndFeelChange();
+        presetBar.refreshScale();
+        opsPage.repaintAll();
+        matrixPage.refreshColors();
+        audioMatrixPage.refreshColors();
+        oaoColors.saveToFile();
         repaint();
     };
 
     // Navigation Buttons Configuration
     addAndMakeVisible (opsPageButton);
-    opsPageButton.setButtonText ("Operators & Envelopes");
+    opsPageButton.setButtonText ("Operators");
     opsPageButton.onClick = [this] { setPage (PageView::Operators); };
 
     addAndMakeVisible (matrixPageButton);
-    matrixPageButton.setButtonText ("Modulation Matrix");
+    matrixPageButton.setButtonText ("Mod Matrix");
     matrixPageButton.onClick = [this] { setPage (PageView::Matrix); };
 
     addAndMakeVisible (audioMatrixPageButton);
@@ -44,34 +75,39 @@ FMPluginAudioProcessorEditor::FMPluginAudioProcessorEditor (FMPluginAudioProcess
     effectsPageButton.setButtonText ("Effects");
     effectsPageButton.onClick = [this] { setPage (PageView::Effects); };
 
-    // Gain slider, since a JUCE limiter simply does not work. Configure slider style!
+    addAndMakeVisible (settingsPageButton);
+    settingsPageButton.setButtonText ("Settings");
+    settingsPageButton.onClick = [this] { setPage (PageView::Settings); };
+
+    // Gain slider/label in case you worry about deafening yourself.
     gainSlider.setSliderStyle (juce::Slider::LinearHorizontal);
     gainSlider.setTextBoxStyle (juce::Slider::TextBoxLeft, false, 45, 18);
     addAndMakeVisible (gainSlider);
-
-    // Add a text label
     gainLabel.setText ("Gain", juce::dontSendNotification);
     gainLabel.setJustificationType (juce::Justification::centredRight);
     addAndMakeVisible (gainLabel);
-
-    // Secure the attachment bridge
     gainAttach = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
         p.apvts, "GAIN_CEIL", gainSlider);
 
-    // Add title
+    // synth title. may need to move
     titleLabel.setText ("OAO", juce::dontSendNotification);
     titleLabel.setJustificationType (juce::Justification::centred);
     titleLabel.setFont (juce::Font (juce::FontOptions().withHeight (18.0f).withStyle ("Bold")));
-    titleLabel.setColour (juce::Label::textColourId, juce::Colours::white);
     addAndMakeVisible (titleLabel);
-    oscilloscope = std::make_unique<Oscilloscope> (audioProcessor);
+    
+    //oscilloscope
+    oscilloscope = std::make_unique<Oscilloscope> (audioProcessor, oaoColors);
     addAndMakeVisible (*oscilloscope);
 
+    // set initial defaults
     setPage (PageView::Operators);
-    setSize (ProjectConfig::pluginSizeX, ProjectConfig::pluginSizeY); // Expanded boundary footprint to comfortably show labels
+    setSize (ProjectConfig::pluginSizeX, ProjectConfig::pluginSizeY);
 }
 
-FMPluginAudioProcessorEditor::~FMPluginAudioProcessorEditor() {}
+FMPluginAudioProcessorEditor::~FMPluginAudioProcessorEditor()
+{
+setLookAndFeel (nullptr); // To make sure plugin doesn't crash DAW when closed
+}
 
 void FMPluginAudioProcessorEditor::setPage (PageView pageToDisplay)
 {
@@ -81,48 +117,71 @@ void FMPluginAudioProcessorEditor::setPage (PageView pageToDisplay)
     matrixPage.setVisible (currentPage == PageView::Matrix);
     audioMatrixPage.setVisible (currentPage == PageView::AudioMatrix);
     effectsPage.setVisible (currentPage == PageView::Effects);
+    settingsPage.setVisible (currentPage == PageView::Settings);
     // Ensure the top button highlight states visually match the current selection
     opsPageButton.setToggleState (currentPage == PageView::Operators, juce::dontSendNotification);
     matrixPageButton.setToggleState (currentPage == PageView::Matrix, juce::dontSendNotification);
     audioMatrixPageButton.setToggleState (currentPage == PageView::AudioMatrix, juce::dontSendNotification);
     effectsPageButton.setToggleState (currentPage == PageView::Effects, juce::dontSendNotification);
+    settingsPageButton.setToggleState (currentPage == PageView::Settings, juce::dontSendNotification);
 }
 
 void FMPluginAudioProcessorEditor::paint (juce::Graphics& g)
 {
-    g.fillAll (juce::Colours::black.withAlpha (0.9f));
+     g.fillAll (oaoColors.background);
 }
 
 void FMPluginAudioProcessorEditor::resized()
 {
-    auto area = getLocalBounds();
-    // Dedicate the top 40px to Preset Management controls
-    auto topBarArea = area.removeFromTop (40);
-    // Set preset and oversampling controls area to take up the left chunk
-    auto presetArea = topBarArea.removeFromLeft(550);
+    auto area  = getLocalBounds();
+    float scale = oaoLookAndFeel.currentScale;
+
+    // Scale fixed heights with current scale
+    int topBarHeight = static_cast<int> (40 * scale);
+    int navBarHeight = static_cast<int> (40 * scale);
+
+    // Top bar
+    auto topBarArea = area.removeFromTop (topBarHeight);
+
+    // Preset bar takes the left chunk — scale its width too
+    auto presetArea = topBarArea.removeFromLeft (static_cast<int> (650 * scale));
     presetBar.setBounds (presetArea.reduced (2));
-    // Head to the absolute right side of the bar for the gain slider
-    auto gainArea = topBarArea.removeFromRight (220);
-    gainLabel.setBounds (gainArea.removeFromLeft (45));
+
+    // Gain slider on the right
+    auto gainArea = topBarArea.removeFromRight (static_cast<int> (220 * scale));
+    gainLabel.setBounds (gainArea.removeFromLeft (static_cast<int> (45 * scale)));
     gainSlider.setBounds (gainArea.reduced (2));
 
-    // oscilloscope
+    // Oscilloscope
     if (oscilloscope != nullptr)
-        oscilloscope->setBounds (topBarArea.removeFromLeft(100));
+        oscilloscope->setBounds (topBarArea.removeFromLeft (static_cast<int> (100 * scale)));
 
-    // Add title in remaining area in top 
+    // Title in remaining space
     titleLabel.setBounds (topBarArea.reduced (2));
 
-    // Dedicate the subsequent 40px block underneath the PresetBar to UI Navigation Page switching
-    auto navArea = area.removeFromTop (40);
-    int buttonWidth = getWidth() / 4;
-    opsPageButton.setBounds (navArea.removeFromLeft (buttonWidth).reduced (4));
-    matrixPageButton.setBounds (navArea.removeFromLeft (buttonWidth).reduced (4));
-    audioMatrixPageButton.setBounds (navArea.removeFromLeft (buttonWidth).reduced (4));
-    effectsPageButton.setBounds (navArea.reduced (4));
-    // The active page occupies the remaining container bounds
+    // Nav buttons
+    auto navArea   = area.removeFromTop (navBarHeight);
+    int buttonWidth = getWidth() / 5;
+    opsPageButton.setBounds          (navArea.removeFromLeft (buttonWidth).reduced (4));
+    matrixPageButton.setBounds       (navArea.removeFromLeft (buttonWidth).reduced (4));
+    audioMatrixPageButton.setBounds  (navArea.removeFromLeft (buttonWidth).reduced (4));
+    effectsPageButton.setBounds      (navArea.removeFromLeft (buttonWidth).reduced (4));
+    settingsPageButton.setBounds     (navArea.reduced (4));
+
+    // Pages occupy remaining space
     opsPage.setBounds (area);
     matrixPage.setBounds (area);
     audioMatrixPage.setBounds (area);
     effectsPage.setBounds (area);
+    settingsPage.setBounds (area);
+}
+
+void FMPluginAudioProcessorEditor::lookAndFeelChanged()
+{
+    juce::AudioProcessorEditor::lookAndFeelChanged();
+
+    gainSlider.setColour (juce::Slider::textBoxBackgroundColourId, oaoColors.surface);
+    gainSlider.setColour (juce::Slider::textBoxTextColourId, oaoColors.text);
+    gainSlider.sendLookAndFeelChange();
+
 }

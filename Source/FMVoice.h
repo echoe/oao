@@ -47,16 +47,13 @@ public:
         externalAudioL = left;
         externalAudioR = right;
     }
+    //effects
+    std::atomic<float> fxRatioMods[3]  { 0.0f, 0.0f, 0.0f };
+    std::atomic<float> fxDetuneMods[3] { 0.0f, 0.0f, 0.0f };
+    std::atomic<float> fxPhaseMods[3]  { 0.0f, 0.0f, 0.0f };
+    std::atomic<float> fxFoldMods[3]   { 0.0f, 0.0f, 0.0f };
+    std::atomic<float> fxLevelMods[3]  { 0.0f, 0.0f, 0.0f };
     
-    // Effects modulation outputs — read by PluginProcessor after renderNextBlock
-    std::atomic<float> chorusMixMod     { 0.0f };
-    std::atomic<float> chorusRateMod    { 0.0f };
-    std::atomic<float> chorusDepthMod   { 0.0f };
-    std::atomic<float> delayMixMod      { 0.0f };
-    std::atomic<float> delayTimeMod     { 0.0f };
-    std::atomic<float> delayFeedbackMod { 0.0f };
-    std::atomic<float> reverbMixMod     { 0.0f };
-    std::atomic<float> reverbRoomMod    { 0.0f };
 private:
     float externalAudioL = 0.0f;
     float externalAudioR = 0.0f;
@@ -74,7 +71,6 @@ private:
     std::atomic<float>* modSlotSrc[ProjectConfig::numModSlots] { nullptr };
     std::atomic<float>* modSlotTgt[ProjectConfig::numModSlots] { nullptr };
     std::atomic<float>* modSlotAmt[ProjectConfig::numModSlots] { nullptr };
-
     // FM and Audio routing grids
     std::atomic<float>* matrixParams[ProjectConfig::numOperators][ProjectConfig::numOperators]      { nullptr };
     std::atomic<float>* audioMatrixParams[ProjectConfig::numOperators][ProjectConfig::numOperators] { nullptr };

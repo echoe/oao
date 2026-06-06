@@ -58,7 +58,10 @@ Additional Notes:
 Additional Notes:
 - It's a 32-partial additive oscillator, if you were wondering! I thought about it and it made the most sense to me just for CPU usage reasons. But IDK, maybe it's fine to be 32 or 64? You can change this to however many partials you want and build it yourself, just change 'numPartials' in 'FMOperator.h' and rebuild the synth yourself :)
 
-### Filter: 
+### Filter:
+#### None
+- Options: It doesn't do anything
+- Use this as a passthrough! 
 #### SVF (Lowpass, Highpass, Bandpass)
 - Options: Cutoff, Resonance, Keytrack, Feedback
 - They're the normal filters of those kinds. The implementation here is JUCE-standard.
@@ -72,6 +75,53 @@ Additional Notes:
 #### Formant
 - Options: Vowel, Nasal, Vowel Mod, Drive
 - Note: Vowel Mod changes the amount of modulation coming in from the modulation matrix, if you are modulating it. So to hear it simply, you can self-modulate this operator, and then tweak the Vowel Mod, and it will change the sound then.
+#### Tape
+- Options: Wobble, Age, Saturation, Bias
+- For Bias to be heard saturation must be on at least a little bit, the bias biases the saturation.
+#### Bitcrush
+- Options: Bits (1-16), Rate, Jitter, Noise (added white noise sample)
+- You have to have mix set twice to use this! Care!
+#### Allpass Delay
+- Options: Time, Feedback, Diffusion, Damping
+- Time: 0.0 = 10ms, 1.0 = 1000ms
+- Damping: one-pole LP in feedback path
+- Diffusion 0.0 = clean echo, 1.0 = heavily smeared
+- Feedback - adding feedback before return
+#### Allpass Reverb
+- Options: Size, Decay, Diffusion, Damping
+- Size: 0.0 = small room (20ms), 1.0 = large hall (500ms)
+- DECAY — feedback amount controls tail length
+- POST-DIFFUSION — smear the output for density
+- DAMPING in the tank feedback path
+#### Compressor
+- Options: Threshold, Ratio, Attack, Release
+#### Varispeed
+- Options: Speed, Acceleration, Depth, Mode
+-Speed controls the amount that the speed should vary by.
+-Acceleration is how fast the effect changes the speed of the incoming audio.
+-Depth controls how much the speed varies around the target speed.
+- Mode is 'Direction'. If it's under .45, it's slowing down. if it's over .55, it's speeding up. if it's in the middle, it's not doing either.
+#### Scatter
+- Options: Pattern, Size, Speed, Depth
+#### Ring Mod
+- Options: Frequency, Shape, Depth, Feedback
+#### Chorus
+- Options: Rate, Depth, Spread, Voices
+#### Phaser
+- Options: Rate, Depth, Stages, Feedback
+#### Distortion
+- Options: Drive, Flavor, Tone, Degradation
+#### Harmonic Resonator
+- Options: Root, Scale, Brightness, Depth
+Note: The scales are major, minor, pentatonic, whole, and chromatic.
+
+### More?
+The process to add more effects is very easy:
+-Add necessary state variables to SynthFilter.h's private section, and any variables it needs to reset to the reset() call.
+-Add a processing function to SynthFilter.h that actually takes input and processes the input into the effect result.
+-Update Constants.h to add the effect in the FilterChoices array and in the case settings.
+-In FMOperator.h, process the knobs to be correct given their start positions (which are from the default Wave 'Operators' page, these knobs are just relabeled with every change), and then pass them to the processing function.
+-In the processBlock effects loop in PluginProcessor.cpp, so the Effects page can work, add the case there. This is pretty much the same as FMOperator.h but with some differences that are pretty self-evident looking at the 16 (!) current examples.
 
 ### Ext. In
 It's an external in! You can route external sound into the synth if you want now, and it will go through the modulation matrix like everything else (and will be affected by the filters). It is only open if midi data is going into the plugin though.
@@ -89,13 +139,7 @@ It's an external in! You can route external sound into the synth if you want now
 - The default 'Init' state just has Operator 1 audible. You can check this when you open the synth up by opening up this page and looking on the far right.
 
 ## Effects
-- Basic effects taken straight from default juce effects!
-### Chorus
--Mix, Rate, and Depth.
-### Delay
--Mix, Time, and Feedback,
-### Reverb
--Mix and Room.
+- Use any three of the filters that you want! They always run in serial but you can order them in any way so it doesn't really matter. You can also target them in the extra modulation matrix :)
 
 ## Other Features:
 - You can sync an operator to DAW tempo and use it as an LFO. Do you want more LFOs? Why have LFOs when you can just have more operators??
@@ -107,8 +151,12 @@ It's an external in! You can route external sound into the synth if you want now
 - An Init button to avoid the randomization and get back to a normal state when it becomes too much.
 - A gain function to attempt to control the noisiness of FM (optimistic).
 - A soft clipper on the end of the chain and at every step of the audio routing page.
+- Full color theming with five (wow) zones to select and eight preset themes
+
+# In progress
+Text scaling. I'm working on it, the buttons also do not scale with plugin size
 
 Pictures of the synth in use are provided in the pictures/ folder. There are also build scripts in the main folder.
-This is mostly AI-coded, but I work in IT as a job, am actively using the synth myself, and have read over all of the code and think I understand it (though how much can one understand code they haven't written themselves?). So. YMMV.
+This is mostly AI-coded, but I am actively using the synth myself and have read over all of the code and think I understand it (though how much can one understand code they haven't written themselves?). Your mileage, as always, may vary.
 
 Happy synthing!

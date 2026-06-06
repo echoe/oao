@@ -1,15 +1,23 @@
 cmake_minimum_required(VERSION 3.22)
-
 project(OAO VERSION 1.0.1 LANGUAGES C CXX)
 
-# --- Automatically download and include JUCE ---
-include(FetchContent)
-FetchContent_Declare(
-    juce
-    GIT_REPOSITORY https://github.com/juce-framework/JUCE.git
-    GIT_TAG        8.0.13
-)
-FetchContent_MakeAvailable(juce)
+# --- Use local JUCE if available, otherwise fetch ---
+set(JUCE_LOCAL_PATH "$ENV{HOME}/JUCE" CACHE PATH "Path to local JUCE installation")
+
+if(EXISTS "${JUCE_LOCAL_PATH}/CMakeLists.txt")
+    message(STATUS "Using local JUCE at ${JUCE_LOCAL_PATH}")
+    add_subdirectory(${JUCE_LOCAL_PATH} ${CMAKE_BINARY_DIR}/JUCE)
+else()
+    message(STATUS "Local JUCE not found at ${JUCE_LOCAL_PATH}, fetching...")
+    include(FetchContent)
+    FetchContent_Declare(
+        juce
+        GIT_REPOSITORY https://github.com/juce-framework/JUCE.git
+        GIT_TAG        8.0.13
+        GIT_SHALLOW    TRUE
+    )
+    FetchContent_MakeAvailable(juce)
+endif()
 # ------------------------------------------------
 
 juce_add_plugin(OAO
@@ -33,13 +41,11 @@ target_sources(OAO PRIVATE
     Source/FMVoice.cpp
 )
 
-# --- ADD THIS BLOCK TO BYPASS GTK/WEBKIT DEPENDENCIES ---
 target_compile_definitions(OAO PRIVATE
     JUCE_WEB_BROWSER=0
     JUCE_USE_CURL=0
     JUCE_VST3_CAN_REPLACE_VST2=0
 )
-# --------------------------------------------------------
 
 target_compile_features(OAO PRIVATE cxx_std_17)
 

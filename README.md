@@ -9,10 +9,13 @@ Thanks to both Six Sines and to the Korg Opsix for some of the inspiration behin
 ## Preset Bar
 
 ### Presets
-There are three buttons to handle presets.
+There are six buttons to handle presets.
 - Init: This initializes the patch to a single Sine wave, with Operator 1's Out set to 1.
 - Save: This saves a patch as an .xml file.
 - Load: This loads a patch from an .xml file.
+- <: Scroll left in preset folder
+- ...: Select preset folder. Preset name will be displayed next to this button.
+- >: Scroll right in preset folder
 
 ### Randomization
 There are three randomization buttons. These are after 'Init', because frequently after using them, you'll want to go back to an init state.
@@ -26,9 +29,6 @@ This oversamples the main audio path to provide increased polyphony. Select betw
 
 ### Poly
 This picks the number of voices in the synth. This defauts to 8 but you can go from 1 (mono) to 32.
-
-### Size
-Change the size of the synth window, from 50% to 200%.
 
 ### Gain
 If you're using randomization you may want to turn the gain down as a precaution! Don't go deaf!!! It's easy for things to get /too wild/. I've tried to moderate that and haven't made all audio from my computer break for a while, but this is a freeware VST made by one developer and AI, so, uh, no guarantees.
@@ -143,22 +143,23 @@ It's an external in! You can route external sound into the synth if you want now
 ## Effects
 - Use any three of the filters that you want! They always run in serial but you can order them in any way so it doesn't really matter. You can also target them in the extra modulation matrix :)
 
+## Settings
+A settings page for two things:
+### Size
+- Set the size of the plugin window from 50% to 200%. This doesn't work perfectly but it's something!
+### Theme
+Select your color theme from one of eight preset choices, or make your own with fice color presets! All pages will pick up the new colors and refresh.
+
+
 ## Other Features:
 - You can sync an operator to DAW tempo and use it as an LFO. Do you want more LFOs? Why have LFOs when you can just have more operators??
 - You can pass audio into an operator with the audio routing matrix, so you can use an operator as a filter. Do you want a filter? Why have filters when you can just have more operators??
 - You can modulate any operator with any other operator.
-- Three simple, global-only effects to soften up the FM; Delay, Reverb, and Chorus. If you want better effects, that's what effects in a DAW are for! The effects are not the point!
-- Preset support! ... It's in the form of writing and reading xml files, but it does work!
-- Randomization of each page, if you really can't think of anything.
-- An Init button to avoid the randomization and get back to a normal state when it becomes too much.
-- A gain function to attempt to control the noisiness of FM (optimistic).
-- A soft clipper on the end of the chain and at every step of the audio routing page.
-- Full color theming with five (wow) zones to select and eight preset themes
 
 # In progress
 Text scaling. I'm working on it, the buttons also do not scale with plugin size
 
-Pictures of the synth in use are provided in the pictures/ folder. There are also build scripts in the main folder.
+Pictures of the synth in use are provided in the pictures/ folder, and I've switched between themes for each picture so you can get an idea of the theme options. There are also build scripts in the main folder, and built vst3 and standalone builds for all three OS's in the release folder.
 This is mostly AI-coded, but I am actively using the synth myself and have read over all of the code and think I understand it (though how much can one understand code they haven't written themselves?). Your mileage, as always, may vary.
 
 Happy synthing!

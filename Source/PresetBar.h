@@ -131,11 +131,9 @@ public:
     }
 
 private:
-    // -------------------------------------------------------------------------
-    // Preset folder / navigation helpers
-    // -------------------------------------------------------------------------
+    // Preset folder / navigation helper functions
 
-    /** Rescans the current preset folder and sorts results alphabetically. */
+    // Rescans the current preset folder and sorts results alphabetically.
     void refreshPresetList()
     {
         presetFiles.clear();
@@ -146,7 +144,7 @@ private:
         presetFiles.sort(); // juce::Array<File> sorts lexicographically
     }
 
-    /** Updates the name label to reflect the current index (or a fallback). */
+    // Updates the name label to reflect the current index (or a fallback).
     void updateNameLabel()
     {
         if (presetFiles.isEmpty() || currentPresetIndex < 0)
@@ -160,7 +158,7 @@ private:
         presetNameLabel.setText (name, juce::dontSendNotification);
     }
 
-    /** Loads the preset at presetFiles[currentPresetIndex] into the APVTS. */
+    // Loads the preset at presetFiles[currentPresetIndex] into the APVTS.
     void loadCurrentPreset()
     {
         if (currentPresetIndex < 0 || currentPresetIndex >= presetFiles.size())
@@ -176,7 +174,7 @@ private:
         updateNameLabel();
     }
 
-    /** Steps through the preset list by +1 or -1, wrapping around. */
+    // Steps through the preset list by +1 or -1, wrapping around.
     void navigatePreset (int delta)
     {
         if (presetFiles.isEmpty())
@@ -187,7 +185,7 @@ private:
         loadCurrentPreset();
     }
 
-    /** Opens a folder chooser so the user can pick their preset directory. */
+    // Opens a folder chooser so the user can pick their preset directory.
     void choosePresetFolder()
     {
         // Start in the folder we already have (or Documents as a fallback)
@@ -213,10 +211,7 @@ private:
             });
     }
 
-    // -------------------------------------------------------------------------
-    // Existing helpers
-    // -------------------------------------------------------------------------
-
+    // Preset Button Functions
     void triggerInit()
     {
         auto& parameters = audioProcessor.apvts.processor.getParameters();
@@ -257,17 +252,16 @@ private:
                     rangedParam->setValueNotifyingHost (prng.nextFloat());
             }
         }
-        // Randomised state is no longer tied to a named preset
         currentPresetIndex = -1;
         updateNameLabel();
     }
 
     void triggerSave()
     {
-        // Default filename: the current preset name (if any), else "NewPreset"
+        // Default filename: the current preset name (if any), else "New Preset"
         juce::String defaultName = (currentPresetIndex >= 0 && ! presetFiles.isEmpty())
                                    ? presetFiles[currentPresetIndex].getFileNameWithoutExtension()
-                                   : "NewPreset";
+                                   : "New Preset";
 
         juce::File startDir = (presetFolder != juce::File() && presetFolder.isDirectory())
                               ? presetFolder
@@ -333,9 +327,6 @@ private:
             });
     }
 
-    // -------------------------------------------------------------------------
-    // Members
-    // -------------------------------------------------------------------------
     FMPluginAudioProcessor& audioProcessor;
 
     juce::TextButton initButton, saveButton, loadButton;

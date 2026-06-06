@@ -153,16 +153,16 @@ public:
         distToneState  = 0.0f;
         distLastSign   = 1.0f;
         distGlitchCount = 0;
-	// djfx
-	djfxBuffer.fill (0.0f);
+        // djfx
+        djfxBuffer.fill (0.0f);
         djfxWritePtr    = 0;
         djfxReadPtr     = 0.0f;
         djfxCapturing   = false;
         djfxCaptureSize  = 0;
         djfxCaptureCount = 0;
         djfxDriftPhase   = 0.0f;
-	// color resonator
-	resS1.fill (0.0f);
+        // color resonator
+        resS1.fill (0.0f);
         resS2.fill (0.0f);
     }
 
@@ -172,8 +172,8 @@ public:
         writePtr = 0;
         lastCombDamping = 0.0f;
 
-	// For formant
-	for (int i = 0; i < 3; ++i) {
+        // For formant
+        for (int i = 0; i < 3; ++i) {
             f_s1[i] = 0.0f;
             f_s2[i] = 0.0f;
         }
@@ -292,10 +292,8 @@ public:
                 reset(); 
                 return 0.0f; 
             }
-
             outputAccumulator += bp;
         }
-
         // Gain compensation for 3 parallel resonant peaks & soft clipper
         return std::tanh(outputAccumulator * 0.33f);
     }
@@ -312,23 +310,7 @@ public:
         float readPtrVal = static_cast<float>(writePtr) - delaySamples;
         
         while (readPtrVal < 0.0f) readPtrVal += static_cast<float>(bufferSize);
-        
-        int idx1 = static_cast<int>(readPtrVal) % bufferSize;
-        float frac = readPtrVal - std::floor (readPtrVal);
-        int idx0 = (idx1 - 1 + bufferSize) % bufferSize;
-        int idx2 = (idx1 + 1) % bufferSize;
-        int idx3 = (idx1 + 2) % bufferSize;
-        
-        float y0 = combBuffer[static_cast<size_t>(idx0)];
-        float y1 = combBuffer[static_cast<size_t>(idx1)];
-        float y2 = combBuffer[static_cast<size_t>(idx2)];
-        float y3 = combBuffer[static_cast<size_t>(idx3)];
-        
-        float c0 = y1;
-        float c1 = 0.5f * (y2 - y0);
-        float c2 = y0 - 2.5f * y1 + 2.0f * y2 - 0.5f * y3;
-        float c3 = 0.5f * (y3 - y0) + 1.5f * (y1 - y2);
-        float delayedSample = ((c3 * frac + c2) * frac + c1) * frac + c0;
+        float delayedSample = hermiteInterp (combBuffer.data(), bufferSize, readPtrVal);
         
         lastCombDamping = (delayedSample * (1.0f - dampingNormalized)) + (lastCombDamping * dampingNormalized);
         float safeFeedback = juce::jlimit (-0.995f, 0.995f, feedback);
@@ -379,24 +361,8 @@ public:
                 // Moving read head for the grain
                 float readPos = grain.position + grain.phase; 
                 while (readPos >= bSize) readPos -= bSize;
-                
-                // Hermite Interpolation
-                int idx1 = static_cast<int>(readPos) % bSize;
-                float frac = readPos - std::floor(readPos);
-                int idx0 = (idx1 - 1 + bSize) % bSize;
-                int idx2 = (idx1 + 1) % bSize;
-                int idx3 = (idx1 + 2) % bSize;
-                
-                float y0 = combBuffer[static_cast<size_t>(idx0)];
-                float y1 = combBuffer[static_cast<size_t>(idx1)];
-                float y2 = combBuffer[static_cast<size_t>(idx2)];
-                float y3 = combBuffer[static_cast<size_t>(idx3)];
-                
-                float c0 = y1;
-                float c1 = 0.5f * (y2 - y0);
-                float c2 = y0 - 2.5f * y1 + 2.0f * y2 - 0.5f * y3;
-                float c3 = 0.5f * (y3 - y0) + 1.5f * (y1 - y2);
-                float sample = ((c3 * frac + c2) * frac + c1) * frac + c0;
+
+                float sample = hermiteInterp (combBuffer.data(), bSize, readPos);
                 
                 // Hanning Window to prevent clicks
                 float window = 0.5f * (1.0f - std::cos(juce::MathConstants<float>::twoPi * grain.phase / grain.durationInSamples));
@@ -462,24 +428,7 @@ public:
                                             baseDelaySamples + wobble * baseDelaySamples);
         tapeReadPtr = static_cast<float> (tapeWritePtr) - delaySamples;
         while (tapeReadPtr < 0.0f) tapeReadPtr += static_cast<float> (bufferSize);
-    
-        // Hermite interpolation
-        int   idx1 = static_cast<int> (tapeReadPtr) % bufferSize;
-        float frac = tapeReadPtr - std::floor (tapeReadPtr);
-        int   idx0 = (idx1 - 1 + bufferSize) % bufferSize;
-        int   idx2 = (idx1 + 1) % bufferSize;
-        int   idx3 = (idx1 + 2) % bufferSize;
-    
-        float y0 = tapeDelayBuffer[idx0];
-        float y1 = tapeDelayBuffer[idx1];
-        float y2 = tapeDelayBuffer[idx2];
-        float y3 = tapeDelayBuffer[idx3];
-    
-        float c0 = y1;
-        float c1 = 0.5f * (y2 - y0);
-        float c2 = y0 - 2.5f * y1 + 2.0f * y2 - 0.5f * y3;
-        float c3 = 0.5f * (y3 - y0) + 1.5f * (y1 - y2);
-        float output = ((c3 * frac + c2) * frac + c1) * frac + c0;
+        float output = hermiteInterp (tapeDelayBuffer, bufferSize, tapeReadPtr);
     
         // 4. AGE — one-pole low-pass for HF loss
         float ageCoeff = 1.0f - (age * 0.92f);
@@ -493,9 +442,7 @@ public:
                                   float jitter, float noise,
                                   double sampleRate)
     {
-        // -------------------------------------------------------
-        // 1. SAMPLE RATE REDUCTION
-        // -------------------------------------------------------
+        // sample rate reduction
         int downsampleFactor = juce::jlimit (1, 64,
                                    static_cast<int> (1.0f + rate * 63.0f));
     
@@ -507,9 +454,7 @@ public:
         }
         float downsampled = crushHeld;
     
-        // -------------------------------------------------------
-        // 2. JITTER — clock instability, randomizes sample timing
-        // -------------------------------------------------------
+        // jitter - clock instability and random sample timing
         if (jitter > 0.001f)
         {
             // Randomly retrigger the hold with probability based on jitter
@@ -521,16 +466,12 @@ public:
             downsampled     = crushHeld + jitterAmt * crushHeld;
         }
     
-        // -------------------------------------------------------
-        // 3. BIT DEPTH REDUCTION
-        // -------------------------------------------------------
+        // bitdepth reduction
         float bitDepth = juce::jmap (bits, 0.0f, 1.0f, 1.0f, 16.0f);
         float levels   = std::pow (2.0f, bitDepth);
         float crushed  = std::round (downsampled * levels) / levels;
     
-        // -------------------------------------------------------
-        // 4. QUANTIZATION NOISE
-        // -------------------------------------------------------
+        // noise go brr
         if (noise > 0.001f)
         {
             float dither = (crushRandom.nextFloat() * 2.0f - 1.0f) * noise * (1.0f / levels);
@@ -545,18 +486,14 @@ public:
                                       float diffusion, float damping,
                                       double sampleRate)
     {
-        // -------------------------------------------------------
-        // 1. DIFFUSION — cascade allpass stages to smear the echo
-        // -------------------------------------------------------
+        // cascade allpass stages to smear the echo
         float diffCoeff = diffusion * 0.7f;
         float diffused  = input;
         for (int i = 0; i < numApStages; ++i)
             diffused = processAllpass (diffused, diffCoeff,
                                        apStageBuffers[i], apStageWritePtrs[i]);
     
-        // -------------------------------------------------------
-        // 2. MAIN DELAY LINE
-        // -------------------------------------------------------
+        // main delay line
         float delayMs      = juce::jmap (time, 0.0f, 1.0f, 10.0f, 1000.0f);
         int   delaySamples = juce::jlimit (1, apDelayBufferSize - 1,
                                  static_cast<int> (delayMs / 1000.0f * sampleRate));
@@ -564,18 +501,14 @@ public:
         int   readPtr = (apDelayWritePtr - delaySamples + apDelayBufferSize) % apDelayBufferSize;
         float delayed = apDelayBuffer[readPtr];
     
-        // -------------------------------------------------------
-        // 3. DAMPING — frequency-mapped one-pole LP in feedback path
-        // -------------------------------------------------------
+        // damping — frequency-mapped one-pole LP in feedback path
         float dampCutoff  = juce::jmap (1.0f - damping, 0.0f, 1.0f, 20.0f, 20000.0f);
         float dampAlpha   = 1.0f - std::exp (-2.0f * juce::MathConstants<float>::pi
                                              * dampCutoff / static_cast<float> (sampleRate));
         apDelayLastSample += dampAlpha * (delayed - apDelayLastSample);
     
-        // -------------------------------------------------------
-        // 4. FEEDBACK
-        // -------------------------------------------------------
-        float feedbackAmt = juce::jlimit (0.0f, 0.95f, feedback);
+        // feedback
+	float feedbackAmt = juce::jlimit (0.0f, 0.95f, feedback);
         apDelayBuffer[apDelayWritePtr] = diffused + apDelayLastSample * feedbackAmt;
         apDelayWritePtr = (apDelayWritePtr + 1) % apDelayBufferSize;
     
@@ -586,18 +519,14 @@ public:
                                        float diffusion, float damping,
                                        double sampleRate)
     {
-        // -------------------------------------------------------
-        // 1. PRE-DIFFUSION
-        // -------------------------------------------------------
+        // pre-diffusion ...
         float diffCoeff = juce::jlimit (0.0f, 0.75f, diffusion * 0.75f);
         float diffused  = input;
         for (int i = 0; i < numRevStages / 2; ++i)
             diffused = processAllpass (diffused, diffCoeff,
                                        apRevStageBuffers[i], apRevStageWritePtrs[i]);
     
-        // -------------------------------------------------------
-        // 2. REVERB TANK
-        // -------------------------------------------------------
+        // reverb tank
         float sizeMs      = juce::jmap (size, 0.0f, 1.0f, 20.0f, 500.0f);
         int   tankSamples = juce::jlimit (1, apRevBufferSize - 1,
                                  static_cast<int> (sizeMs / 1000.0f * sampleRate));
@@ -605,24 +534,18 @@ public:
         int   readPtr = (apRevWritePtr - tankSamples + apRevBufferSize) % apRevBufferSize;
         float tankOut = apRevBuffer[readPtr];
     
-        // -------------------------------------------------------
-        // 3. DAMPING — frequency-mapped one-pole LP in feedback path
-        // -------------------------------------------------------
+        // damping — frequency-mapped one-pole LP in feedback path
         float dampCutoff  = juce::jmap (1.0f - damping, 0.0f, 1.0f, 20.0f, 20000.0f);
         float dampAlpha   = 1.0f - std::exp (-2.0f * juce::MathConstants<float>::pi
                                              * dampCutoff / static_cast<float> (sampleRate));
         apRevLastSample  += dampAlpha * (tankOut - apRevLastSample);
     
-        // -------------------------------------------------------
-        // 4. DECAY
-        // -------------------------------------------------------
+        // decay
         float decayAmt = juce::jlimit (0.0f, 0.93f, decay);
         apRevBuffer[apRevWritePtr] = diffused + apRevLastSample * decayAmt;
         apRevWritePtr = (apRevWritePtr + 1) % apRevBufferSize;
     
-        // -------------------------------------------------------
-        // 5. POST-DIFFUSION
-        // -------------------------------------------------------
+        // post-diffusion
         float output = tankOut;
         for (int i = numRevStages / 2; i < numRevStages; ++i)
             output = processAllpass (output, diffCoeff,
@@ -635,14 +558,10 @@ public:
                                 float attack, float release,
                                 double sampleRate)
     {
-        // -------------------------------------------------------
-        // 1. THRESHOLD — map 0-1 to -40dB to 0dB
-        // -------------------------------------------------------
+        // threshold — map 0-1 to -40dB to 0dB
         float thresholdDb = juce::jmap (threshold, 0.0f, 1.0f, -40.0f, 0.0f);
     
-        // -------------------------------------------------------
-        // 2. ENVELOPE FOLLOWER — tracks signal level
-        // -------------------------------------------------------
+        // envelope follower — tracks signal level
         float inputLevel = std::abs (input);
         float attackCoeff  = std::exp (-1.0f / (static_cast<float> (sampleRate)
                                        * juce::jmap (attack,   0.0f, 1.0f, 0.001f, 0.5f)));
@@ -654,9 +573,7 @@ public:
         else
             compEnvelope = releaseCoeff * compEnvelope + (1.0f - releaseCoeff) * inputLevel;
     
-        // -------------------------------------------------------
-        // 3. GAIN COMPUTATION
-        // -------------------------------------------------------
+        // compute gain
         float inputDb   = juce::Decibels::gainToDecibels (compEnvelope, -60.0f);
         float targetDb  = 0.0f;
     
@@ -671,9 +588,7 @@ public:
         float gainDb   = targetDb - inputDb;
         compGainDb     = gainDb; // store for metering if needed
     
-        // -------------------------------------------------------
-        // 4. APPLY GAIN
-        // -------------------------------------------------------
+        // apply gain
         float gain = juce::Decibels::decibelsToGain (gainDb);
         return input * gain;
     }
@@ -682,11 +597,7 @@ public:
                                    float depth, float mode,
                                    double sampleRate)
     {
-        // -------------------------------------------------------
-        // 1. TARGET SPEED — mode controls direction
-        // -------------------------------------------------------
-        // mode: 0.0 = slow down, 0.5 = neutral, 1.0 = speed up
-        // speed: base speed variation amount
+        // speed. mode: 0.0 = slow down, 0.5 = neutral, 1.0 = speed up
         float targetSpeed;
         if (mode < 0.45f)
             targetSpeed = juce::jmap (speed, 0.0f, 1.0f, 0.25f, 0.99f); // slow down
@@ -695,10 +606,7 @@ public:
         else
             targetSpeed = 1.0f; // neutral passthrough
     
-        // -------------------------------------------------------
-        // 2. ACCELERATION — how fast speed changes happen
-        // -------------------------------------------------------
-        // depth controls how much the speed varies around the target
+        // speed acceleration. depth controls how much the speed varies around the target
         float depthAmt    = depth * 0.5f;
         float accelCoeff  = std::exp (-1.0f / (static_cast<float> (sampleRate)
                                       * juce::jmap (acceleration, 0.0f, 1.0f, 0.001f, 2.0f)));
@@ -712,39 +620,17 @@ public:
         varispeedCurrentSpeed = accelCoeff * varispeedCurrentSpeed 
                                 + (1.0f - accelCoeff) * modulatedSpeed;
     
-        // -------------------------------------------------------
-        // 3. WRITE INPUT TO BUFFER
-        // -------------------------------------------------------
         int bufferSize = 96000;
         varispeedBuffer[varispeedWritePtr] = input;
         varispeedWritePtr = (varispeedWritePtr + 1) % bufferSize;
     
-        // -------------------------------------------------------
-        // 4. READ AT MODULATED SPEED using Hermite interpolation
-        // -------------------------------------------------------
-        varispeedReadPtr += varispeedCurrentSpeed;
+        // read at modded speed with hermite interpolation
+	varispeedReadPtr += varispeedCurrentSpeed;
         while (varispeedReadPtr >= static_cast<float> (bufferSize))
             varispeedReadPtr -= static_cast<float> (bufferSize);
         while (varispeedReadPtr < 0.0f)
             varispeedReadPtr += static_cast<float> (bufferSize);
-    
-        int   idx1 = static_cast<int> (varispeedReadPtr) % bufferSize;
-        float frac = varispeedReadPtr - std::floor (varispeedReadPtr);
-        int   idx0 = (idx1 - 1 + bufferSize) % bufferSize;
-        int   idx2 = (idx1 + 1) % bufferSize;
-        int   idx3 = (idx1 + 2) % bufferSize;
-    
-        float y0 = varispeedBuffer[idx0];
-        float y1 = varispeedBuffer[idx1];
-        float y2 = varispeedBuffer[idx2];
-        float y3 = varispeedBuffer[idx3];
-    
-        float c0 = y1;
-        float c1 = 0.5f * (y2 - y0);
-        float c2 = y0 - 2.5f * y1 + 2.0f * y2 - 0.5f * y3;
-        float c3 = 0.5f * (y3 - y0) + 1.5f * (y1 - y2);
-    
-        float output = ((c3 * frac + c2) * frac + c1) * frac + c0;
+        float output = hermiteInterp (varispeedBuffer, bufferSize, varispeedReadPtr);
         return std::isfinite (output) ? output : 0.0f;
     }
 
@@ -752,14 +638,11 @@ public:
                                  float speed, float depth,
                                  double sampleRate)
     {
-        // -------------------------------------------------------
-        // 1. WRITE INPUT TO BUFFER always
-        // -------------------------------------------------------
+        // write input to buffer
         scatterBuffer[scatterWritePtr] = input;
         scatterWritePtr = (scatterWritePtr + 1) % scatterBufferSize;
     
-        // -------------------------------------------------------
-        // 2. PATTERN SELECTION
+        // may have to get this changed. for now:
         // Pattern 0.0-0.25: Stutter (repeat short segment)
         // Pattern 0.25-0.5: Reverse (play segment backwards)
         // Pattern 0.5-0.75: Skip (jump forward in buffer)
@@ -779,10 +662,8 @@ public:
         scatterCycleLength = segmentSize;
         scatterPhase       = (scatterPhase + 1) % scatterCycleLength;
     
-        // -------------------------------------------------------
-        // 3. COMPUTE READ POSITION based on pattern
-        // -------------------------------------------------------
-        float readPos = 0.0f;
+        // computer read pos based on pattern
+	float readPos = 0.0f;
     
         switch (patternIdx)
         {
@@ -826,37 +707,15 @@ public:
         while (readPos >= static_cast<float> (scatterBufferSize))
             readPos -= static_cast<float> (scatterBufferSize);
     
-        // -------------------------------------------------------
-        // 4. HERMITE INTERPOLATION
-        // -------------------------------------------------------
-        int   idx1 = static_cast<int> (readPos) % scatterBufferSize;
-        float frac = readPos - std::floor (readPos);
-        int   idx0 = (idx1 - 1 + scatterBufferSize) % scatterBufferSize;
-        int   idx2 = (idx1 + 1) % scatterBufferSize;
-        int   idx3 = (idx1 + 2) % scatterBufferSize;
-    
-        float y0 = scatterBuffer[idx0];
-        float y1 = scatterBuffer[idx1];
-        float y2 = scatterBuffer[idx2];
-        float y3 = scatterBuffer[idx3];
-    
-        float c0 = y1;
-        float c1 = 0.5f * (y2 - y0);
-        float c2 = y0 - 2.5f * y1 + 2.0f * y2 - 0.5f * y3;
-        float c3 = 0.5f * (y3 - y0) + 1.5f * (y1 - y2);
-        float scattered = ((c3 * frac + c2) * frac + c1) * frac + c0;
-    
-        // -------------------------------------------------------
-        // 5. HANNING WINDOW to prevent clicks at segment boundaries
-        // -------------------------------------------------------
+        float scattered = hermiteInterp (scatterBuffer.data(), scatterBufferSize, readPos);
+ 
+        // hanning window to prevent clicks at segment boundaries
         float window = 0.5f * (1.0f - std::cos (juce::MathConstants<float>::twoPi
                                                  * static_cast<float> (scatterPhase)
                                                  / static_cast<float> (scatterCycleLength)));
         scattered *= window;
     
-        // -------------------------------------------------------
-        // 6. DEPTH MIX — blend scattered with dry
-        // -------------------------------------------------------
+        // depth mix — blend scattered with dry
         return scattered * depth + input * (1.0f - depth);
     }
 
@@ -864,21 +723,16 @@ public:
                                  float depth, float feedback,
                                  double sampleRate)
     {
-        // -------------------------------------------------------
-        // 1. ADVANCE OSCILLATOR PHASE
-        // -------------------------------------------------------
+        // advance osc phase
         float phaseIncrement = (frequency * juce::MathConstants<float>::twoPi)
                                / static_cast<float> (sampleRate);
         ringPhase += phaseIncrement;
         if (ringPhase >= juce::MathConstants<float>::twoPi)
             ringPhase -= juce::MathConstants<float>::twoPi;
     
-        // -------------------------------------------------------
-        // 2. OSCILLATOR SHAPE
         // Shape 0.0-0.33: Sine
         // Shape 0.33-0.66: Saw
         // Shape 0.66-1.0: Square
-        // -------------------------------------------------------
         float carrier = 0.0f;
         if (shape < 0.33f)
         {
@@ -902,21 +756,15 @@ public:
             carrier      = saw * (1.0f - blend) + square * blend;
         }
     
-        // -------------------------------------------------------
-        // 3. FEEDBACK — feed output back into input for extra harmonics
-        // -------------------------------------------------------
+        // feedback - feed output back into input for extra harmonics
         float feedbackAmt = juce::jlimit (0.0f, 0.95f, feedback);
         float modInput    = input + ringFeedback * feedbackAmt;
     
-        // -------------------------------------------------------
-        // 4. RING MODULATION — multiply input by carrier
-        // -------------------------------------------------------
+        // ringmod — multiply input by carrier
         float modulated = modInput * carrier;
         ringFeedback    = modulated;
     
-        // -------------------------------------------------------
-        // 5. DEPTH — blend modulated with dry
-        // -------------------------------------------------------
+        // depth
         return modulated * depth + input * (1.0f - depth);
     }
 
@@ -924,22 +772,16 @@ public:
                                 float spread, float voices,
                                 double sampleRate)
     {
-        // -------------------------------------------------------
-        // 1. WRITE TO DELAY BUFFER
-        // -------------------------------------------------------
+        // write to delay buffer
         chorusDelayBuffer[chorusWritePtr] = input;
         chorusWritePtr = (chorusWritePtr + 1) % chorusDelaySize;
     
-        // -------------------------------------------------------
-        // 2. NUMBER OF VOICES
-        // -------------------------------------------------------
+        // voice#
         int numVoices = juce::jlimit (1, numChorusVoices,
                            static_cast<int> (1.0f + voices * 3.0f)); // 1-4 voices
     
-        // -------------------------------------------------------
-        // 3. BASE PARAMETERS
-        // -------------------------------------------------------
-        // Rate: 0.0 = 0.1Hz, 1.0 = 5Hz
+        // base parameters
+	// Rate: 0.0 = 0.1Hz, 1.0 = 5Hz
         float lfoRate   = 0.1f + rate * 4.9f;
     
         // Depth: controls delay modulation range (1ms - 20ms)
@@ -950,10 +792,8 @@ public:
         float baseDelayMs      = 5.0f + depth * 25.0f;
         float baseDelaySamples = baseDelayMs / 1000.0f * static_cast<float> (sampleRate);
     
-        // -------------------------------------------------------
-        // 4. ACCUMULATE VOICES
-        // -------------------------------------------------------
-        float output = 0.0f;
+        // accumulate voices ...
+	float output = 0.0f;
     
         for (int v = 0; v < numVoices; ++v)
         {
@@ -978,24 +818,7 @@ public:
             // Read position
             float readPos = static_cast<float> (chorusWritePtr) - delaySamples;
             while (readPos < 0.0f) readPos += static_cast<float> (chorusDelaySize);
-    
-            // Hermite interpolation
-            int   idx1 = static_cast<int> (readPos) % chorusDelaySize;
-            float frac = readPos - std::floor (readPos);
-            int   idx0 = (idx1 - 1 + chorusDelaySize) % chorusDelaySize;
-            int   idx2 = (idx1 + 1) % chorusDelaySize;
-            int   idx3 = (idx1 + 2) % chorusDelaySize;
-    
-            float y0 = chorusDelayBuffer[idx0];
-            float y1 = chorusDelayBuffer[idx1];
-            float y2 = chorusDelayBuffer[idx2];
-            float y3 = chorusDelayBuffer[idx3];
-    
-            float c0 = y1;
-            float c1 = 0.5f * (y2 - y0);
-            float c2 = y0 - 2.5f * y1 + 2.0f * y2 - 0.5f * y3;
-            float c3 = 0.5f * (y3 - y0) + 1.5f * (y1 - y2);
-            output += ((c3 * frac + c2) * frac + c1) * frac + c0;
+            output += hermiteInterp (chorusDelayBuffer.data(), chorusDelaySize, readPos);
         }
     
         // Normalize by voice count
@@ -1009,9 +832,7 @@ float processSamplePhaser (float input, float rate, float depth,
                             float stages, float feedback,
                             double sampleRate)
     {
-        // -------------------------------------------------------
-        // 1. LFO
-        // -------------------------------------------------------
+        // lfo
         float lfoRate = 0.05f + rate * 4.95f; // 0.05Hz to 5Hz
         phaserLFOPhase += (lfoRate * juce::MathConstants<float>::twoPi)
                           / static_cast<float> (sampleRate);
@@ -1020,11 +841,9 @@ float processSamplePhaser (float input, float rate, float depth,
     
         float lfo = (std::sin (phaserLFOPhase) + 1.0f) * 0.5f; // 0.0 to 1.0
     
-        // -------------------------------------------------------
         // 2. MODULATED ALLPASS COEFFICIENT
         // depth controls how wide the notch sweeps
         // 0.0 = subtle, 1.0 = full sweep
-        // -------------------------------------------------------
         float minFreq  = 200.0f;
         float maxFreq  = juce::jmap (depth, 0.0f, 1.0f, 800.0f, 8000.0f);
         float sweepFreq = minFreq + lfo * (maxFreq - minFreq);
@@ -1034,22 +853,16 @@ float processSamplePhaser (float input, float rate, float depth,
                             / static_cast<float> (sampleRate));
         float coeff = (w - 1.0f) / (w + 1.0f);
     
-        // -------------------------------------------------------
         // 3. NUMBER OF STAGES
         // stages 0.0-1.0 maps to 2, 4, 6, 8 stages
-        // -------------------------------------------------------
         int numStages = 2 + (static_cast<int> (stages * 3.0f) * 2);
         numStages     = juce::jlimit (2, numPhaserStages, numStages);
     
-        // -------------------------------------------------------
-        // 4. FEEDBACK — feed output back into input
-        // -------------------------------------------------------
+        // feedback — feed output back into input
         float feedbackAmt = juce::jlimit (-0.95f, 0.95f, (feedback * 2.0f) - 1.0f);
         float inputWithFeedback = input + phaserFeedback * feedbackAmt;
     
-        // -------------------------------------------------------
         // 5. CASCADE ALLPASS STAGES
-        // -------------------------------------------------------
         float output = inputWithFeedback;
         for (int i = 0; i < numStages; ++i)
         {
@@ -1060,9 +873,7 @@ float processSamplePhaser (float input, float rate, float depth,
     
         phaserFeedback = output;
     
-        // -------------------------------------------------------
         // 6. MIX — classic phaser is 50% dry + 50% wet
-        // -------------------------------------------------------
         return (input + output) * 0.5f;
     }
 
@@ -1070,19 +881,15 @@ float processSamplePhaser (float input, float rate, float depth,
                                     float tone, float degradation,
                                     double sampleRate)
     {
-        // -------------------------------------------------------
-        // 1. DRIVE — input gain
-        // -------------------------------------------------------
+        // drive — input gain
         float driveAmt = 1.0f + drive * 40.0f; // 1x to 41x
         float driven   = input * driveAmt;
     
-        // -------------------------------------------------------
         // 2. FLAVOR — morphs between distortion types
         // 0.0-0.25: Soft clip (tanh)
         // 0.25-0.5: Hard clip
         // 0.5-0.75: Foldback
         // 0.75-1.0: Digital (sign function / bit mangle)
-        // -------------------------------------------------------
         float distorted = 0.0f;
     
         if (flavor < 0.25f)
@@ -1125,11 +932,9 @@ float processSamplePhaser (float input, float rate, float depth,
             distorted     = folded * (1.0f - blend) + digital * blend;
         }
     
-        // -------------------------------------------------------
         // 3. DEGRADATION — digital artifacts
         // Three layers: zero-crossing glitch, sample mangling, 
         // and random dropout
-        // -------------------------------------------------------
         if (degradation > 0.001f)
         {
             // Layer 1: Zero-crossing glitch — freezes signal at crossings
@@ -1161,10 +966,8 @@ float processSamplePhaser (float input, float rate, float depth,
                 distorted = 0.0f;
         }
     
-        // -------------------------------------------------------
         // 4. TONE — post-distortion one-pole filter
         // 0.0 = dark (heavy low-pass), 0.5 = neutral, 1.0 = bright
-        // -------------------------------------------------------
         float toneCutoff = 200.0f + tone * 19800.0f; // 200Hz to 20kHz
         float toneAlpha  = 1.0f - std::exp (-2.0f * juce::MathConstants<float>::pi
                                             * toneCutoff / static_cast<float> (sampleRate));
@@ -1173,9 +976,7 @@ float processSamplePhaser (float input, float rate, float depth,
         // Blend between low-passed (dark) and original (bright)
         float toned = distToneState * (1.0f - tone) + distorted * tone;
     
-        // -------------------------------------------------------
         // 5. COMPENSATE GAIN — normalize output level
-        // -------------------------------------------------------
         float gainCompensation = 1.0f / std::sqrt (driveAmt);
         return juce::jlimit (-1.0f, 1.0f, toned * gainCompensation);
     }
@@ -1184,9 +985,7 @@ float processSamplePhaser (float input, float rate, float depth,
                                    float on, float drift,
                                    double sampleRate)
     {
-        // -------------------------------------------------------
         // 1. ON/OFF — below 0.5 passes dry signal through
-        // -------------------------------------------------------
         if (on < 0.5f)
         {
             // Still write to buffer so it's ready when engaged
@@ -1196,9 +995,7 @@ float processSamplePhaser (float input, float rate, float depth,
             return input;
         }
     
-        // -------------------------------------------------------
         // 2. BUFFER SIZE — how much audio is captured
-        // -------------------------------------------------------
         float bufferMs    = juce::jmap (bufferAmt, 0.0f, 1.0f, 10.0f, 2000.0f);
         int   captureSize = juce::jlimit (1, djfxBufferSize - 1,
                                 static_cast<int> (bufferMs / 1000.0f * sampleRate));
@@ -1207,16 +1004,12 @@ float processSamplePhaser (float input, float rate, float depth,
         djfxBuffer[djfxWritePtr] = input;
         djfxWritePtr = (djfxWritePtr + 1) % djfxBufferSize;
     
-        // -------------------------------------------------------
         // 3. SPEED — maps -100 to +100
         // -100 = full reverse, 0 = stopped, 100 = normal speed
-        // -------------------------------------------------------
         float normalizedSpeed = speed * 2.0f - 1.0f; // 0-1 knob to -1 to +1
         float playbackSpeed   = normalizedSpeed;      // -1.0 to 1.0
     
-        // -------------------------------------------------------
         // 4. DRIFT — random pitch instability
-        // -------------------------------------------------------
         if (drift > 0.001f)
         {
             djfxDriftPhase += 0.003f; // slow drift LFO
@@ -1228,9 +1021,7 @@ float processSamplePhaser (float input, float rate, float depth,
             playbackSpeed    += driftLFO + driftRandom;
         }
     
-        // -------------------------------------------------------
         // 5. ADVANCE READ POINTER
-        // -------------------------------------------------------
         djfxReadPtr += playbackSpeed;
     
         // Keep read pointer within capture window
@@ -1249,26 +1040,7 @@ float processSamplePhaser (float input, float rate, float depth,
         while (djfxReadPtr < 0.0f)
             djfxReadPtr += static_cast<float> (djfxBufferSize);
     
-        // -------------------------------------------------------
-        // 6. HERMITE INTERPOLATION
-        // -------------------------------------------------------
-        int   idx1 = static_cast<int> (djfxReadPtr) % djfxBufferSize;
-        float frac = djfxReadPtr - std::floor (djfxReadPtr);
-        int   idx0 = (idx1 - 1 + djfxBufferSize) % djfxBufferSize;
-        int   idx2 = (idx1 + 1) % djfxBufferSize;
-        int   idx3 = (idx1 + 2) % djfxBufferSize;
-    
-        float y0 = djfxBuffer[idx0];
-        float y1 = djfxBuffer[idx1];
-        float y2 = djfxBuffer[idx2];
-        float y3 = djfxBuffer[idx3];
-    
-        float c0 = y1;
-        float c1 = 0.5f * (y2 - y0);
-        float c2 = y0 - 2.5f * y1 + 2.0f * y2 - 0.5f * y3;
-        float c3 = 0.5f * (y3 - y0) + 1.5f * (y1 - y2);
-        float output = ((c3 * frac + c2) * frac + c1) * frac + c0;
-    
+        float output = hermiteInterp (djfxBuffer.data(), djfxBufferSize, djfxReadPtr);
         return std::isfinite (output) ? output : 0.0f;
     }
 
@@ -1276,17 +1048,13 @@ float processSamplePhaser (float input, float rate, float depth,
                                            float brightness, float depth,
                                            double sampleRate)
     {
-        // -------------------------------------------------------
         // 1. ROOT NOTE — maps 0-1 to 12 semitones (A=0 to G#=1)
         // Base frequency derived from root note, centered around A3 (220Hz)
-        // -------------------------------------------------------
         int   rootSemitone = juce::jlimit (0, 11, static_cast<int> (root * 12.0f));
         float rootFreq     = 220.0f * std::pow (2.0f, rootSemitone / 12.0f);
     
-        // -------------------------------------------------------
         // 2. SCALE — interval patterns for each scale type
         // Each array contains semitone intervals above the root
-        // -------------------------------------------------------
         const int scaleIntervals[5][7] = {
             { 0, 2, 4, 7, 9, 11, 12 }, // Major
             { 0, 2, 3, 7, 9, 10, 12 }, // Minor
@@ -1299,21 +1067,15 @@ float processSamplePhaser (float input, float rate, float depth,
         int scaleIdx  = juce::jlimit (0, 4, static_cast<int> (scale * 5.0f));
         int noteCount = scaleNoteCounts[scaleIdx];
     
-        // -------------------------------------------------------
         // 3. BRIGHTNESS — which octave register the resonators sit in
         // 0.0 = fundamental octave, 1.0 = 3 octaves up (shimmery)
-        // -------------------------------------------------------
         float octaveShift = 1.0f + brightness * 3.0f; // 1x to 8x frequency multiplier
     
-        // -------------------------------------------------------
         // 4. DEPTH — resonance Q factor
         // 0.0 = subtle, 1.0 = very resonant/ringing
-        // -------------------------------------------------------
         float q = juce::jmap (depth, 0.0f, 1.0f, 1.0f, 40.0f);
     
-        // -------------------------------------------------------
         // 5. PROCESS EACH SCALE NOTE through a resonant bandpass
-        // -------------------------------------------------------
         float output    = 0.0f;
         int   bandIdx   = 0;
     
@@ -1372,9 +1134,7 @@ float processSamplePhaser (float input, float rate, float depth,
             output            += bandOut * 0.5f; // shimmer at half level
         }
     
-        // -------------------------------------------------------
         // 6. MIX — normalize by band count and blend with dry
-        // -------------------------------------------------------
         float wetGain = 1.0f / std::sqrt (static_cast<float> (noteCount + 1));
         float wet     = output * wetGain;
     
@@ -1397,6 +1157,26 @@ protected:
     {
         lcgState = 1664525 * lcgState + 1013904223;
         return static_cast<float>(lcgState) / static_cast<float>(0xFFFFFFFF);
+    }
+
+    static float hermiteInterp (const float* buffer, int bufferSize, float readPos)
+    {
+        int   idx1 = static_cast<int> (readPos) % bufferSize;
+        float frac = readPos - std::floor (readPos);
+        int   idx0 = (idx1 - 1 + bufferSize) % bufferSize;
+        int   idx2 = (idx1 + 1) % bufferSize;
+        int   idx3 = (idx1 + 2) % bufferSize;
+
+        float y0 = buffer[idx0];
+        float y1 = buffer[idx1];
+        float y2 = buffer[idx2];
+        float y3 = buffer[idx3];
+
+        float c0 = y1;
+        float c1 = 0.5f * (y2 - y0);
+        float c2 = y0 - 2.5f * y1 + 2.0f * y2 - 0.5f * y3;
+        float c3 = 0.5f * (y3 - y0) + 1.5f * (y1 - y2);
+        return ((c3 * frac + c2) * frac + c1) * frac + c0;
     }
 
     // Filter Coefficients & Internal State Registers

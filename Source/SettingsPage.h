@@ -8,7 +8,7 @@ class SettingsPage : public juce::Component, public juce::ChangeListener
 public:
     std::function<void()> onColorsChanged;
     
-    // ✅ Added the callback for the main editor
+    // Added the callback for the main editor
     std::function<void(float)> onScaleChanged;
 
     SettingsPage (OAOColors& c, OAOLookAndFeel& laf) 
@@ -66,13 +66,12 @@ public:
         setupColorSection (primarySection,    "Primary",     colors.primary);
         setupColorSection (secondarySection,  "Secondary",   colors.secondary);
         setupColorSection (surfaceSection,    "Surface",     colors.surface);
-	setupColorSection (textSection, "Text", colors.text);
+        setupColorSection (textSection, "Text", colors.text);
     }
 
     void paint (juce::Graphics& g) override
     {
         g.fillAll (colors.background);
-
         g.setColour (colors.text);
         g.setFont (juce::FontOptions().withHeight(18.0f)); // Updated to JUCE 8 spec
         g.drawText ("Settings", getLocalBounds().removeFromTop (40),
@@ -87,14 +86,14 @@ public:
         auto area = getLocalBounds().reduced (getWidth() * 0.02f);
         area.removeFromTop (getHeight() * 0.08f); // title area
     
-        // --- ROW 1: UI SCALE ---
+        // UI Scale
         auto scaleRow = area.removeFromTop (getHeight() * 0.07f);
         scaleLabel.setBounds    (scaleRow.removeFromLeft (scaleRow.getWidth() * 0.15f));
         scaleSelector.setBounds (scaleRow.removeFromLeft (scaleRow.getWidth() * 0.25f).reduced (2));
     
         area.removeFromTop (getHeight() * 0.03f); // gap
     
-        // --- ROW 2: PRESET BUTTONS (two rows) ---
+        // Buttons
         auto presetRow1 = area.removeFromTop (getHeight() * 0.07f);
         int  btnW1      = presetRow1.getWidth() / 4;
         synthwaveBtn.setBounds  (presetRow1.removeFromLeft (btnW1).reduced (2));
@@ -113,7 +112,7 @@ public:
     
         area.removeFromTop (getHeight() * 0.03f); // gap
     
-        // --- ROW 3: COLOR PICKERS ---
+        // Color pickers
         auto colorRow = area; // takes all remaining space
         int  sectionW = colorRow.getWidth() / 5;
     
@@ -126,14 +125,12 @@ public:
 
     void refreshAll()
     {
-        // 1. Update your preview boxes (you already have this)
         backgroundSection.previewBox.setColour (juce::Label::backgroundColourId, colors.background);
         primarySection.previewBox.setColour    (juce::Label::backgroundColourId, colors.primary);
         secondarySection.previewBox.setColour  (juce::Label::backgroundColourId, colors.secondary);
         surfaceSection.previewBox.setColour    (juce::Label::backgroundColourId, colors.surface);
         textSection.previewBox.setColour       (juce::Label::backgroundColourId, colors.text);
 
-        // 2. Update the text color of all your labels!
         scaleLabel.setColour (juce::Label::textColourId, colors.text);
         backgroundSection.nameLabel.setColour (juce::Label::textColourId, colors.text);
         primarySection.nameLabel.setColour    (juce::Label::textColourId, colors.text);
@@ -143,16 +140,13 @@ public:
 
         scaleSelector.setColour (juce::ComboBox::backgroundColourId, colors.surface);
         scaleSelector.setColour (juce::ComboBox::textColourId, colors.text);
-        scaleSelector.setColour (juce::ComboBox::arrowColourId, colors.text); // Optional, but keeps it cohesive
+        scaleSelector.setColour (juce::ComboBox::arrowColourId, colors.text);
         scaleSelector.sendLookAndFeelChange();
-        // 3. Apply the global look and feel
+
+	// general refreshes
         lookAndFeel.applyColors();
         colors.saveToFile();
-
-        // 4. Force SettingsPage itself to redraw its background and new label colors
         repaint();
-
-        // 5. Tell the rest of the app to update
         if (onColorsChanged)
             onColorsChanged();
     }

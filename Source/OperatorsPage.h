@@ -38,7 +38,7 @@ struct CompactOperatorGroup : public juce::Component
         waveShapeSelector.addItemList ({ "Sine", "Triangle", "Saw", "Square", "Pulse", "SquarePWM", "White Noise", "Pink Noise" }, 1);
         addAndMakeVisible (waveShapeSelector);
         filterTypeSelector.addItemList (ProjectConfig::getFilterTypeChoices(), 1);
-addAndMakeVisible (filterTypeSelector);
+        addAndMakeVisible (filterTypeSelector);
 
         // APVTS Links
         syncAttach    = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (apvts, "TEMPO_SYNC_" + opNum, syncButton);
@@ -56,7 +56,7 @@ addAndMakeVisible (filterTypeSelector);
 
         // Safe UI state triggers using the stored class member reference
         modeSelector.onChange = [this]() { updateUIState(); };
-	waveShapeSelector.onChange = [this]() { updateUIState(); };
+        waveShapeSelector.onChange = [this]() { updateUIState(); };
         syncButton.onClick    = [this]() { updateUIState(); };
         filterTypeSelector.onChange = [this]() {updateUIState(); };
         updateUIState(); // on load
@@ -89,7 +89,7 @@ addAndMakeVisible (filterTypeSelector);
             waveShapeSelector.setBounds  (topStrip.reduced (1));
     
         area.removeFromTop (h * 0.005f);
-	// Knob zone //
+        // Knob zone //
         auto knobZone  = area.removeFromTop (area.getHeight() * 0.55f);
         float labelH   = knobZone.getHeight() * 0.25f;
         int   knobWidth = knobZone.getWidth() / 4;
@@ -130,7 +130,7 @@ addAndMakeVisible (filterTypeSelector);
         releaseLabel.setBounds  (relArea.removeFromTop (envLabelH));
         releaseSlider.setBounds (relArea);
 
-	// text labels //
+        // text labels //
         int textBoxW = static_cast<int> (knobWidth * 0.8f);
         int textBoxH = static_cast<int> (labelH * 0.6f);
         
@@ -202,13 +202,11 @@ private:
         bool isAdditiveMode = (selectedMode == 2);
         bool isFilterMode  = (selectedMode == 3);
         bool isExtAudioMode = (selectedMode == 4);
-        bool isSynced      = syncButton.getToggleState();
-    
+        bool isSynced      = syncButton.getToggleState();   
         int selectedFilter = filterTypeSelector.getSelectedId();
-    
         waveShapeSelector.setVisible (isWaveMode);
         filterTypeSelector.setVisible (isFilterMode);
-    
+
         if (isExtAudioMode)
         {
             ratioLabel.setText  ("Gain", juce::dontSendNotification);
@@ -280,13 +278,11 @@ public:
     {
         for (int i = 0; i < ProjectConfig::numOperators; ++i)
         {
-            // FIX: Pass 'colors' as the 3rd argument here!
             opModules.push_back (std::make_unique<CompactOperatorGroup> (apvts, i, colors));
             addAndMakeVisible (*opModules.back());
         }
     }
 
-    // NEW: Trigger updates in the children
     void lookAndFeelChanged() override
     {
         juce::Component::lookAndFeelChanged();
@@ -328,6 +324,6 @@ public:
     }
 
 private:
-    OAOColors& colors; // FIX: This was missing, causing a compiler error!
+    OAOColors& colors;
     std::vector<std::unique_ptr<CompactOperatorGroup>> opModules;
 };

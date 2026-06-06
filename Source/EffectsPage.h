@@ -11,7 +11,6 @@ public:
 	    : colors (c)
     {
         juce::String s = juce::String (slotIndex + 1);
-
         // Filter type selector. We grab the list from Constants.h
         filterSelector.addItemList (ProjectConfig::getFilterTypeChoices(), 1);
 	filterSelector.setSelectedId (1, juce::dontSendNotification);
@@ -20,7 +19,6 @@ public:
         syncButton.setButtonText ("Sync");
         syncButton.setClickingTogglesState (true);
         addAndMakeVisible (syncButton);
-
         // Mix knob
         mixSlider.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
         mixSlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 50, 15);
@@ -28,7 +26,6 @@ public:
         mixLabel.setText ("Mix", juce::dontSendNotification);
         mixLabel.setJustificationType (juce::Justification::centred);
         addAndMakeVisible (mixLabel);
-
         // Four knobs
         for (int i = 0; i < 4; ++i)
         {
@@ -38,13 +35,11 @@ public:
             addAndMakeVisible (knobLabels[i]);
             knobLabels[i].setJustificationType (juce::Justification::centred);
         }
-
         // Slot label
         slotLabel.setText ("FX " + s, juce::dontSendNotification);
         slotLabel.setFont (juce::Font (juce::FontOptions (14.0f)));
         slotLabel.setJustificationType (juce::Justification::centred);
         addAndMakeVisible (slotLabel);
-
         // Attachments
 	filterAttach = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (
             apvts, "FX_TYPE_" + s, filterSelector);
@@ -52,13 +47,12 @@ public:
             apvts, "FX_SYNC_" + s, syncButton);
         mixAttach = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
             apvts, "FX_MIX_" + s, mixSlider);
-        
+        // connecting knobs 
         const juce::StringArray knobIDs = { "FX_RATIO_", "FX_DETUNE_", "FX_PHASE_", "FX_FOLD_" };
         for (int i = 0; i < 4; ++i)
             knobAttachments[i] = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
                 apvts, knobIDs[i] + s, knobs[i]);
-
-        // Update labels when filter type changes
+        // Update labels when filter type changes, and update on instantiate
         filterSelector.onChange = [this] { updateLabels(); };
         updateLabels();
     }
@@ -85,18 +79,15 @@ public:
         // Update Labels
         slotLabel.setColour (juce::Label::textColourId, colors.text);
         mixLabel.setColour (juce::Label::textColourId, colors.text);
-        
+	// Update knobs
         for (int i = 0; i < 4; ++i)
             knobLabels[i].setColour (juce::Label::textColourId, colors.text);
-
         // Update ComboBox
         filterSelector.setColour (juce::ComboBox::backgroundColourId, colors.surface);
         filterSelector.setColour (juce::ComboBox::textColourId, colors.text);
-
         // Update Mix Slider
         mixSlider.setColour (juce::Slider::textBoxBackgroundColourId, colors.surface);
         mixSlider.setColour (juce::Slider::textBoxTextColourId, colors.text);
-
         // Update the 4 Parameter Knobs
         for (int i = 0; i < 4; ++i)
         {
@@ -104,7 +95,6 @@ public:
             knobs[i].setColour (juce::Slider::textBoxTextColourId, colors.text);
             knobs[i].sendLookAndFeelChange();
         }
-
         // Nudge the others
         filterSelector.sendLookAndFeelChange();
         mixSlider.sendLookAndFeelChange();
@@ -113,22 +103,17 @@ public:
     void resized() override
     {
         auto area = getLocalBounds().reduced (getWidth() * 0.02f);
-    
         // Top row: slot label, filter selector, sync button
         auto topRow = area.removeFromTop (getHeight() * 0.18f);
         slotLabel.setBounds      (topRow.removeFromLeft (topRow.getWidth() * 0.08f));
         syncButton.setBounds     (topRow.removeFromRight (topRow.getWidth() * 0.12f).reduced (2));
         filterSelector.setBounds (topRow.reduced (2));
-    
         area.removeFromTop (getHeight() * 0.02f);
-    
         // Mix knob on the left
         auto mixArea = area.removeFromLeft (area.getWidth() * 0.12f);
         mixLabel.setBounds  (mixArea.removeFromBottom (getHeight() * 0.1f));
         mixSlider.setBounds (mixArea);
-    
         area.removeFromLeft (area.getWidth() * 0.01f);
-    
         // Four knobs share remaining space
         int knobW = area.getWidth() / 4;
         for (int i = 0; i < 4; ++i)
@@ -211,7 +196,7 @@ public:
         for (int i = 0; i < 3; ++i)
         {
             slots[i]->setBounds (area.removeFromTop (slotH).reduced (0, 4));
-            if (i < 2) area.removeFromTop (10); // space for arrow
+            if (i < 2) area.removeFromTop (10); // space for arrows
         }
     }
 

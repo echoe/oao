@@ -28,7 +28,7 @@ FMPluginAudioProcessor::FMPluginAudioProcessor()
         fxDetuneParams[i] = apvts.getRawParameterValue ("FX_DETUNE_" + s);
         fxPhaseParams[i]  = apvts.getRawParameterValue ("FX_PHASE_"  + s);
         fxFoldParams[i]   = apvts.getRawParameterValue ("FX_FOLD_"   + s);
-    
+        //debug checks 
         jassert (fxTypeParams[i]   != nullptr);
         jassert (fxMixParams[i]    != nullptr);
         jassert (fxRatioParams[i]  != nullptr);
@@ -81,8 +81,6 @@ juce::AudioProcessorValueTreeState::ParameterLayout FMPluginAudioProcessor::crea
         params.push_back (std::make_unique<juce::AudioParameterFloat> (juce::ParameterID {"RELEASE_" + opNum, 1}, "Op " + opNum + " Release", 0.01f, 5.0f, 0.5f));
         // Output Levels
         params.push_back (std::make_unique<juce::AudioParameterFloat> (juce::ParameterID {"OUT_" + opNum, 1}, "Op " + opNum + " Out Level", 0.0f, 1.0f, (i == 0) ? 1.0f : 0.0f));
-
-	//
     }
     // Effects page — 3 slots, each with type, sync, mix, and 4 knobs
     const int numFxSlots = 3;
@@ -115,7 +113,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout FMPluginAudioProcessor::crea
             params.push_back (std::make_unique<juce::AudioParameterFloat> (juce::ParameterID {paramID, 1}, name, 0.0f, 10.0f, 0.0f));
         }
     }
-    
+
     // Audio Routing Matrix Nodes (NxN Grid)
     for (int src = 0; src < ProjectConfig::numOperators; ++src)
     {
@@ -144,9 +142,9 @@ juce::AudioProcessorValueTreeState::ParameterLayout FMPluginAudioProcessor::crea
         "Op 5 Ratio",  "Op 5 Detune", "Op 5 Phase", "Op 5 Fold", "Op 5 Level",
         "Op 6 Ratio",  "Op 6 Detune", "Op 6 Phase", "Op 6 Fold", "Op 6 Level",
         // Effects targets (15)
-	"Fx 1 Ratio",  "Fx 1 Detune", "Fx 1 Phase", "Fx 1 Fold", "Fx 1 Level",
-	"Fx 2 Ratio",  "Fx 2 Detune", "Fx 2 Phase", "Fx 2 Fold", "Fx 2 Level",
-	"Fx 3 Ratio",  "Fx 3 Detune", "Fx 3 Phase", "Fx 3 Fold", "Fx 3 Level",
+        "Fx 1 Ratio",  "Fx 1 Detune", "Fx 1 Phase", "Fx 1 Fold", "Fx 1 Level",
+        "Fx 2 Ratio",  "Fx 2 Detune", "Fx 2 Phase", "Fx 2 Fold", "Fx 2 Level",
+        "Fx 3 Ratio",  "Fx 3 Detune", "Fx 3 Phase", "Fx 3 Fold", "Fx 3 Level",
     };
     
     for (int slot = 1; slot <= 6; ++slot)
@@ -286,8 +284,7 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
     auto* inputR = totalNumInputChannels > 1 ? inputCapture.getReadPointer (1) : nullptr;
 
     updateVoices();
-    // Render synth with optional oversampling and external audio possibly being passed in
-    
+    // Render synth with optional oversampling and external audio possibly being passed in  
     if (oversampling != nullptr && currentOversamplingFactor > 1)
     {
         juce::dsp::AudioBlock<float> inputBlock (buffer);
@@ -387,7 +384,7 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
             float mix    = juce::jlimit (0.0f, 1.0f,
                            fxMixParams[slot]->load (std::memory_order_relaxed) + fxLevelModSum[slot]);
 	    bool  isSynced   = fxSyncParams[slot]->load   (std::memory_order_relaxed) > 0.5f;
-   
+
 	    if (filterType != lastFxFilterType[slot])
             {
                 fxFilters[slot].reset();
@@ -395,11 +392,11 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
             }
 
             if (filterType == 0) continue; // None — skip entirely
-    
+
             // Compute cutoff from ratio knob (same mapping as operators)
             float normalizedRatio = (ratio - 0.01f) / (16.0f - 0.01f);
             float baseCutoff      = 20.0f * std::pow (1000.0f, normalizedRatio);
-    
+
             // Tempo sync — snap cutoff to rhythmic subdivision
             if (isSynced && activeBPM > 0.0f)
             {
@@ -415,8 +412,8 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
             float dampingAmt      = juce::jlimit (0.001f, 0.95f, (detune + 50.0f) / 100.0f);
             float feedbackAmt     = juce::jlimit (-0.95f, 0.95f, (fold * 2.0f) - 1.0f);
             float coupledRes      = dampingAmt * dampingAmt;
-    
-            for (int i = 0; i < numSamples; ++i)
+
+            for (int i = 0; i < numSamples; ++i) // process every effect ...
             {
                 // Mix L+R to mono for processing, then spread back to stereo
                 float inputSample = (leftData[i] + rightData[i]) * 0.5f;
@@ -573,7 +570,7 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
                         processed = std::isfinite (processed) ? processed : 0.0f;
                         break;
                     }
-		    case 17: // Distortion
+                    case 17: // Distortion
                     {
                         float drive       = normalizedRatio;
                         float flavor      = dampingAmt;
@@ -585,7 +582,7 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
                         processed = std::isfinite (processed) ? processed : 0.0f;
                         break;
                     }
-		    case 18: // DJFX Delay
+                    case 18: // DJFX Delay
                     {
                         float bufferAmt = normalizedRatio;
                         float speed     = dampingAmt;
@@ -608,7 +605,7 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
                         processed = std::isfinite (processed) ? processed : 0.0f;
                         break;
                     }
-		    default:
+                    default:
                         processed = inputSample;
                         break;
                 }
@@ -626,7 +623,7 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
     if (auto* gainParam = apvts.getRawParameterValue ("GAIN_CEIL"))
         block.multiplyBy (juce::Decibels::decibelsToGain (gainParam->load()));
 
-    // Feed oscilloscope — mix L+R to mono
+    // mix L+R to mono to feed oscilloscope
     {
         auto* leftData  = buffer.getReadPointer (0);
         auto* rightData = buffer.getNumChannels() > 1 ? buffer.getReadPointer (1) : leftData;

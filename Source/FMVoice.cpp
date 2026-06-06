@@ -199,11 +199,9 @@ void FMVoice::renderNextBlock (juce::AudioBuffer<float>& outputBuffer, int start
         std::array<float, ProjectConfig::numOperators> levelModOffsets { 0.0f };
         std::array<float, ProjectConfig::numOperators> cutoffModOffsets { 0.0f };
 
-        // 6-slot mod matrix setup!
         // Per-operator mod accumulators
         std::array<float, ProjectConfig::numOperators> ratioModOffsets  { 0.0f };
         std::array<float, ProjectConfig::numOperators> detuneModOffsets { 0.0f };
-        // phaseModOffsets, foldModOffsets, levelModOffsets already declared above
         
         for (int slot = 0; slot < ProjectConfig::numModSlots; ++slot)
         {
@@ -221,11 +219,8 @@ void FMVoice::renderNextBlock (juce::AudioBuffer<float>& outputBuffer, int start
             // Source signal: Op 1 = index 1, so operator index = srcIdx - 1
             float srcSignal = lastOpOutputs[srcIdx - 1] * amt;
         
-            // --- Per-operator targets. I haven't fully checked this math but it looks right ---
             // tgtIdx 1-30: laid out as blocks of 5 per operator
-            // (op-1)*5 + 1 = first param of that op
-            // param within block: 0=Ratio, 1=Detune, 2=Phase, 3=Fold, 4=Level
-            if (tgtIdx >= 1 && tgtIdx <= 30)
+	    if (tgtIdx >= 1 && tgtIdx <= 30)
             {
                 int opIdx    = (tgtIdx - 1) / 5;   // 0-5
                 int paramIdx = (tgtIdx - 1) % 5;   // 0-4
@@ -239,7 +234,7 @@ void FMVoice::renderNextBlock (juce::AudioBuffer<float>& outputBuffer, int start
                     case 4: levelModOffsets[opIdx]  += srcSignal; break;
                 }
             }
-	    else if (tgtIdx >= 31 && tgtIdx <= 45)
+	    else if (tgtIdx >= 31 && tgtIdx <= 45) // 31-45 for the effect slots, which you can target with modulation
             {
                 int fxIdx    = (tgtIdx - 31) / 5;  // 0-2 (which fx slot)
                 int paramIdx = (tgtIdx - 31) % 5;  // 0-4 (which parameter)

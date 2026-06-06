@@ -3,7 +3,7 @@
 
 struct OAOColors
 {
-    // Default synthwave palette
+    // Default palette (synthwave)
     juce::Colour background  { 0xFF0D0D1A }; // deep purple-black
     juce::Colour primary     { 0xFFFF2D9B }; // neon pink
     juce::Colour secondary   { 0xFF00F5FF }; // cyan
@@ -12,7 +12,7 @@ struct OAOColors
     juce::Colour textDim     { 0xFF6060A0 }; // dimmed text
     // scale
     float scale = 1.0f;
-    void saveToFile()
+    void saveToFile() // for saving current settings automatically
     {
         juce::PropertiesFile::Options options;
         options.applicationName     = "OAO";
@@ -29,7 +29,7 @@ struct OAOColors
         prefs.saveIfNeeded();
     }
 
-    void loadFromFile()
+    void loadFromFile() // for loading current settings automatically
     {
         juce::PropertiesFile::Options options;
         options.applicationName     = "OAO";
@@ -48,7 +48,7 @@ struct OAOColors
         }
     }
 
-    // Built-in presets
+    // Built-in color presets
     void setSynthwave() 
     {
         background = juce::Colour (0xFF0D0D1A);
@@ -88,6 +88,7 @@ struct OAOColors
         text       = juce::Colour (0xFFFFE8CC);
         textDim    = juce::Colour (0xFF806040);
     }
+
     void setMintyBreeze()
     {
         background = juce::Colour (0xFFF4FDFF);

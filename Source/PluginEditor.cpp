@@ -24,11 +24,11 @@ FMPluginAudioProcessorEditor::FMPluginAudioProcessorEditor (FMPluginAudioProcess
     settingsPage.onColorsChanged = [this]
     {
         oaoLookAndFeel.applyColors();
-	opsPage.lookAndFeelChanged();
-	matrixPage.lookAndFeelChanged();
-	audioMatrixPage.lookAndFeelChanged();
-	effectsPage.lookAndFeelChanged();
-	this->lookAndFeelChanged();
+        opsPage.lookAndFeelChanged();
+        matrixPage.lookAndFeelChanged();
+        audioMatrixPage.lookAndFeelChanged();
+        effectsPage.lookAndFeelChanged();
+        this->lookAndFeelChanged();
         repaint();
     };
 
@@ -89,14 +89,13 @@ FMPluginAudioProcessorEditor::FMPluginAudioProcessorEditor (FMPluginAudioProcess
     gainAttach = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
         p.apvts, "GAIN_CEIL", gainSlider);
 
-    // synth title :)
+    // synth title. may need to move
     titleLabel.setText ("OAO", juce::dontSendNotification);
     titleLabel.setJustificationType (juce::Justification::centred);
     titleLabel.setFont (juce::Font (juce::FontOptions().withHeight (18.0f).withStyle ("Bold")));
     addAndMakeVisible (titleLabel);
     
     //oscilloscope
-    //oscilloscope = std::make_unique<Oscilloscope> (audioProcessor);
     oscilloscope = std::make_unique<Oscilloscope> (audioProcessor, oaoColors);
     addAndMakeVisible (*oscilloscope);
 

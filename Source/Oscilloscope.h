@@ -15,15 +15,13 @@ public:
 
     void paint (juce::Graphics& g) override
     {
-        //g.fillAll (juce::Colours::black);
         g.fillAll (colors.background);
         g.setColour (colors.primary);
         // Centre line
-        //g.setColour (juce::Colours::darkgrey);
         g.drawHorizontalLine (getHeight() / 2, 0.0f, (float)getWidth());
 
         // Waveform
-        g.setColour (juce::Colours::limegreen);
+        g.setColour (colors.text);
 
         const auto& buf     = processor.scopeBuffer;
         int         readPos = processor.scopeWritePos.load (std::memory_order_relaxed);
@@ -44,11 +42,10 @@ public:
             if (!started) { path.startNewSubPath (x, y); started = true; }
             else            path.lineTo (x, y);
         }
-
         g.strokePath (path, juce::PathStrokeType (1.0f));
 
         // Border
-        g.setColour (juce::Colours::darkgrey.brighter (0.2f));
+        g.setColour (colors.secondary.withAlpha (0.2f));
         g.drawRect (getLocalBounds(), 1);
     }
 

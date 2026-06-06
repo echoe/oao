@@ -3,7 +3,7 @@
 #include "Constants.h"
 #include "OAOColors.h"
 
-// Shared choice lists — keep these in sync with PluginProcessor.cpp
+// Shared choice lists for modulation — keep these in sync with PluginProcessor.cpp
 namespace ModChoices
 {
     inline juce::StringArray sources()
@@ -37,7 +37,6 @@ struct ModMatrixSlot : public juce::Component
         juce::String s = juce::String (slotIndex + 1); // slots are 1-indexed in param IDs
 
         // Source dropdown — items are 1-indexed in ComboBox, 0-indexed in AudioParameterChoice
-        // JUCE's ComboBoxAttachment handles the offset automatically
         sourceSelector.addItemList (ModChoices::sources(), 1);
         sourceSelector.setSelectedId (1, juce::dontSendNotification);
         addAndMakeVisible (sourceSelector);
@@ -346,13 +345,9 @@ private:
     int gridY     = 70;
     int cellSize  = 90;
     static constexpr float splitRatio = 0.65f;
-
-
     juce::OwnedArray<juce::Slider>     matrixSliders;
     juce::OwnedArray<juce::AudioProcessorValueTreeState::SliderAttachment> matrixAttachments;
-
     std::vector<std::unique_ptr<ModMatrixSlot>> modSlots;
-
     juce::OwnedArray<juce::Slider>     outputSliders;
     juce::OwnedArray<juce::Label>      outputLabels;
     juce::OwnedArray<juce::AudioProcessorValueTreeState::SliderAttachment> outputAttachments;

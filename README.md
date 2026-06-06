@@ -35,12 +35,14 @@ If you're using randomization you may want to turn the gain down as a precaution
 
 
 ## Operator types
-### Wave: Sine, Triangle, Saw, Square, White Noise, Pink Noise
+### Wave: Sine, Triangle, Saw, Square, Pulse, SquarePWM, White Noise, Pink Noise
 - Options: Ratio, Detune, Phase, Fold. You can also tempo sync the operator to a DAW with the checkmark - that's why Ratio changes to Sync Rate there.
 - Ratio: from 0.01 to 16, this controls the pitch of the waveform relative to the note you're playing. You, uh, need this for FM.
 - Detune: You can slightly detune the note if you want, without moving the Ratio by tiny steps.
 - Phase: Changes the phase of the waveform.
 - Fold: Folds the waveform in on itself.
+
+For SquarePWM and Pulse, instead of Phase there is a PWM option there. So you can modulate the PWM if you want!
 
 Additional Notes:
 

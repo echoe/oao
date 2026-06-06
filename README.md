@@ -46,8 +46,8 @@ For SquarePWM and Pulse, instead of Phase there is a PWM option there. So you ca
 
 Additional Notes:
 
-- Ratio goes down to 0.01 so you can have a waveform slow enough to reasonably be used as an LFO. I may add another operator mode for this in the future if this isn't slow enough for some cases.
-- If you really need PWM you should be able to modulate any of these wave operators targeting the 'Phase' field.
+- Ratio goes down to 0.01 so you can have a waveform slow enough to reasonably be used as an LFO. I may add another operator mode for this in the future if this isn't slow enough for some cases, but it's been fine for me. YMMV.
+- If you want phase modulation, the phase is there to be modulated! Wow.
 - PLEASE NOTE: The gain for all operators is controlled in the Audio Matrix! If you don't hear one, go to the Audio Matrix and turn it up!
 
 ### Additive

@@ -24,8 +24,8 @@ You can also go through and manually click on knobs to reset them to 'default'!
 - R-FM: This changes all modulation - all variables on the matrix.
 - R-Route: This randomizes all audio matrix routing.
 
-### Oversampling
-This oversamples the main audio path to provide increased polyphony. Select between 1,2,4, and 8x.
+### OS
+This oversamples the main audio path to provide increased fidelity. Select between 1,2,4, and 8x.
 
 ### Poly
 This picks the number of voices in the synth. This defauts to 8 but you can go from 1 (mono) to 32.

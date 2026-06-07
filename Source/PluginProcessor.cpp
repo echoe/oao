@@ -605,6 +605,18 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
                         processed = std::isfinite (processed) ? processed : 0.0f;
                         break;
                     }
+                    case 20: // Ambient Delay
+                    {
+                        float time       = normalizedRatio;
+                        float feedbk     = dampingAmt;
+                        float shimmerAmt = phase / 360.0f;
+                        float diffusion  = juce::jlimit (0.0f, 1.0f, fold);
+                        processed = fxFilters[slot].processSampleAmbientDelay (inputSample, time, feedbk,
+                                                                                shimmerAmt, diffusion,
+                                                                                getSampleRate());
+                        processed = std::isfinite (processed) ? processed : 0.0f;
+                        break;
+                    }
                     default:
                         processed = inputSample;
                         break;

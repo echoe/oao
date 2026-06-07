@@ -310,6 +310,18 @@ public:
                                                                                 resonDepth, currentSampleRate);
                 outputSample = std::isfinite (output) ? output : 0.0f;
             }
+            else if (filterType == 20) // Ambient Delay
+            {
+                float time      = (ratio - 0.01f) / (16.0f - 0.01f);
+                float feedbk    = juce::jlimit (0.0f, 0.98f, (detune + 50.0f) / 100.0f);
+                float shimmerAmt = phaseKnob / 360.0f;
+                float diffusion  = juce::jlimit (0.0f, 1.0f, foldKnob);
+            
+                float output = internalFilter.processSampleAmbientDelay (audioInputSum, time, feedbk,
+                                                                          shimmerAmt, diffusion,
+                                                                          currentSampleRate);
+                outputSample = std::isfinite (output) ? output : 0.0f;
+            }
 	}
         else // Here are our oscillators, Wave and Additive. They all need these:
         {

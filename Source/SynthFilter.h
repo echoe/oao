@@ -164,6 +164,19 @@ public:
         // color resonator
         resS1.fill (0.0f);
         resS2.fill (0.0f);
+	// ambient shimmer
+        ambientBuffer.fill (0.0f);
+        ambientWritePtr   = 0;
+        ambientLastSample = 0.0f;
+        shimmerBuffer.fill (0.0f);
+        shimmerWritePtr = 0;
+        shimmerReadPtr  = 0.0f;
+        shimmerPhase    = 0.0f;
+        for (int i = 0; i < numAmbientStages; ++i)
+        {
+            ambientStageBuffers[i].fill (0.0f);
+            ambientStageWritePtrs[i] = 0;
+        }
     }
 
     void noteStarted()
@@ -1142,6 +1155,66 @@ float processSamplePhaser (float input, float rate, float depth,
         return std::isfinite (wet) ? (wet + input * 0.3f) : input;
     }
 
+    float processSampleAmbientDelay (float input, float time, float feedback,
+                                      float shimmer, float diffusion,
+                                      double sampleRate)
+    {
+        // diffuse through allpass stages
+        float diffCoeff = juce::jlimit (0.0f, 0.75f, diffusion * 0.75f);
+        float diffused  = input;
+        for (int i = 0; i < numAmbientStages / 2; ++i)
+            diffused = processAllpass (diffused, diffCoeff,
+                                       ambientStageBuffers[i], ambientStageWritePtrs[i]);
+    
+        // delay — very long, 100ms to 16 seconds
+        float delayMs      = juce::jmap (time, 0.0f, 1.0f, 100.0f, 16000.0f);
+        int   delaySamples = juce::jlimit (1, ambientBufferSize - 1,
+                                 static_cast<int> (delayMs / 1000.0f * sampleRate));
+    
+        int   readPtr  = (ambientWritePtr - delaySamples + ambientBufferSize) % ambientBufferSize;
+        float delayed  = ambientBuffer[readPtr];
+    
+        // shimmer. uses a simple granular pitch shift — reads buffer at 2x speed
+        float shimmered = 0.0f;
+        if (shimmer > 0.001f)
+        {
+            // Write to shimmer buffer
+            shimmerBuffer[shimmerWritePtr] = delayed;
+            shimmerWritePtr = (shimmerWritePtr + 1) % shimmerBufferSize;
+    
+            // Read at 2x speed for octave up
+            shimmerReadPtr += 2.0f;
+            if (shimmerReadPtr >= static_cast<float> (shimmerBufferSize))
+                shimmerReadPtr -= static_cast<float> (shimmerBufferSize);
+    
+            shimmered = hermiteInterp (shimmerBuffer.data(), shimmerBufferSize, shimmerReadPtr);
+    
+            // Crossfade window to prevent clicks from the looping read head
+            shimmerPhase += 2.0f / static_cast<float> (shimmerBufferSize);
+            if (shimmerPhase >= 1.0f) shimmerPhase -= 1.0f;
+            float window  = 0.5f * (1.0f - std::cos (shimmerPhase * juce::MathConstants<float>::twoPi));
+            shimmered    *= window;
+        }
+    
+        // feedback with shimmer mixed in
+        float feedbackAmt    = juce::jlimit (0.0f, 0.98f, feedback);
+        float feedbackSignal = delayed + shimmered * shimmer;
+        feedbackSignal       = std::tanh (feedbackSignal); // soft clip to prevent blowup
+    
+        // write to delay
+        ambientBuffer[ambientWritePtr] = diffused + feedbackSignal * feedbackAmt;
+        ambientWritePtr = (ambientWritePtr + 1) % ambientBufferSize;
+    
+        //  smear the output into a wash
+        float output = delayed;
+        for (int i = numAmbientStages / 2; i < numAmbientStages; ++i)
+            output = processAllpass (output, diffCoeff,
+                                     ambientStageBuffers[i], ambientStageWritePtrs[i]);
+    
+        // mix
+        return std::isfinite (output) ? output + input * 0.3f : input;
+    }
+
     int getCurrentType() const noexcept { return static_cast<int>(currentType); }
 
 protected:
@@ -1295,6 +1368,23 @@ protected:
     static constexpr int numResonatorBands = 8;
     std::array<float, numResonatorBands> resS1 { 0.0f };
     std::array<float, numResonatorBands> resS2 { 0.0f };
+
+    // Ambient Delay state. First Delay itself
+    static constexpr int ambientBufferSize = 384000; // 8 seconds at 48kHz
+    std::array<float, ambientBufferSize> ambientBuffer { 0.0f };
+    int   ambientWritePtr    = 0;
+    float ambientLastSample  = 0.0f; 
+    // Shimmer pitch shifter state (simple octave-up via phase vocoder approximation)
+    static constexpr int shimmerBufferSize = 4096;
+    std::array<float, shimmerBufferSize> shimmerBuffer { 0.0f };
+    int   shimmerWritePtr = 0;
+    float shimmerReadPtr  = 0.0f;
+    float shimmerPhase    = 0.0f;
+    // Ambient diffusion stages
+    static constexpr int numAmbientStages = 6;
+    static constexpr int ambientStageSize = 8192;
+    std::array<std::array<float, ambientStageSize>, numAmbientStages> ambientStageBuffers {};
+    std::array<int, numAmbientStages> ambientStageWritePtrs { 0, 0, 0, 0, 0, 0 };
 
     // Parameters Cache
     double sampleRate { 44100.0 };

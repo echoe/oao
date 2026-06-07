@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
-project(OAO VERSION 1.0.1 LANGUAGES C CXX)
+project(OAO VERSION 2.0.1 LANGUAGES C CXX)
 
 # --- Use local JUCE if available, otherwise fetch ---
 set(JUCE_LOCAL_PATH "$ENV{HOME}/JUCE" CACHE PATH "Path to local JUCE installation")
@@ -21,7 +21,7 @@ endif()
 # ------------------------------------------------
 
 juce_add_plugin(OAO
-    COMPANY_NAME "VibecodeXtreme"
+    COMPANY_NAME "echoe"
     IS_SYNTH TRUE
     NEEDS_MIDI_INPUT TRUE
     NEEDS_MIDI_OUTPUT FALSE

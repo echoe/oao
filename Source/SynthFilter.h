@@ -196,22 +196,7 @@ public:
         }
     }
 
-    // Single allpass filter stage — the core building block for the delay/reverb
-    //template <size_t BufferSize>
-    //float processAllpass (float input, float coeff,
-    //                      std::array<float, BufferSize>& buffer,
-    //                      int& writePtr)
-    //{
-    //    int size     = static_cast<int> (BufferSize);
-    //    int readPtr  = (writePtr - static_cast<int> (coeff * size) + size) % size;
-    //    float delayed = buffer[readPtr];
-    //    float output  = -input + delayed;
-    //    buffer[writePtr] = input + delayed * coeff;
-    //    writePtr = (writePtr + 1) % size;
-    //    return output;
-    //}
-
-    // True Schroeder Allpass Filter
+    // Allpass Filter (Schroeder implementation to avoid gain loop)
     template <size_t BufferSize>
     float processAllpass (float input, float coeff,
                           std::array<float, BufferSize>& buffer,
@@ -219,20 +204,12 @@ public:
     {
         int size = static_cast<int> (BufferSize);
         
-        // 1. Calculate the read pointer
         int readPtr = (writePtr - delaySamples + size) % size;
         float delayed = buffer[readPtr];
-        
-        // 2. The feed-forward / feed-back intersection
         float v_n = input + coeff * delayed;
-        
-        // 3. The true allpass output
         float output = -coeff * v_n + delayed;
-        
-        // 4. Update the delay line and write pointer
         buffer[writePtr] = v_n;
         writePtr = (writePtr + 1) % size;
-        
         return output;
     }
 

@@ -116,6 +116,9 @@ Additional Notes:
 #### Harmonic Resonator
 - Options: Root, Scale, Brightness, Depth
 Note: The scales are major, minor, pentatonic, whole, and chromatic.
+#### Ambient Shimmer
+-Options: Time, Feedback, Shimmer, Diffusion
+Note: This ambient shimmer delay has a 16 second (!!!) possible time. Shimmer is a one-octave-up duplication of the sound and the knob acts as a mix knob for that.
 
 ### More?
 The process to add more effects is very easy:

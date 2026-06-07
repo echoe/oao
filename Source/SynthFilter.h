@@ -196,17 +196,19 @@ public:
         }
     }
 
-    // Single allpass filter stage — the core building block for the delay/reverb
+    // Allpass Filter (Schroeder implementation to avoid gain loop)
     template <size_t BufferSize>
     float processAllpass (float input, float coeff,
                           std::array<float, BufferSize>& buffer,
-                          int& writePtr)
+                          int& writePtr, int delaySamples)
     {
-        int size     = static_cast<int> (BufferSize);
-        int readPtr  = (writePtr - static_cast<int> (coeff * size) + size) % size;
+        int size = static_cast<int> (BufferSize);
+        
+        int readPtr = (writePtr - delaySamples + size) % size;
         float delayed = buffer[readPtr];
-        float output  = -input + delayed;
-        buffer[writePtr] = input + delayed * coeff;
+        float v_n = input + coeff * delayed;
+        float output = -coeff * v_n + delayed;
+        buffer[writePtr] = v_n;
         writePtr = (writePtr + 1) % size;
         return output;
     }
@@ -496,16 +498,23 @@ public:
     }
 
     float processSampleAllpassDelay (float input, float time, float feedback,
-                                      float diffusion, float damping,
-                                      double sampleRate)
+                                  float diffusion, float damping,
+                                  double sampleRate)
     {
-        // cascade allpass stages to smear the echo
+        // cascade allpass filters
+	// Array of mutually prime numbers for smooth diffusion
+        static constexpr std::array<int, 4> primeDelays = { 211, 347, 523, 701 };
+    
         float diffCoeff = diffusion * 0.7f;
         float diffused  = input;
-        for (int i = 0; i < numApStages; ++i)
-            diffused = processAllpass (diffused, diffCoeff,
-                                       apStageBuffers[i], apStageWritePtrs[i]);
     
+        for (int i = 0; i < numApStages; ++i)
+        {
+            // Pass the fixed prime number directly into the new 5-argument function
+            diffused = processAllpass (diffused, diffCoeff,
+                                       apStageBuffers[i], apStageWritePtrs[i],
+                                       primeDelays[i]);
+        }
         // main delay line
         float delayMs      = juce::jmap (time, 0.0f, 1.0f, 10.0f, 1000.0f);
         int   delaySamples = juce::jlimit (1, apDelayBufferSize - 1,
@@ -533,12 +542,19 @@ public:
                                        double sampleRate)
     {
         // pre-diffusion ...
-        float diffCoeff = juce::jlimit (0.0f, 0.75f, diffusion * 0.75f);
+        // Array of mutually prime numbers for smooth diffusion
+        static constexpr std::array<int, 4> primeDelays = { 211, 347, 523, 701 };
+
+        float diffCoeff = diffusion * 0.7f;
         float diffused  = input;
-        for (int i = 0; i < numRevStages / 2; ++i)
+
+        for (int i = 0; i < numApStages; ++i)
+        {
+            // Pass the fixed prime number directly into the new 5-argument function
             diffused = processAllpass (diffused, diffCoeff,
-                                       apRevStageBuffers[i], apRevStageWritePtrs[i]);
-    
+                                       apStageBuffers[i], apStageWritePtrs[i],
+                                       primeDelays[i]);
+        }
         // reverb tank
         float sizeMs      = juce::jmap (size, 0.0f, 1.0f, 20.0f, 500.0f);
         int   tankSamples = juce::jlimit (1, apRevBufferSize - 1,
@@ -559,10 +575,19 @@ public:
         apRevWritePtr = (apRevWritePtr + 1) % apRevBufferSize;
     
         // post-diffusion
+        static constexpr std::array<int, 4> revPrimeDelays = { 883, 1031, 1153, 1301 }; 
         float output = tankOut;
+        
         for (int i = numRevStages / 2; i < numRevStages; ++i)
+        {
+            // Make sure your index 'i' maps correctly to the prime array! 
+            // If numRevStages is 8, and you start at 4, you might need to use [i - (numRevStages / 2)]
+            int primeIndex = i - (numRevStages / 2);
+            
             output = processAllpass (output, diffCoeff,
-                                     apRevStageBuffers[i], apRevStageWritePtrs[i]);
+                                     apRevStageBuffers[i], apRevStageWritePtrs[i],
+                                     revPrimeDelays[primeIndex]);
+        }
     
         return output + input * 0.1f;
     }
@@ -1160,11 +1185,19 @@ float processSamplePhaser (float input, float rate, float depth,
                                       double sampleRate)
     {
         // diffuse through allpass stages
-        float diffCoeff = juce::jlimit (0.0f, 0.75f, diffusion * 0.75f);
+        // Array of mutually prime numbers for smooth diffusion
+        static constexpr std::array<int, 4> primeDelays = { 211, 347, 523, 701 };
+
+        float diffCoeff = diffusion * 0.7f;
         float diffused  = input;
-        for (int i = 0; i < numAmbientStages / 2; ++i)
+
+        for (int i = 0; i < numApStages; ++i)
+        {
+            // Pass the fixed prime number directly into the new 5-argument function
             diffused = processAllpass (diffused, diffCoeff,
-                                       ambientStageBuffers[i], ambientStageWritePtrs[i]);
+                                       apStageBuffers[i], apStageWritePtrs[i],
+                                       primeDelays[i]);
+        }
     
         // delay — very long, 100ms to 16 seconds
         float delayMs      = juce::jmap (time, 0.0f, 1.0f, 100.0f, 16000.0f);
@@ -1206,11 +1239,17 @@ float processSamplePhaser (float input, float rate, float depth,
         ambientWritePtr = (ambientWritePtr + 1) % ambientBufferSize;
     
         //  smear the output into a wash
-        float output = delayed;
+        static constexpr std::array<int, 4> ambientPrimeDelays = { 1511, 1699, 1861, 2029 };
+        float output = delayed; // Avoid redefining 'output' if in the same scope
+        
         for (int i = numAmbientStages / 2; i < numAmbientStages; ++i)
+        {
+            int primeIndex = i - (numAmbientStages / 2);
+            
             output = processAllpass (output, diffCoeff,
-                                     ambientStageBuffers[i], ambientStageWritePtrs[i]);
-    
+                                         ambientStageBuffers[i], ambientStageWritePtrs[i],
+                                         ambientPrimeDelays[primeIndex]);
+        }
         // mix
         return std::isfinite (output) ? output + input * 0.3f : input;
     }

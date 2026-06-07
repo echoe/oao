@@ -14,7 +14,7 @@ namespace ProjectConfig
     // Filters list
     inline juce::StringArray getFilterTypeChoices()
     {
-        return { "None", "Lowpass", "Highpass", "Bandpass", "Comb", "Granular", "Formant", "Tape", "Bitcrush", "AP Delay", "AP Reverb", "Compressor", "Varispeed", "Scatter", "Ring Mod", "Chorus", "Phaser", "Distortion", "DJFX Delay", "Harmonic Resonator", "Ambient Shimmer" };
+        return { "None", "Lowpass", "Highpass", "Bandpass", "Comb", "Granular", "Formant", "Tape", "Bitcrush", "AP Delay", "AP Reverb", "Compressor", "Varispeed", "Scatter", "Ring Mod", "Chorus", "Distortion", "DJFX Delay", "Harmonic Resonator", "Ambient Shimmer", "Old Chorus" };
     }
     // Filters knobs list
     inline std::array<const char*, 4> getFilterKnobLabels (int filterTypeIndex)
@@ -37,11 +37,11 @@ namespace ProjectConfig
 	    case 13: return { "Pattern",   "Size",     "Speed",     "Depth"    }; // Scatter
 	    case 14: return { "Frequency", "Shape",    "Depth",     "Feedback" }; // Ring Mod
 	    case 15: return { "Rate",      "Depth",    "Spread",    "Voices"   }; // Chorus
-	    case 16: return { "Rate",      "Depth",    "Stages",    "Feedback" }; // Phaser
-            case 17: return { "Drive",     "Flavor",   "Tone",      "Degrade"  }; // Distortion
-            case 18: return { "Buffer",    "Speed",    "On",        "Drift"    }; // DJFX Delay
-            case 19: return { "Root",      "Scale",    "Brightness","Depth"    }; // Harmonic Resonator
-	    case 20: return { "Time",      "Feedback", "Shimmer",   "Diffusion"}; // Ambient
+            case 16: return { "Drive",     "Flavor",   "Tone",      "Degrade"  }; // Distortion
+            case 17: return { "Buffer",    "Speed",    "On",        "Drift"    }; // DJFX Delay
+            case 18: return { "Root",      "Scale",    "Brightness","Depth"    }; // Harmonic Resonator
+	    case 19: return { "Time",      "Feedback", "Shimmer",   "Diffusion"}; // Ambient Shimmer
+            case 20: return { "Rate",      "Depth",    "Mode",      "Warmth"   }; // Old Chorus
 	    default: return { "A",         "B",        "C",         "D"        };
 	}
     }

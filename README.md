@@ -79,10 +79,13 @@ Additional Notes:
 - Note: Vowel Mod changes the amount of modulation coming in from the modulation matrix, if you are modulating it. So to hear it simply, you can self-modulate this operator, and then tweak the Vowel Mod, and it will change the sound then.
 #### Tape
 - Options: Wobble, Age, Saturation, Bias
+- Wobble: pitch shifting
+- Age: one pole lowpass for frequency loss
+- saturation: saturates the signal
+- bias: biases the saturation. midway is nothing, left is harsh and bright, right is dull and soft.
 - For Bias to be heard saturation must be on at least a little bit, the bias biases the saturation.
 #### Bitcrush
-- Options: Bits (1-16), Rate, Jitter, Noise (added white noise sample)
-- You have to have mix set twice to use this! Care!
+- Options: Bits (1-16), Rate (of bitcrushing), Jitter (added to output), Noise (added white noise sample in 'cracks' of output)
 #### Allpass Delay
 - Options: Time, Feedback, Diffusion, Damping
 - Time: 0.0 = 10ms, 1.0 = 1000ms
@@ -92,33 +95,46 @@ Additional Notes:
 #### Allpass Reverb
 - Options: Size, Decay, Diffusion, Damping
 - Size: 0.0 = small room (20ms), 1.0 = large hall (500ms)
-- DECAY — feedback amount controls tail length
-- POST-DIFFUSION — smear the output for density
-- DAMPING in the tank feedback path
+- Decay — feedback amount controls tail length
+- Diffusion — smear the output for density
+- Damping - one-pole LP in the feedback path
 #### Compressor
 - Options: Threshold, Ratio, Attack, Release
+- it's a compressor
 #### Varispeed
 - Options: Speed, Acceleration, Depth, Mode
--Speed controls the amount that the speed should vary by.
--Acceleration is how fast the effect changes the speed of the incoming audio.
--Depth controls how much the speed varies around the target speed.
+- Speed controls the amount that the speed should vary by.
+- Acceleration is how fast the effect changes the speed of the incoming audio.
+- Depth controls how much the speed varies around the target speed.
 - Mode is 'Direction'. If it's under .45, it's slowing down. if it's over .55, it's speeding up. if it's in the middle, it's not doing either.
 #### Scatter
 - Options: Pattern, Size, Speed, Depth
+- Pattern 0.0-0.25: Stutter (repeats short segments)
+- Pattern 0.25-0.5: Reverse (play segment backwards)
+- Pattern 0.5-0.75: Skip (jump forward in buffer)
+- Pattern 0.75-1.0: Loop (loop a segment)
+- Size: from 10ms to 500ms, control the size of the sections you're scattering around
+- Speed: from half speed to double speed, change the speed that you're scattering samples
+- Depth: blend scattered with dry
 #### Ring Mod
-- Options: Frequency, Shape, Depth, Feedback
+- Options: Frequency (that rings out), Shape (of modulation), Depth (of modulation), Feedback (from modulation)
 #### Chorus
-- Options: Rate, Depth, Spread, Voices
-#### Phaser
-- Options: Rate, Depth, Stages, Feedback
+- Options: Rate (speed chorus moves), Depth (size of chorus), Spread (in the stereo field), Voices (1-8)
+- This is a modern chorus! Wow.
 #### Distortion
 - Options: Drive, Flavor, Tone, Degradation
+- Drive: move sound
+- Flavor: morphs between distortion types. 0.0-0.25: Soft clip, 0.25-0.5 Hard clip, 0.5-0.75 Foldback, 0.75-1.0: Digital (sign function / bit mangle).
+- Tone: post-distortion onepole filter
+- Degradation: adds various sample-distruction effects.
 #### Harmonic Resonator
 - Options: Root, Scale, Brightness, Depth
 Note: The scales are major, minor, pentatonic, whole, and chromatic.
 #### Ambient Shimmer
 -Options: Time, Feedback, Shimmer, Diffusion
 Note: This ambient shimmer delay has a 16 second (!!!) possible time. Shimmer is a one-octave-up duplication of the sound and the knob acts as a mix knob for that.
+#### Old Chorus
+-Options: Rate (triangle LFO rate), Depth(1.7-16ms), Mode (Left: 1-voice, right: 2-voice), Warmth (subtle smear from prev sample)
 
 ### More?
 The process to add more effects is very easy:

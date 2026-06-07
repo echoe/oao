@@ -145,10 +145,6 @@ public:
         chorusDelayBuffer.fill (0.0f);
         chorusWritePtr = 0;
         chorusLFOPhases.fill (0.0f);
-        // phaser
-        phaserAllpassState.fill (0.0f);
-        phaserLFOPhase = 0.0f;
-        phaserFeedback = 0.0f;
         // distortion
         distToneState  = 0.0f;
         distLastSign   = 1.0f;
@@ -164,6 +160,10 @@ public:
         // color resonator
         resS1.fill (0.0f);
         resS2.fill (0.0f);
+        cachedRoot = cachedScale = cachedBrightness = cachedDepth = -1.0f;
+        cachedNoteCount = 0;
+        resB0.fill (0.0f); resB2.fill (0.0f);
+        resA1.fill (0.0f); resA2.fill (0.0f);
 	// ambient shimmer
         ambientBuffer.fill (0.0f);
         ambientWritePtr   = 0;
@@ -177,6 +177,11 @@ public:
             ambientStageBuffers[i].fill (0.0f);
             ambientStageWritePtrs[i] = 0;
         }
+	//OldChorus
+        oldChorusDelayBuffer.fill (0.0f);
+        oldChorusWritePtr   = 0;
+        oldChorusLFOPhase   = 0.0f;
+        oldChorusLastSample = 0.0f;
     }
 
     void noteStarted()
@@ -866,55 +871,6 @@ public:
         return output * 0.7f + input * 0.3f;
     }
 
-float processSamplePhaser (float input, float rate, float depth,
-                            float stages, float feedback,
-                            double sampleRate)
-    {
-        // lfo
-        float lfoRate = 0.05f + rate * 4.95f; // 0.05Hz to 5Hz
-        phaserLFOPhase += (lfoRate * juce::MathConstants<float>::twoPi)
-                          / static_cast<float> (sampleRate);
-        if (phaserLFOPhase >= juce::MathConstants<float>::twoPi)
-            phaserLFOPhase -= juce::MathConstants<float>::twoPi;
-    
-        float lfo = (std::sin (phaserLFOPhase) + 1.0f) * 0.5f; // 0.0 to 1.0
-    
-        // 2. MODULATED ALLPASS COEFFICIENT
-        // depth controls how wide the notch sweeps
-        // 0.0 = subtle, 1.0 = full sweep
-        float minFreq  = 200.0f;
-        float maxFreq  = juce::jmap (depth, 0.0f, 1.0f, 800.0f, 8000.0f);
-        float sweepFreq = minFreq + lfo * (maxFreq - minFreq);
-    
-        // Convert frequency to allpass coefficient
-        float w = std::tan (juce::MathConstants<float>::pi * sweepFreq
-                            / static_cast<float> (sampleRate));
-        float coeff = (w - 1.0f) / (w + 1.0f);
-    
-        // 3. NUMBER OF STAGES
-        // stages 0.0-1.0 maps to 2, 4, 6, 8 stages
-        int numStages = 2 + (static_cast<int> (stages * 3.0f) * 2);
-        numStages     = juce::jlimit (2, numPhaserStages, numStages);
-    
-        // feedback — feed output back into input
-        float feedbackAmt = juce::jlimit (-0.95f, 0.95f, (feedback * 2.0f) - 1.0f);
-        float inputWithFeedback = input + phaserFeedback * feedbackAmt;
-    
-        // 5. CASCADE ALLPASS STAGES
-        float output = inputWithFeedback;
-        for (int i = 0; i < numStages; ++i)
-        {
-            float delayed        = phaserAllpassState[i];
-            phaserAllpassState[i] = output + delayed * (-coeff);
-            output               = delayed + output * coeff;
-        }
-    
-        phaserFeedback = output;
-    
-        // 6. MIX — classic phaser is 50% dry + 50% wet
-        return (input + output) * 0.5f;
-    }
-
     float processSampleDistortion (float input, float drive, float flavor,
                                     float tone, float degradation,
                                     double sampleRate)
@@ -1086,97 +1042,104 @@ float processSamplePhaser (float input, float rate, float depth,
                                            float brightness, float depth,
                                            double sampleRate)
     {
-        // 1. ROOT NOTE — maps 0-1 to 12 semitones (A=0 to G#=1)
-        // Base frequency derived from root note, centered around A3 (220Hz)
-        int   rootSemitone = juce::jlimit (0, 11, static_cast<int> (root * 12.0f));
-        float rootFreq     = 220.0f * std::pow (2.0f, rootSemitone / 12.0f);
-    
-        // 2. SCALE — interval patterns for each scale type
-        // Each array contains semitone intervals above the root
         const int scaleIntervals[5][7] = {
-            { 0, 2, 4, 7, 9, 11, 12 }, // Major
-            { 0, 2, 3, 7, 9, 10, 12 }, // Minor
-            { 0, 2, 4, 7, 9,  0,  0 }, // Pentatonic (5 notes)
-            { 0, 2, 4, 6, 8, 10, 12 }, // Whole Tone
-            { 0, 1, 2, 3, 4,  5,  6 }, // Chromatic (first 7)
+            { 0, 2, 4, 7, 9, 11, 12 },
+            { 0, 2, 3, 7, 9, 10, 12 },
+            { 0, 2, 4, 7, 9,  0,  0 },
+            { 0, 2, 4, 6, 8, 10, 12 },
+            { 0, 1, 2, 3, 4,  5,  6 },
         };
         const int scaleNoteCounts[5] = { 7, 7, 5, 7, 7 };
     
-        int scaleIdx  = juce::jlimit (0, 4, static_cast<int> (scale * 5.0f));
-        int noteCount = scaleNoteCounts[scaleIdx];
+        int   rootSemitone = juce::jlimit (0, 11, static_cast<int> (root * 12.0f));
+        float rootFreq     = 220.0f * std::pow (2.0f, rootSemitone / 12.0f);
+        int   scaleIdx     = juce::jlimit (0, 4, static_cast<int> (scale * 5.0f));
+        int   noteCount    = scaleNoteCounts[scaleIdx];
+        float octaveShift  = 1.0f + brightness * 3.0f;
+        float q            = juce::jmap (depth, 0.0f, 1.0f, 2.0f, 200.0f);
     
-        // 3. BRIGHTNESS — which octave register the resonators sit in
-        // 0.0 = fundamental octave, 1.0 = 3 octaves up (shimmery)
-        float octaveShift = 1.0f + brightness * 3.0f; // 1x to 8x frequency multiplier
+        // Recompute coefficients only when knobs change
+        bool needsUpdate = (root       != cachedRoot       ||
+                            scale      != cachedScale      ||
+                            brightness != cachedBrightness ||
+                            depth      != cachedDepth);
     
-        // 4. DEPTH — resonance Q factor
-        // 0.0 = subtle, 1.0 = very resonant/ringing
-        float q = juce::jmap (depth, 0.0f, 1.0f, 1.0f, 40.0f);
-    
-        // 5. PROCESS EACH SCALE NOTE through a resonant bandpass
-        float output    = 0.0f;
-        int   bandIdx   = 0;
-    
-        for (int note = 0; note < noteCount && bandIdx < numResonatorBands; ++note)
+        if (needsUpdate)
         {
-            // Frequency for this scale note, shifted by brightness octave
-            float semitones = static_cast<float> (scaleIntervals[scaleIdx][note]);
-            float bandFreq  = rootFreq * std::pow (2.0f, semitones / 12.0f) * octaveShift;
-            bandFreq        = juce::jlimit (20.0f, static_cast<float> (sampleRate) * 0.45f, bandFreq);
+            cachedRoot       = root;
+            cachedScale      = scale;
+            cachedBrightness = brightness;
+            cachedDepth      = depth;
+            cachedNoteCount  = noteCount;
+            // Reset filter state when coefficients change
+            resS1.fill (0.0f);
+            resS2.fill (0.0f);
     
-            // Biquad bandpass coefficients
-            float w0    = 2.0f * juce::MathConstants<float>::pi * bandFreq
-                          / static_cast<float> (sampleRate);
-            float sinW0 = std::sin (w0);
-            float cosW0 = std::cos (w0);
-            float alpha = sinW0 / (2.0f * q);
+            int bandIdx = 0;
+            for (int note = 0; note < noteCount && bandIdx < numResonatorBands; ++note)
+            {
+                float bandFreq = juce::jlimit (20.0f, static_cast<float> (sampleRate) * 0.45f,
+                                    rootFreq * std::pow (2.0f,
+                                        static_cast<float> (scaleIntervals[scaleIdx][note]) / 12.0f)
+                                    * octaveShift);
     
-            float b0 =  alpha;
-            float b2 = -alpha;
-            float a0 =  1.0f + alpha;
-            float a1 = -2.0f * cosW0;
-            float a2 =  1.0f - alpha;
+                float w0    = 2.0f * juce::MathConstants<float>::pi * bandFreq
+                              / static_cast<float> (sampleRate);
+                float sinW0 = std::sin (w0);
+                float cosW0 = std::cos (w0);
+                float alpha = sinW0 / (2.0f * q);
+                float a0    = 1.0f + alpha;
     
-            // Normalize
-            b0 /= a0; b2 /= a0; a1 /= a0; a2 /= a0;
+                resB0[bandIdx] =  alpha / a0;
+                resB2[bandIdx] = -alpha / a0;
+                resA1[bandIdx] = -2.0f * cosW0 / a0;
+                resA2[bandIdx] = (1.0f - alpha) / a0;
+                bandIdx++;
+            }
     
-            // Process biquad (transposed direct form II)
-            float bandOut    = b0 * input + resS1[bandIdx];
-            resS1[bandIdx]   = -a1 * bandOut + resS2[bandIdx];
-            resS2[bandIdx]   = -a2 * bandOut + b2 * input;
+            // Shimmer band
+            if (bandIdx < numResonatorBands)
+            {
+                float shimmerFreq = juce::jlimit (20.0f, static_cast<float> (sampleRate) * 0.45f,
+                                        rootFreq * octaveShift * 2.0f);
+                float w0    = 2.0f * juce::MathConstants<float>::pi * shimmerFreq
+                              / static_cast<float> (sampleRate);
+                float sinW0 = std::sin (w0);
+                float cosW0 = std::cos (w0);
+                float alpha = sinW0 / (2.0f * q * 0.5f);
+                float a0    = 1.0f + alpha;
     
-            output += bandOut;
+                resB0[bandIdx] =  alpha / a0;
+                resB2[bandIdx] = -alpha / a0;
+                resA1[bandIdx] = -2.0f * cosW0 / a0;
+                resA2[bandIdx] = (1.0f - alpha) / a0;
+            }
+        }
+    
+        // Process each band with cached coefficients
+        float output  = 0.0f;
+        int   bandIdx = 0;
+    
+        for (int note = 0; note < cachedNoteCount && bandIdx < numResonatorBands; ++note)
+        {
+            float bandOut     = resB0[bandIdx] * input + resS1[bandIdx];
+            resS1[bandIdx]    = -resA1[bandIdx] * bandOut + resS2[bandIdx];
+            resS2[bandIdx]    = -resA2[bandIdx] * bandOut + resB2[bandIdx] * input;
+            output           += bandOut;
             bandIdx++;
         }
     
-        // Also add the root one octave up for shimmer
+        // Process Shimmer
         if (bandIdx < numResonatorBands)
         {
-            float shimmerFreq = rootFreq * octaveShift * 2.0f;
-            shimmerFreq       = juce::jlimit (20.0f, static_cast<float> (sampleRate) * 0.45f, shimmerFreq);
-    
-            float w0    = 2.0f * juce::MathConstants<float>::pi * shimmerFreq
-                          / static_cast<float> (sampleRate);
-            float sinW0 = std::sin (w0);
-            float cosW0 = std::cos (w0);
-            float alpha = sinW0 / (2.0f * q * 0.5f); // slightly wider for shimmer
-    
-            float b0 =  alpha / (1.0f + alpha);
-            float b2 = -alpha / (1.0f + alpha);
-            float a1 = -2.0f * cosW0 / (1.0f + alpha);
-            float a2 = (1.0f - alpha) / (1.0f + alpha);
-    
-            float bandOut      = b0 * input + resS1[bandIdx];
-            resS1[bandIdx]     = -a1 * bandOut + resS2[bandIdx];
-            resS2[bandIdx]     = -a2 * bandOut + b2 * input;
-            output            += bandOut * 0.5f; // shimmer at half level
+            float bandOut     = resB0[bandIdx] * input + resS1[bandIdx];
+            resS1[bandIdx]    = -resA1[bandIdx] * bandOut + resS2[bandIdx];
+            resS2[bandIdx]    = -resA2[bandIdx] * bandOut + resB2[bandIdx] * input;
+            output           += bandOut * 0.5f;
         }
     
-        // 6. MIX — normalize by band count and blend with dry
-        float wetGain = 1.0f / std::sqrt (static_cast<float> (noteCount + 1));
+        float wetGain = 1.0f / std::sqrt (static_cast<float> (cachedNoteCount + 1));
         float wet     = output * wetGain;
-    
-        // Add dry signal underneath for the "transform" feel
         return std::isfinite (wet) ? (wet + input * 0.3f) : input;
     }
 
@@ -1252,6 +1215,55 @@ float processSamplePhaser (float input, float rate, float depth,
         }
         // mix
         return std::isfinite (output) ? output + input * 0.3f : input;
+    }
+
+    float processSampleOldChorus (float input, float rate, float depth,
+                                   float mode, float warmth,
+                                   double sampleRate)
+    {
+        // Single shared tri-wave LFO.
+        float lfoRate = 0.1f + rate * 4.9f;
+        oldChorusLFOPhase += (lfoRate * juce::MathConstants<float>::twoPi)
+                              / static_cast<float> (sampleRate);
+        if (oldChorusLFOPhase >= juce::MathConstants<float>::twoPi)
+            oldChorusLFOPhase -= juce::MathConstants<float>::twoPi;
+    
+        float lfoNorm     = oldChorusLFOPhase / juce::MathConstants<float>::twoPi;
+        float triangleLFO = (lfoNorm < 0.5f)
+                                ? (lfoNorm * 4.0f - 1.0f)
+                                : (3.0f - lfoNorm * 4.0f);
+        // 1.7ms to 16ms sweep, then write to buffer
+        float minDelayMs    = 1.7f;
+        float maxDelayMs    = juce::jmap (depth, 0.0f, 1.0f, 4.0f, 16.0f);
+        float centerDelayMs = (minDelayMs + maxDelayMs) * 0.5f;
+        float sweepMs       = (maxDelayMs - minDelayMs) * 0.5f;
+        oldChorusDelayBuffer[oldChorusWritePtr] = input;
+        oldChorusWritePtr = (oldChorusWritePtr + 1) % oldChorusDelaySize;
+    
+        // two modes — below 0.5 = Mode I (1 voice), above = Mode II (2 voices)
+        int   numVoices = (mode > 0.5f) ? 2 : 1;
+        float output    = 0.0f;
+        for (int v = 0; v < numVoices; ++v)
+        {
+            // Second voice 180° out of phase
+            float lfo = (v == 0) ? triangleLFO : -triangleLFO;
+            float delayMs      = centerDelayMs + lfo * sweepMs;
+            float delaySamples = juce::jlimit (1.0f, static_cast<float> (oldChorusDelaySize - 4),
+                                     delayMs / 1000.0f * static_cast<float> (sampleRate));
+            float readPos = static_cast<float> (oldChorusWritePtr) - delaySamples;
+            while (readPos < 0.0f) readPos += static_cast<float> (oldChorusDelaySize);
+            output += hermiteInterp (oldChorusDelayBuffer.data(), oldChorusDelaySize, readPos);
+        }
+    
+        output /= static_cast<float> (numVoices);
+    
+        // warmth — subtle smear from previous sample
+        float bbd = warmth * 0.1f;
+        float wet  = output * (1.0f - bbd) + oldChorusLastSample * bbd;
+        oldChorusLastSample = wet;
+    
+        // Equal dry/wet, no feedback
+        return wet * 0.5f + input * 0.5f;
     }
 
     int getCurrentType() const noexcept { return static_cast<int>(currentType); }
@@ -1381,11 +1393,6 @@ protected:
     int   chorusWritePtr = 0;
     std::array<float, numChorusVoices> chorusLFOPhases { 0.0f, 0.0f, 0.0f, 0.0f };
 
-    static constexpr int numPhaserStages = 8;
-    std::array<float, numPhaserStages> phaserAllpassState { 0.0f };
-    float phaserLFOPhase  = 0.0f;
-    float phaserFeedback  = 0.0f;
-
     // Distortion state
     float distToneState  = 0.0f; // one-pole tone filter state
     float distLastSign   = 1.0f; // for zero-crossing degradation
@@ -1407,6 +1414,12 @@ protected:
     static constexpr int numResonatorBands = 8;
     std::array<float, numResonatorBands> resS1 { 0.0f };
     std::array<float, numResonatorBands> resS2 { 0.0f };
+    // Harmonic Resonator coefficient cache
+    float cachedRoot = -1.0f, cachedScale = -1.0f;
+    float cachedBrightness = -1.0f, cachedDepth = -1.0f;
+    int   cachedNoteCount = 0;
+    std::array<float, 9> resB0 { 0.0f }, resB2 { 0.0f };
+    std::array<float, 9> resA1 { 0.0f }, resA2 { 0.0f };
 
     // Ambient Delay state. First Delay itself
     static constexpr int ambientBufferSize = 384000; // 8 seconds at 48kHz
@@ -1424,6 +1437,13 @@ protected:
     static constexpr int ambientStageSize = 8192;
     std::array<std::array<float, ambientStageSize>, numAmbientStages> ambientStageBuffers {};
     std::array<int, numAmbientStages> ambientStageWritePtrs { 0, 0, 0, 0, 0, 0 };
+
+    // Old Chorus (Juno-style BBD) state
+    static constexpr int oldChorusDelaySize = 48000;
+    std::array<float, oldChorusDelaySize> oldChorusDelayBuffer { 0.0f };
+    int   oldChorusWritePtr  = 0;
+    float oldChorusLFOPhase  = 0.0f;
+    float oldChorusLastSample = 0.0f;
 
     // Parameters Cache
     double sampleRate { 44100.0 };

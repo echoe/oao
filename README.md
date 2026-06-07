@@ -9,10 +9,13 @@ Thanks to both Six Sines and to the Korg Opsix for some of the inspiration behin
 ## Preset Bar
 
 ### Presets
-There are three buttons to handle presets.
+There are six buttons to handle presets.
 - Init: This initializes the patch to a single Sine wave, with Operator 1's Out set to 1.
 - Save: This saves a patch as an .xml file.
 - Load: This loads a patch from an .xml file.
+- <: Scroll left in preset folder
+- ...: Select preset folder. Preset name will be displayed next to this button.
+- >: Scroll right in preset folder
 
 ### Randomization
 There are three randomization buttons. These are after 'Init', because frequently after using them, you'll want to go back to an init state.
@@ -27,25 +30,24 @@ This oversamples the main audio path to provide increased polyphony. Select betw
 ### Poly
 This picks the number of voices in the synth. This defauts to 8 but you can go from 1 (mono) to 32.
 
-### Size
-Change the size of the synth window, from 50% to 200%.
-
 ### Gain
 If you're using randomization you may want to turn the gain down as a precaution! Don't go deaf!!! It's easy for things to get /too wild/. I've tried to moderate that and haven't made all audio from my computer break for a while, but this is a freeware VST made by one developer and AI, so, uh, no guarantees.
 
 
 ## Operator types
-### Wave: Sine, Triangle, Saw, Square, White Noise, Pink Noise
+### Wave: Sine, Triangle, Saw, Square, Pulse, SquarePWM, White Noise, Pink Noise
 - Options: Ratio, Detune, Phase, Fold. You can also tempo sync the operator to a DAW with the checkmark - that's why Ratio changes to Sync Rate there.
 - Ratio: from 0.01 to 16, this controls the pitch of the waveform relative to the note you're playing. You, uh, need this for FM.
 - Detune: You can slightly detune the note if you want, without moving the Ratio by tiny steps.
 - Phase: Changes the phase of the waveform.
 - Fold: Folds the waveform in on itself.
 
+For SquarePWM and Pulse, instead of Phase there is a PWM option there. So you can modulate the PWM if you want!
+
 Additional Notes:
 
-- Ratio goes down to 0.01 so you can have a waveform slow enough to reasonably be used as an LFO. I may add another operator mode for this in the future if this isn't slow enough for some cases.
-- If you really need PWM you should be able to modulate any of these wave operators targeting the 'Phase' field.
+- Ratio goes down to 0.01 so you can have a waveform slow enough to reasonably be used as an LFO. I may add another operator mode for this in the future if this isn't slow enough for some cases, but it's been fine for me. YMMV.
+- If you want phase modulation, the phase is there to be modulated! Wow.
 - PLEASE NOTE: The gain for all operators is controlled in the Audio Matrix! If you don't hear one, go to the Audio Matrix and turn it up!
 
 ### Additive
@@ -141,22 +143,23 @@ It's an external in! You can route external sound into the synth if you want now
 ## Effects
 - Use any three of the filters that you want! They always run in serial but you can order them in any way so it doesn't really matter. You can also target them in the extra modulation matrix :)
 
+## Settings
+A settings page for two things:
+### Size
+- Set the size of the plugin window from 50% to 200%. This doesn't work perfectly but it's something!
+### Theme
+Select your color theme from one of eight preset choices, or make your own with fice color presets! All pages will pick up the new colors and refresh.
+
+
 ## Other Features:
 - You can sync an operator to DAW tempo and use it as an LFO. Do you want more LFOs? Why have LFOs when you can just have more operators??
 - You can pass audio into an operator with the audio routing matrix, so you can use an operator as a filter. Do you want a filter? Why have filters when you can just have more operators??
 - You can modulate any operator with any other operator.
-- Three simple, global-only effects to soften up the FM; Delay, Reverb, and Chorus. If you want better effects, that's what effects in a DAW are for! The effects are not the point!
-- Preset support! ... It's in the form of writing and reading xml files, but it does work!
-- Randomization of each page, if you really can't think of anything.
-- An Init button to avoid the randomization and get back to a normal state when it becomes too much.
-- A gain function to attempt to control the noisiness of FM (optimistic).
-- A soft clipper on the end of the chain and at every step of the audio routing page.
-- Full color theming with five (wow) zones to select and eight preset themes
 
 # In progress
 Text scaling. I'm working on it, the buttons also do not scale with plugin size
 
-Pictures of the synth in use are provided in the pictures/ folder. There are also build scripts in the main folder.
+Pictures of the synth in use are provided in the pictures/ folder, and I've switched between themes for each picture so you can get an idea of the theme options. There are also build scripts in the main folder, and built vst3 and standalone builds for all three OS's in the release folder.
 This is mostly AI-coded, but I am actively using the synth myself and have read over all of the code and think I understand it (though how much can one understand code they haven't written themselves?). Your mileage, as always, may vary.
 
 Happy synthing!

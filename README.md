@@ -18,11 +18,11 @@ There are six buttons to handle presets.
 - >: Scroll right in preset folder
 
 ### Randomization
-There are three randomization buttons. These are after 'Init', because frequently after using them, you'll want to go back to an init state.
-You can also go through and manually click on knobs to reset them to 'default'!
-- R-Synth: This changes all synth variables. It also changes the outs on the Audio Matrix page.
-- R-FM: This changes all modulation - all variables on the matrix.
-- R-Route: This randomizes all audio matrix routing.
+There are three randomization buttons. These are after the preset buttons.
+You can also go through and manually click on knobs to reset them to the default!
+- Rand: This changes all synth variables. It's set to hopefully not go too wild too often. YMMV.
+- D: This attempts to make drums for you (no sustain, etc).
+- E: This randomizes the effects page only.
 
 ### OS
 This oversamples the main audio path to provide increased fidelity. Select between 1,2,4, and 8x.

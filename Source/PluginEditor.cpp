@@ -144,7 +144,7 @@ void FMPluginAudioProcessorEditor::resized()
     auto topBarArea = area.removeFromTop (topBarHeight);
 
     // Preset bar takes the left chunk — scale its width too
-    auto presetArea = topBarArea.removeFromLeft (static_cast<int> (650 * scale));
+    auto presetArea = topBarArea.removeFromLeft (static_cast<int> (550 * scale));
     presetBar.setBounds (presetArea.reduced (2));
 
     // Gain slider on the right
@@ -152,11 +152,11 @@ void FMPluginAudioProcessorEditor::resized()
     gainLabel.setBounds (gainArea.removeFromLeft (static_cast<int> (45 * scale)));
     gainSlider.setBounds (gainArea.reduced (2));
 
-    // Oscilloscope
+    // Oscilloscope, also on right
     if (oscilloscope != nullptr)
-        oscilloscope->setBounds (topBarArea.removeFromLeft (static_cast<int> (100 * scale)));
+        oscilloscope->setBounds (topBarArea.removeFromRight (static_cast<int> (100 * scale)));
 
-    // Title in remaining space
+    // Title in remaining space in middle-ish
     titleLabel.setBounds (topBarArea.reduced (2));
 
     // Nav buttons

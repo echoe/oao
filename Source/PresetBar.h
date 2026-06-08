@@ -24,16 +24,12 @@ public:
         setupButton (initButton,    "Init");
         setupButton (saveButton,    "Save");
         setupButton (loadButton,    "Load");
-        setupButton (randOpsButton,   "R-Synth");
-        setupButton (randModButton,   "R-FM");
-        setupButton (randAudioButton, "R-Audio");
+        setupButton (smartRandButton,   "Rand");
 
         initButton.onClick      = [this] { triggerInit(); };
         saveButton.onClick      = [this] { triggerSave(); };
         loadButton.onClick      = [this] { triggerLoad(); };
-        randOpsButton.onClick   = [this] { triggerRandomizer (RandomTarget::OperatorsAndEnvelopes); };
-        randModButton.onClick   = [this] { triggerRandomizer (RandomTarget::ModulationMatrix); };
-        randAudioButton.onClick = [this] { triggerRandomizer (RandomTarget::RoutingMatrix); };
+        smartRandButton.onClick   = [this] { triggerSmartRandomizer (); };
 
         // Preset navigation
         setupButton (prevButton, "<");
@@ -114,9 +110,7 @@ public:
         presetNameLabel.setBounds (area.removeFromLeft (dropdownWidth).reduced (1));
         nextButton.setBounds   (area.removeFromLeft (smallBtnWidth).reduced (1));
 	// random buttons
-        randOpsButton.setBounds   (area.removeFromLeft (medBtnWidth).reduced (1));
-        randModButton.setBounds   (area.removeFromLeft (medBtnWidth).reduced (1));
-        randAudioButton.setBounds (area.removeFromLeft (medBtnWidth).reduced (1));
+        smartRandButton.setBounds   (area.removeFromLeft (medBtnWidth).reduced (1));
         // oversampling and poly
         oversamplingLabel.setBounds    (area.removeFromLeft (smallLblWidth).reduced (1));
         oversamplingSelector.setBounds (area.removeFromLeft (dropdownWidth).reduced (1));
@@ -223,35 +217,101 @@ private:
         updateNameLabel();
     }
 
-    void triggerRandomizer (RandomTarget target)
+    void triggerSmartRandomizer()
     {
         auto& prng = juce::Random::getSystemRandom();
         auto& parameters = audioProcessor.apvts.processor.getParameters();
+        
         for (auto* param : parameters)
         {
             if (auto* rangedParam = dynamic_cast<juce::RangedAudioParameter*> (param))
             {
                 juce::String paramID = rangedParam->getParameterID();
-                bool shouldRandomize = false;
-                switch (target)
+                float newValue = prng.nextFloat(); // Default fallback
+                bool shouldRandomize = true;
+    
+                // ENVELOPES (Keep them playable, avoid infinite silence)
+                if (paramID.startsWith("ATTACK"))
                 {
-                    case RandomTarget::OperatorsAndEnvelopes: 
-                        if (paramID.startsWith ("MODE_") || paramID.startsWith ("WAVE_SHAPE") || paramID.startsWith ("FILTER_TYPE") || paramID.startsWith ("TEMPO_SYNC") || paramID.startsWith ("RATIO") || paramID.startsWith ("DETUNE") || paramID.startsWith ("PHASE") || paramID.startsWith ("FOLD") || paramID.startsWith ("ATTACK") || paramID.startsWith ("DECAY") || paramID.startsWith ("SUSTAIN") || paramID.startsWith ("RELEASE") || paramID.startsWith ("OUT"))
-                            shouldRandomize = true;
-                        break;
-                    case RandomTarget::ModulationMatrix: 
-                        if (paramID.startsWith ("MOD_"))
-                            shouldRandomize = true;
-                        break;
-                    case RandomTarget::RoutingMatrix: 
-                        if (paramID.startsWith ("AUDIO_ROUTE_"))
-                            shouldRandomize = true;
-                        break;
+                    // Favor faster attacks (0.0 to 0.3) so notes actually trigger instantly
+                    newValue = prng.nextFloat() * 0.3f; 
                 }
+                else if (paramID.startsWith("DECAY") || paramID.startsWith("RELEASE"))
+                {
+                    // Avoid absolute zero or eternity; give it a moderate-to-snappy feel
+                    newValue = 0.05f + (prng.nextFloat() * 0.6f); 
+                }
+                else if (paramID.startsWith("SUSTAIN"))
+                {
+                    // Sustains can be anything, but favor audible levels (0.2 to 1.0)
+                    newValue = 0.2f + (prng.nextFloat() * 0.8f);
+                }
+                
+                // OUTPUTS & VOLUMES (Prevent speaker-blowing or dead silence)
+                else if (paramID.startsWith("OUT") || paramID.contains("GAIN") || paramID.contains("VOLUME"))
+                {
+                    // Keep output volumes in a safe, healthy middle-ground (e.g., 50% to 85%)
+                    newValue = 0.5f + (prng.nextFloat() * 0.35f);
+                }
+                
+                // ROUTING & MODULATION (Full chaos here is usually messy)
+                else if (paramID.startsWith("AUDIO_ROUTE_") || paramID.startsWith("MOD_"))
+                {
+                    // Introduce "sparsity": 60% chance it stays 0 (off) so everything isn't routing everywhere at once
+                    if (prng.nextFloat() > 0.4f) {
+                        newValue = 0.0f;
+                    } else {
+                        newValue = prng.nextFloat(); // Standard modulation depth
+                    }
+                }
+                
+                // EFFECTS (FX_)
+                else if (paramID.startsWith("FX_"))
+                {
+                    if (paramID.contains("MIX") || paramID.contains("WET"))
+                    {
+                        // Don't completely drown the sound in FX; cap wetness at 60%
+                        newValue = prng.nextFloat() * 0.6f;
+                    }
+                    else if (paramID.contains("FEEDBACK"))
+                    {
+                        // Keep feedback under 0.75 to prevent infinite, exploding feedback loops
+                        newValue = prng.nextFloat() * 0.75f;
+                    }
+                    else 
+                    {
+                        newValue = prng.nextFloat();
+                    }
+                }
+		else if (paramID.startsWith("MODE_")) // let's not pick external in
+		{
+                    int targetedChoice = prng.nextInt(2);
+                    auto parameterRange = rangedParam->getNormalisableRange();
+                        newValue = parameterRange.convertTo0to1(static_cast<float>(targetedChoice));
+		}
+                
+                // OPERATORS, DETUNE, SHAPE, FILTERS, ETC.
+                else if (paramID.startsWith("WAVE_SHAPE") || paramID.startsWith("FILTER_TYPE") || 
+			 paramID.startsWith("TEMPO_SYNC") || paramID.startsWith("RATIO") || paramID.startsWith("DETUNE") || 
+                         paramID.startsWith("PHASE") || paramID.startsWith("FOLD"))
+                {
+                    // These are safe to randomize completely across their standard normalized range
+                    newValue = prng.nextFloat();
+                }
+                else
+                {
+                    // If it's a parameter we didn't explicitly target, don't touch it (e.g., Master Vol, Bypass)
+                    shouldRandomize = false; 
+                }
+    
+                // Apply the randomized value if it matches our criteria
                 if (shouldRandomize)
-                    rangedParam->setValueNotifyingHost (prng.nextFloat());
+                {
+                    rangedParam->setValueNotifyingHost(newValue);
+                }
             }
         }
+    
         currentPresetIndex = -1;
         updateNameLabel();
     }
@@ -330,7 +390,7 @@ private:
     FMPluginAudioProcessor& audioProcessor;
 
     juce::TextButton initButton, saveButton, loadButton;
-    juce::TextButton randOpsButton, randModButton, randAudioButton;
+    juce::TextButton smartRandButton, effectsRandButton;
     juce::TextButton prevButton, nextButton, folderButton;
     juce::Label      presetNameLabel;
     std::unique_ptr<juce::FileChooser> fileChooser;

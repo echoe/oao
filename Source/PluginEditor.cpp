@@ -144,7 +144,7 @@ void FMPluginAudioProcessorEditor::resized()
     auto topBarArea = area.removeFromTop (topBarHeight);
 
     // Preset bar takes the left chunk — scale its width too
-    auto presetArea = topBarArea.removeFromLeft (static_cast<int> (550 * scale));
+    auto presetArea = topBarArea.removeFromLeft (static_cast<int> (600 * scale));
     presetBar.setBounds (presetArea.reduced (2));
 
     // Gain slider on the right

@@ -175,8 +175,9 @@ Select your color theme from one of eight preset choices, or make your own with 
 - You can pass audio into an operator with the audio routing matrix, so you can use an operator as a filter. Do you want a filter? Why have filters when you can just have more operators??
 - You can modulate any operator with any other operator.
 
-# In progress
-Text scaling. I'm working on it, the buttons also do not scale with plugin size
+# In progress/To do:
+-Better text scaling. There's a lot there already, but it is not perfect. Also, the buttons do not scale with plugin size.
+-Slightly better randomization - I'd like something that randomizes everything in a slightly intelligent way, and also something that makes a random effects chain specifically (R-Effects).
 
 Pictures of the synth in use are provided in the pictures/ folder, and I've switched between themes for each picture so you can get an idea of the theme options. There are also build scripts in the main folder, and built vst3 and standalone builds for all three OS's in the release folder.
 This is mostly AI-coded, but I am actively using the synth myself and have read over all of the code and think I understand it (though how much can one understand code they haven't written themselves?). Your mileage, as always, may vary.

@@ -2,9 +2,9 @@
 
 <img src=https://raw.githubusercontent.com/echoe/oao/refs/heads/main/pictures/operators.png width="450" height="300" />
 
-This is a six-operator FM synthesizer where the operators do everything. It's open source, written in C++ using the JUCE framework and copious amounts of AI help.
+This is a six-operator FM synthesizer/effects unit, where the operators do everything. It's open source, written in C++ using the JUCE framework and a lot of AI help.
 
-Thanks to both Six Sines and to the Korg Opsix for some of the inspiration behind this synth :)
+Thanks to both Six Sines and to the Korg Opsix for some of the inspiration behind this synth :) but I've sort of just liberally taken from stuff to make something approximating the VST of my dreams.
 
 ## Preset Bar
 
@@ -31,18 +31,22 @@ This oversamples the main audio path to provide increased fidelity. Select betwe
 This picks the number of voices in the synth. This defauts to 8 but you can go from 1 (mono) to 32.
 
 ### Gain
-If you're using randomization you may want to turn the gain down as a precaution! Don't go deaf!!! It's easy for things to get /too wild/. I've tried to moderate that and haven't made all audio from my computer break for a while, but this is a freeware VST made by one developer and AI, so, uh, no guarantees.
+If you're using randomization you may want to turn the gain down as a precaution! Don't go deaf!!! It's easy for things to get too wild. I've tried to moderate that and haven't made all audio from my computer break for a while, but this is a freeware VST made by one developer and AI, so, uh, no guarantees.
 
 
 ## Operator types
 ### Wave: Sine, Triangle, Saw, Square, Pulse, SquarePWM, White Noise, Pink Noise
-- Options: Ratio, Detune, Phase, Fold. You can also tempo sync the operator to a DAW with the checkmark - that's why Ratio changes to Sync Rate there.
+-- Wave Ratio options: Sync, Frequency, LFO
+-- Sy: short for Sync, this tempo syncs to the speec of your DAW.
+-- Fq: short for Frequency, this sets the oscillator to a specific hz speed (20-20000). This is mapped logarhythmically to the 0.01-16 spectrum.
+-- LFO: This sets the oscillator to normal LFO speeds (0.01 to 16hz).
+- Options: Ratio, Detune, Phase, Fold.
 - Ratio: from 0.01 to 16, this controls the pitch of the waveform relative to the note you're playing. You, uh, need this for FM.
 - Detune: You can slightly detune the note if you want, without moving the Ratio by tiny steps.
 - Phase: Changes the phase of the waveform.
 - Fold: Folds the waveform in on itself.
 
-For SquarePWM and Pulse, instead of Phase there is a PWM option there. So you can modulate the PWM if you want!
+For SquarePWM and Pulse, instead of Phase there is a PWM option there ... follow your PWM dreams.
 
 Additional Notes:
 
@@ -135,6 +139,12 @@ Note: The scales are major, minor, pentatonic, whole, and chromatic.
 Note: This ambient shimmer delay has a 16 second (!!!) possible time. Shimmer is a one-octave-up duplication of the sound and the knob acts as a mix knob for that.
 #### Old Chorus
 -Options: Rate (triangle LFO rate), Depth(1.7-16ms), Mode (Left: 1-voice, right: 2-voice), Warmth (subtle smear from prev sample)
+#### OTT
+-Options: Depth, Time, Upward, Tone
+Add some specific compression. Make it more in your face!
+#### Spectral Freeze
+-Options: Freeze, Blend, Pitch, Blur
+Take the incoming audio. Pause it. Twist it and reverse it.
 
 ### More?
 The process to add more effects is very easy:
@@ -145,14 +155,13 @@ The process to add more effects is very easy:
 -In the processBlock effects loop in PluginProcessor.cpp, so the Effects page can work, add the case there. This is pretty much the same as FMOperator.h but with some differences that are pretty self-evident looking at the 16 (!) current examples.
 
 ### Ext. In
-It's an external in! You can route external sound into the synth if you want now, and it will go through the modulation matrix like everything else (and will be affected by the filters). It is only open if midi data is going into the plugin though.
--Options: Gain, Tilt (quick EQ), Mod (controls how much the external in is affected by audio modulation), Fold(just like the normal Wave oscillator)
+It's an external in! You can route external sound into the synth if you want now, and it will go through the modulation matrix like everything else (and will be affected by the filters). Use this as an extremely wacky eight-effect unit if you want :)
+-Options: Gain, Tilt (quick EQ), Mod (controls how much the external in is affected by audio modulation), Fold(just like the normal Wave oscillator). These options are kind of whatever. If you think there should be other options, lemme know lol. I am not planning to tweak any of this other than gain ever.
 
 ## Modulation Matrix
 - A 6 by 6 matrix letting you modulate any operator with any other operator. On the right of this, there is a 6-slot mod matrix, letting you modulate anything in the synth (including effects, but effects are global only) with one of the six operators.
 - This is a frequency modulation matrix - you are modulating the frequency of anything you target (including targeting a filter) with the wave of whatever you are sending in.
-- NOTE FOR THE 6-SLOT MOD MATRIX: The targets are labeled with the name of the initial knobs. However, they should affect whatever you have enabled within that Operator.
-- - So for instance, if you affect Operator 2's "Ratio" with Operator 6, and Operator 2 is set to a Comb Filter, you will actually modulate its Grain Size. ... In theory. That's how it's set up.
+- NOTE FOR THE 6-SLOT MOD MATRIX: The targets are labeled with the slot they are in (Slot A, Slot B, Slot C, Slot D). This correlates to the knobs left to right - by default, for the Wave operator type, this will affect Ratio, Detune, Phase (or PWM), and Fold. But it will transparently affect that knob, with whatever you have in that slot.
 
 ## Audio Matrix
 - A 6 by 6 matrix letting you route audio.
@@ -174,10 +183,6 @@ Select your color theme from one of eight preset choices, or make your own with 
 - You can sync an operator to DAW tempo and use it as an LFO. Do you want more LFOs? Why have LFOs when you can just have more operators??
 - You can pass audio into an operator with the audio routing matrix, so you can use an operator as a filter. Do you want a filter? Why have filters when you can just have more operators??
 - You can modulate any operator with any other operator.
-
-# In progress/To do:
--Better text scaling. There's a lot there already, but it is not perfect. Also, the buttons do not scale with plugin size.
--Slightly better randomization - I'd like something that randomizes everything in a slightly intelligent way, and also something that makes a random effects chain specifically (R-Effects).
 
 Pictures of the synth in use are provided in the pictures/ folder, and I've switched between themes for each picture so you can get an idea of the theme options. There are also build scripts in the main folder, and built vst3 and standalone builds for all three OS's in the release folder.
 This is mostly AI-coded, but I am actively using the synth myself and have read over all of the code and think I understand it (though how much can one understand code they haven't written themselves?). Your mileage, as always, may vary.

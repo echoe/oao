@@ -30,10 +30,10 @@ struct CompactOperatorGroup : public juce::Component
         opHeaderLabel.setText ("OPERATOR " + opNum, juce::dontSendNotification);
         opHeaderLabel.setFont (juce::FontOptions (13.0f, juce::Font::bold));
         addAndMakeVisible (opHeaderLabel);
-        syncButton.setButtonText ("Sync");
-        syncButton.setClickingTogglesState (true);
-        addAndMakeVisible (syncButton);
-        modeSelector.addItemList ({ "Wave", "Additive", "Filter", "Ext. In" }, 1);
+        // Letting us swap oscillator mode for easier operator control
+        freqModeSelector.addItemList ({ "Std", "Sync", "Hz", "LFO" }, 1);
+        addAndMakeVisible (freqModeSelector);
+	modeSelector.addItemList ({ "Wave", "Additive", "Filter", "Ext. In" }, 1);
         addAndMakeVisible (modeSelector);
         waveShapeSelector.addItemList ({ "Sine", "Triangle", "Saw", "Square", "Pulse", "SquarePWM", "White Noise", "Pink Noise" }, 1);
         addAndMakeVisible (waveShapeSelector);
@@ -41,8 +41,8 @@ struct CompactOperatorGroup : public juce::Component
         addAndMakeVisible (filterTypeSelector);
 
         // APVTS Links
-        syncAttach    = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (apvts, "TEMPO_SYNC_" + opNum, syncButton);
-        ratioAttach   = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (apvts, "RATIO_" + opNum, ratioSlider);
+        freqModeAttach = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (apvts, "FREQ_MODE_" + opNum, freqModeSelector);
+	ratioAttach   = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (apvts, "RATIO_" + opNum, ratioSlider);
         detuneAttach  = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (apvts, "DETUNE_" + opNum, detuneSlider);
         phaseAttach   = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (apvts, "PHASE_" + opNum, phaseSlider);
         foldAttach    = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (apvts, "FOLD_" + opNum, foldSlider);
@@ -57,8 +57,8 @@ struct CompactOperatorGroup : public juce::Component
         // Safe UI state triggers using the stored class member reference
         modeSelector.onChange = [this]() { updateUIState(); };
         waveShapeSelector.onChange = [this]() { updateUIState(); };
-        syncButton.onClick    = [this]() { updateUIState(); };
-        filterTypeSelector.onChange = [this]() {updateUIState(); };
+	freqModeSelector.onChange = [this]() { updateUIState(); };
+	filterTypeSelector.onChange = [this]() {updateUIState(); };
         updateUIState(); // on load
     }
 
@@ -80,8 +80,8 @@ struct CompactOperatorGroup : public juce::Component
         // --- TOP STRIP ---
         auto topStrip = area.removeFromTop (h * 0.12f);
         opHeaderLabel.setBounds (topStrip.removeFromLeft (w * 0.25f));
-        syncButton.setBounds    (topStrip.removeFromLeft (w * 0.15f).reduced (1));
-        modeSelector.setBounds  (topStrip.removeFromLeft (w * 0.25f).reduced (1));
+	freqModeSelector.setBounds (topStrip.removeFromLeft (w * 0.18f).reduced (1));
+	modeSelector.setBounds  (topStrip.removeFromLeft (w * 0.25f).reduced (1));
     
         if (filterTypeSelector.isVisible())
             filterTypeSelector.setBounds (topStrip.reduced (1));
@@ -162,7 +162,6 @@ struct CompactOperatorGroup : public juce::Component
         decayLabel.setColour    (juce::Label::textColourId, colors.text);
         sustainLabel.setColour  (juce::Label::textColourId, colors.text);
         releaseLabel.setColour  (juce::Label::textColourId, colors.text);
-        syncButton.setColour (juce::ToggleButton::textColourId, colors.text);
 
         // 2. Helper lambda to update ComboBoxes cleanly
         auto updateComboBox = [this](juce::ComboBox& cb) {
@@ -202,7 +201,11 @@ private:
         bool isAdditiveMode = (selectedMode == 2);
         bool isFilterMode  = (selectedMode == 3);
         bool isExtAudioMode = (selectedMode == 4);
-        bool isSynced      = syncButton.getToggleState();   
+	int freqMode       = freqModeSelector.getSelectedId(); // 1=Std, 2=Sync, 3=Hz, 4=LFO
+        bool isStandard    = (freqMode == 1);
+        bool isSync        = (freqMode == 2);
+        bool isHz          = (freqMode == 3);
+        bool isLFO         = (freqMode == 4);
         int selectedFilter = filterTypeSelector.getSelectedId();
         waveShapeSelector.setVisible (isWaveMode);
         filterTypeSelector.setVisible (isFilterMode);
@@ -216,8 +219,9 @@ private:
         }
         else if (isAdditiveMode)
         {
-            ratioLabel.setText  (isSynced ? "Sync Rate" : "Ratio", juce::dontSendNotification);
-            detuneLabel.setText ("Tilt",     juce::dontSendNotification);
+            ratioLabel.setText (isHz ? "Freq" : (isSync ? "Sync Rate" : "Ratio"), juce::dontSendNotification);
+            ratioSlider.setTextValueSuffix (isHz ? " Hz" : (isSync ? "x" : ""));
+	    detuneLabel.setText ("Tilt",     juce::dontSendNotification);
             phaseLabel.setText  ("Stretch",  juce::dontSendNotification);
             foldLabel.setText   ("Odd/Even", juce::dontSendNotification);
         }
@@ -232,17 +236,25 @@ private:
         }
         else // Wave mode
         {
-            bool isPWM = (waveShapeSelector.getSelectedId() == 5 ||
-		   waveShapeSelector.getSelectedId() == 6);
-            ratioLabel.setText  (isSynced ? "Sync Rate" : "Ratio", juce::dontSendNotification);
-            detuneLabel.setText ("Detune", juce::dontSendNotification);
-            phaseLabel.setText  (isPWM ? "PWM" : "Phase",  juce::dontSendNotification);
-            foldLabel.setText   ("Fold",   juce::dontSendNotification);
-        }
+            bool isPWM = (modeSelector.getSelectedId() == 1 &&
+                          (waveShapeSelector.getSelectedId() == 5 ||
+                           waveShapeSelector.getSelectedId() == 6)); 
+            if      (isHz)  ratioLabel.setText ("Freq x1000",      juce::dontSendNotification);
+            else if (isLFO) ratioLabel.setText ("LFO Rate",  juce::dontSendNotification);
+            else if (isSync) ratioLabel.setText ("Sync Rate", juce::dontSendNotification);
+            else             ratioLabel.setText ("Ratio",     juce::dontSendNotification);
     
-        ratioSlider.setTextValueSuffix (isSynced ? "x" : "");
+            detuneLabel.setText ("Detune",                         juce::dontSendNotification);
+            phaseLabel.setText  (isPWM ? "PWM" : "Phase",          juce::dontSendNotification);
+            foldLabel.setText   ("Fold",                           juce::dontSendNotification);
+    
+            if      (isHz)   ratioSlider.setTextValueSuffix (" Hz");
+            else if (isLFO)  ratioSlider.setTextValueSuffix (" Hz");
+            else if (isSync) ratioSlider.setTextValueSuffix ("x");
+            else             ratioSlider.setTextValueSuffix ("");
+        }
         if (getWidth() > 0 && getHeight() > 0)
-            resized();
+        resized();
     }
 
     // Keep state reference completely safe inside class lifecycle
@@ -259,13 +271,12 @@ private:
     juce::ComboBox modeSelector;
     juce::ComboBox waveShapeSelector;
     juce::ComboBox filterTypeSelector;
-    juce::ToggleButton syncButton;
+    juce::ComboBox freqModeSelector;
 
     std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> modeAttach;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> waveShapeAttach;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> filterTypeAttachment;
-
-    std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> syncAttach;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> freqModeAttach;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> ratioAttach, detuneAttach, phaseAttach, foldAttach;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> attackAttach, decayAttach, sustainAttach, releaseAttach;
 };

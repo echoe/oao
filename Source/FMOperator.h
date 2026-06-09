@@ -62,7 +62,7 @@ public:
                          float ratio, float detune, float phaseKnob, float foldKnob,
                          float audioInputSum, float modulationSum,
                          float pitchModOffset, float phaseModOffset, float cutoffModOffset, float foldModOffset,
-                         int mode, int waveShape, int filterType, bool isSynced)
+                         int mode, int waveShape, int filterType, int freqMode)
     {
         if (!envelope.isActive()) return 0.0f;
 
@@ -98,7 +98,7 @@ public:
                                ? std::tanh (extSample + audioInputSum)
                                : 0.0f;
         }
-        else if (mode == 2) // filter. These all have soft clippers at the end to avoid being /too/ hot.
+        else if (mode == 2) // filter
         {
             if (filterType == 0) // passthrough
             {
@@ -323,13 +323,56 @@ public:
                                                                        currentSampleRate);
                 outputSample = std::isfinite (output) ? output : 0.0f;
             }
+            else if (filterType == 21) // OTT
+            {
+                float depth   = (ratio - 0.01f) / (16.0f - 0.01f);
+                float timeKnob = juce::jlimit (0.0f, 1.0f, (detune + 50.0f) / 100.0f);
+                float upward  = phaseKnob / 360.0f;
+                float tone    = juce::jlimit (0.0f, 1.0f, foldKnob);
+            
+                float output = internalFilter.processSampleOTT (audioInputSum, depth, timeKnob,
+                                                                 upward, tone, currentSampleRate);
+                outputSample = std::isfinite (output) ? output : 0.0f;
+            }
+            else if (filterType == 22) // Spectral Freeze
+            {
+                float freeze = (ratio - 0.01f) / (16.0f - 0.01f);
+                float blend  = juce::jlimit (0.0f, 1.0f, (detune + 50.0f) / 100.0f);
+                float pitch  = phaseKnob / 360.0f;
+                float blur   = juce::jlimit (0.0f, 1.0f, foldKnob);
+            
+                float output = internalFilter.processSampleSpectralFreeze (audioInputSum, freeze,
+                                                                            blend, pitch, blur,
+                                                                            currentSampleRate);
+                outputSample = std::isfinite (output) ? output : 0.0f;
+            }
 	}
         else // Here are our oscillators, Wave and Additive. They all need these:
         {
-	    // keytracking, fm, and making sure that you can sync the osc speed to DAW speed
-            float nodeTargetFrequency = isSynced ? currentBpm / 60.0f : baseFrequency;
-            nodeTargetFrequency *= ratio;
-            float totalSemitones = (detune / 100.0f) + (pitchModOffset * 12.0f);
+	    // keytracking, fm, tempo sync, osc hz set
+            float nodeTargetFrequency;
+            switch (freqMode)
+            {
+                case 1: // Sync — tempo relative
+                    nodeTargetFrequency = currentBpm / 60.0f * ratio;
+                    break;
+            
+                case 2: // Hz — absolute frequency
+                {
+                    float normalized    = (ratio - 0.01f) / (16.0f - 0.01f);
+                    nodeTargetFrequency = 16.0f * std::pow (1000.0f, normalized);
+                    break;
+                }
+            
+                case 3: // LFO — 0.01Hz to 16Hz directly
+                    nodeTargetFrequency = ratio;
+                    break;
+            
+                default: // Standard — ratio * base frequency
+                    nodeTargetFrequency = baseFrequency * ratio;
+                    break;
+            }
+	    float totalSemitones = (detune / 100.0f) + (pitchModOffset * 12.0f);
             float modulatedFreq  = nodeTargetFrequency * std::pow(2.0f, totalSemitones / 12.0f);
             modulatedFreq = juce::jlimit(0.1f, static_cast<float>(currentSampleRate) * 0.49f, modulatedFreq);
 	    // Corrected phaseIncrement to take into account oversampling.

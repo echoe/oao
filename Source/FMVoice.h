@@ -22,7 +22,7 @@ struct OperatorParameterCache
     std::atomic<float>* decay { nullptr };
     std::atomic<float>* sustain { nullptr };
     std::atomic<float>* release { nullptr };
-    std::atomic<float>* sync { nullptr };
+    std::atomic<float>* freqMode { nullptr };
 };
 
 class FMVoice : public juce::SynthesiserVoice
@@ -39,6 +39,7 @@ public:
     void controllerMoved (int controllerNumber, int newControllerValue) override;
     void setOversamplingFactor (int factor);
     void prepare (double sampleRate, int samplesPerBlock, WaveTable* wt);
+    void setAlwaysActive (bool shouldBeActive) noexcept { alwaysActive = shouldBeActive; }
     void setDAWTempo (float newBPM) noexcept;
     void resetVoiceState();
     void renderNextBlock (juce::AudioBuffer<float>& outputBuffer, int startSample, int numSamples) override;
@@ -46,6 +47,10 @@ public:
     {
         externalAudioL = left;
         externalAudioR = right;
+    }
+    bool isVoiceActive() const override
+    {
+        return alwaysActive || juce::SynthesiserVoice::isVoiceActive();
     }
     //effects
     std::atomic<float> fxRatioMods[3]  { 0.0f, 0.0f, 0.0f };
@@ -58,6 +63,7 @@ private:
     float externalAudioL = 0.0f;
     float externalAudioR = 0.0f;
     double baseFrequency { 440.0 };
+    bool alwaysActive = false;
     float level { 0.0f };
     int lastPlayedNote = 60; 
     std::atomic<float> currentBPM { 120.0f };

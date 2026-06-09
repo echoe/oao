@@ -54,8 +54,8 @@ void FMVoice::initParameters (juce::AudioProcessorValueTreeState& apvts)
         check("DECAY_" + opNum, opParams[i].decay);
         check("SUSTAIN_" + opNum, opParams[i].sustain);
         check("RELEASE_" + opNum, opParams[i].release);
-        check("TEMPO_SYNC_" + opNum, opParams[i].sync);
-        for (int dest = 0; dest < ProjectConfig::numOperators; ++dest)
+	check("FREQ_MODE_" +opNum, opParams[i].freqMode);
+	for (int dest = 0; dest < ProjectConfig::numOperators; ++dest)
         {
             matrixParams[i][dest] = apvts.getRawParameterValue ("MOD_" + juce::String (i) + "_" + juce::String (dest));
             audioMatrixParams[i][dest] = apvts.getRawParameterValue ("AUDIO_ROUTE_" + juce::String (i) + "_" + juce::String (dest));
@@ -168,7 +168,7 @@ void FMVoice::renderNextBlock (juce::AudioBuffer<float>& outputBuffer, int start
     // Cache parameters for all operators.
     std::array<float, ProjectConfig::numOperators> cachedRatios, cachedDetunes, cachedPhases, cachedFolds, cachedOuts;
     std::array<int, ProjectConfig::numOperators> cachedModes, cachedShapes, cachedFilterTypes;
-    std::array<bool, ProjectConfig::numOperators> cachedSyncs;
+    std::array<bool, ProjectConfig::numOperators> cachedFreqModes;
     std::array<float, ProjectConfig::numOperators> cachedAttacks, cachedDecays, cachedSustains, cachedReleases;
 
     for (int i = 0; i < ProjectConfig::numOperators; ++i)
@@ -181,7 +181,7 @@ void FMVoice::renderNextBlock (juce::AudioBuffer<float>& outputBuffer, int start
         cachedModes[i]       = static_cast<int>(safeLoad(opParams[i].mode, 0.0f));
         cachedShapes[i]      = static_cast<int>(safeLoad(opParams[i].wave, 0.0f));
         cachedFilterTypes[i] = static_cast<int>(safeLoad(opParams[i].filterType, 0.0f));
-        cachedSyncs[i]     = safeLoad(opParams[i].sync, 0.0f) > 0.5f;
+        cachedFreqModes[i] = static_cast<int> (safeLoad (opParams[i].freqMode, 0.0f));
     }
 
     // Here's our sample-rate DSP loop
@@ -290,7 +290,7 @@ void FMVoice::renderNextBlock (juce::AudioBuffer<float>& outputBuffer, int start
                 cachedModes[dest], 
                 cachedShapes[dest], 
                 cachedFilterTypes[dest], 
-                cachedSyncs[dest]
+                cachedFreqModes[dest]
             );
 
             // Process outputs and send them out
@@ -336,7 +336,7 @@ void FMVoice::renderNextBlock (juce::AudioBuffer<float>& outputBuffer, int start
         }
     }
 
-    if (!isAnyEnvelopeActive)
+    if (!isAnyEnvelopeActive && !alwaysActive)
     {
         clearCurrentNote();
         resetVoiceState();

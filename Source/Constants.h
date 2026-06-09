@@ -14,7 +14,7 @@ namespace ProjectConfig
     // Filters list
     inline juce::StringArray getFilterTypeChoices()
     {
-        return { "None", "Lowpass", "Highpass", "Bandpass", "Comb", "Granular", "Formant", "Tape", "Bitcrush", "AP Delay", "AP Reverb", "Compressor", "Varispeed", "Scatter", "Ring Mod", "Chorus", "Distortion", "DJFX Delay", "Harmonic Resonator", "Ambient Shimmer", "Old Chorus" };
+        return { "None", "Lowpass", "Highpass", "Bandpass", "Comb", "Granular", "Formant", "Tape", "Bitcrush", "AP Delay", "AP Reverb", "Compressor", "Varispeed", "Scatter", "Ring Mod", "Chorus", "Distortion", "DJFX Delay", "Harmonic Resonator", "Ambient Shimmer", "Old Chorus", "OTT", "Spectral Freeze" };
     }
     // Filters knobs list
     inline std::array<const char*, 4> getFilterKnobLabels (int filterTypeIndex)
@@ -42,6 +42,8 @@ namespace ProjectConfig
             case 18: return { "Root",      "Scale",    "Brightness","Depth"    }; // Harmonic Resonator
 	    case 19: return { "Time",      "Feedback", "Shimmer",   "Diffusion"}; // Ambient Shimmer
             case 20: return { "Rate",      "Depth",    "Mode",      "Warmth"   }; // Old Chorus
+            case 21: return { "Depth",     "Time",     "Upward",    "Tone"     }; // OTT
+            case 22: return { "Freeze",    "Blend",    "Pitch",     "Blur"     }; // Spectral Freeze
 	    default: return { "A",         "B",        "C",         "D"        };
 	}
     }

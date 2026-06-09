@@ -25,10 +25,16 @@ class SynthFilter
 public:
     enum FilterType { Lowpass = 0, Highpass, Bandpass, Comb, Granular, Formant };
     
-    SynthFilter() 
+    SynthFilter() : freezeFFT (freezeFFTOrder)
     {
-        grains.resize(maxGrains, {0.0f, 0.0f, 0.0f, false});
-        reset(); 
+        grains.resize (maxGrains, {0.0f, 0.0f, 0.0f, false});
+    
+        // Build Hann window once
+        for (int i = 0; i < freezeFFTSize; ++i)
+            freezeWindow[i] = 0.5f * (1.0f - std::cos (
+                2.0f * juce::MathConstants<float>::pi * i / (freezeFFTSize - 1)));
+    
+        reset();
     }
     virtual ~SynthFilter() = default; 
 
@@ -111,7 +117,6 @@ public:
             apStageBuffers[i].fill (0.0f);
             apStageWritePtrs[i] = 0;
         }
-        
         // Allpass reverb reset
         apRevBuffer.fill (0.0f);
         apRevWritePtr   = 0;
@@ -182,6 +187,27 @@ public:
         oldChorusWritePtr   = 0;
         oldChorusLFOPhase   = 0.0f;
         oldChorusLastSample = 0.0f;
+	//OTT
+        for (int i = 0; i < numOTTBands; ++i)
+        {
+            ottLP1_s1[i] = ottLP1_s2[i] = 0.0f;
+            ottLP2_s1[i] = ottLP2_s2[i] = 0.0f;
+            ottHP1_s1[i] = ottHP1_s2[i] = 0.0f;
+            ottHP2_s1[i] = ottHP2_s2[i] = 0.0f;
+            ottEnvUp[i]   = 0.0f;
+            ottEnvDown[i] = 0.0f;
+        }
+	ottToneLast = 0.0f;
+        freezeInputBuffer.fill  (0.0f);
+        freezeFrozenFrame.fill  (0.0f);
+        freezeOutputBuffer.fill (0.0f);
+        freezeWorkBuffer.fill   (0.0f);
+        freezeInputWritePos    = 0;
+        freezeOutputReadPos    = 0;
+        freezeHopCounter       = 0;
+        freezeHasFrozenFrame   = false;
+        freezeMix              = 0.0f;
+        freezeWasActive        = false;
     }
 
     void noteStarted()
@@ -1266,6 +1292,247 @@ public:
         return wet * 0.5f + input * 0.5f;
     }
 
+    float processSampleOTT (float input, float depth, float timeKnob,
+                             float upward, float tone,
+                             double sampleRate)
+    {
+        // 1. CROSSOVER — split into 3 bands using SVF LP/HP
+        // Low: 0 to 200Hz, Mid: 200Hz to 2500Hz, High: 2500Hz+
+        float crossFreqs[2] = { ottLowMidFreq, ottMidHighFreq };
+        float bands[3] = { 0.0f, 0.0f, 0.0f };
+    
+        float sig = input;
+    
+        // Low band — LP at 200Hz
+        {
+            float x  = juce::MathConstants<float>::pi * crossFreqs[0]
+                       / static_cast<float> (sampleRate);
+            float g  = std::tan (x);
+            float gk = g + 1.0f;
+            float h  = 1.0f / (1.0f + g * gk);
+            // First LP stage
+            float hp = (sig - gk * ottLP1_s1[0] - ottLP1_s2[0]) * h;
+            float bp = g * hp + ottLP1_s1[0];
+            float lp = g * bp + ottLP1_s2[0];
+            ottLP1_s1[0] = 2.0f * bp - ottLP1_s1[0];
+            ottLP1_s2[0] = 2.0f * lp - ottLP1_s2[0];
+            // Second LP stage for steeper slope
+            float hp2 = (lp - gk * ottLP2_s1[0] - ottLP2_s2[0]) * h;
+            float bp2 = g * hp2 + ottLP2_s1[0];
+            float lp2 = g * bp2 + ottLP2_s2[0];
+            ottLP2_s1[0] = 2.0f * bp2 - ottLP2_s1[0];
+            ottLP2_s2[0] = 2.0f * lp2 - ottLP2_s2[0];
+            bands[0] = lp2; // Low band
+            float remainder = sig - lp2;
+            // Mid band — LP at 2500Hz from remainder
+            float x2  = juce::MathConstants<float>::pi * crossFreqs[1]
+                        / static_cast<float> (sampleRate);
+            float g2  = std::tan (x2);
+            float gk2 = g2 + 1.0f;
+            float h2  = 1.0f / (1.0f + g2 * gk2);
+            float hp3 = (remainder - gk2 * ottLP1_s1[1] - ottLP1_s2[1]) * h2;
+            float bp3 = g2 * hp3 + ottLP1_s1[1];
+            float lp3 = g2 * bp3 + ottLP1_s2[1];
+            ottLP1_s1[1] = 2.0f * bp3 - ottLP1_s1[1];
+            ottLP1_s2[1] = 2.0f * lp3 - ottLP1_s2[1];
+            float hp4 = (lp3 - gk2 * ottLP2_s1[1] - ottLP2_s2[1]) * h2;
+            float bp4 = g2 * hp4 + ottLP2_s1[1];
+            float lp4 = g2 * bp4 + ottLP2_s2[1];
+            ottLP2_s1[1] = 2.0f * bp4 - ottLP2_s1[1];
+            ottLP2_s2[1] = 2.0f * lp4 - ottLP2_s2[1];
+            bands[1] = lp4;           // Mid band
+            bands[2] = remainder - lp4; // High band
+        }
+    
+        // PER-BAND COMPRESSION. Downward: reduces loud signals. Upward: boosts quiet signals
+        float attackMs  = juce::jmap (timeKnob, 0.0f, 1.0f, 0.1f, 80.0f);
+        float releaseMs = juce::jmap (timeKnob, 0.0f, 1.0f, 10.0f, 400.0f);
+    
+        float attackCoeff  = std::exp (-1.0f / (static_cast<float> (sampleRate)
+                                       * attackMs / 1000.0f));
+        float releaseCoeff = std::exp (-1.0f / (static_cast<float> (sampleRate)
+                                       * releaseMs / 1000.0f));
+    
+        // Band gain multipliers
+        float bandGains[3] = { 0.8f, 1.0f, 1.2f };
+        float output = 0.0f;
+        for (int band = 0; band < numOTTBands; ++band)
+        {
+            float bandSig  = bands[band];
+            float bandAbs  = std::abs (bandSig);
+            // Downward compression envelope
+            if (bandAbs > ottEnvDown[band])
+                ottEnvDown[band] = attackCoeff  * ottEnvDown[band] + (1.0f - attackCoeff)  * bandAbs;
+            else
+                ottEnvDown[band] = releaseCoeff * ottEnvDown[band] + (1.0f - releaseCoeff) * bandAbs;
+            // Upward compression envelope (slower)
+            float upAttack  = std::exp (-1.0f / (static_cast<float> (sampleRate) * 0.05f));
+            float upRelease = std::exp (-1.0f / (static_cast<float> (sampleRate) * 0.5f));
+            if (bandAbs > ottEnvUp[band])
+                ottEnvUp[band] = upAttack  * ottEnvUp[band] + (1.0f - upAttack)  * bandAbs;
+            else
+                ottEnvUp[band] = upRelease * ottEnvUp[band] + (1.0f - upRelease) * bandAbs;
+    
+            // Downward gain — compress signals above threshold
+            float downThresh = 0.3f;
+            float downRatio  = 4.0f;
+            float downGain   = 1.0f;
+    
+            if (ottEnvDown[band] > downThresh)
+            {
+                float excessDb  = juce::Decibels::gainToDecibels (ottEnvDown[band] / downThresh);
+                float reduceDb  = excessDb * (1.0f - 1.0f / downRatio);
+                downGain        = juce::Decibels::decibelsToGain (-reduceDb * depth);
+            }
+    
+            // Upward gain — boost signals below threshold
+            float upThresh = 0.15f;
+            float upGain   = 1.0f;
+    
+            if (ottEnvUp[band] < upThresh && ottEnvUp[band] > 0.0001f)
+            {
+                float belowDb = juce::Decibels::gainToDecibels (upThresh / ottEnvUp[band]);
+                float boostDb = belowDb * upward * depth * 0.5f;
+                upGain        = juce::Decibels::decibelsToGain (boostDb);
+                upGain        = juce::jlimit (1.0f, 6.0f, upGain); // max 6x boost
+            }
+            // Apply gains and accumulate
+            output += bandSig * downGain * upGain * bandGains[band];
+        }
+    
+        // 3. TONE — slight tilt after compression
+        float toneAlpha = 1.0f - std::exp (-2.0f * juce::MathConstants<float>::pi
+                                           * (500.0f + tone * 4500.0f)
+                                           / static_cast<float> (sampleRate));
+        // Simple tilt: blend between LP and original
+        ottToneLast += toneAlpha * (output - ottToneLast);
+        output = output * tone + ottToneLast * (1.0f - tone);
+    
+        // OUTPUT — soft clip to prevent blowup from upward comp
+        return std::isfinite (output) ? std::tanh (output) : 0.0f;
+    }
+
+    float processSampleSpectralFreeze (float input, float freeze, float blend,
+                                        float pitch, float blur,
+                                        double sampleRate)
+    {
+        // -------------------------------------------------------
+        // 1. WRITE INPUT TO BUFFER
+        // -------------------------------------------------------
+        freezeInputBuffer[freezeInputWritePos] = input;
+        freezeInputWritePos = (freezeInputWritePos + 1) % freezeFFTSize;
+        freezeHopCounter++;
+    
+        // -------------------------------------------------------
+        // 2. PROCESS A NEW FFT FRAME EVERY HOP
+        // -------------------------------------------------------
+        if (freezeHopCounter >= freezeHopSize)
+        {
+            freezeHopCounter = 0;
+    
+            // Copy input ring buffer into work buffer with windowing
+            for (int i = 0; i < freezeFFTSize; ++i)
+            {
+                int idx = (freezeInputWritePos + i) % freezeFFTSize;
+                freezeWorkBuffer[i * 2]     = freezeInputBuffer[idx] * freezeWindow[i];
+                freezeWorkBuffer[i * 2 + 1] = 0.0f;
+            }
+    
+            // Forward FFT
+            freezeFFT.performFrequencyOnlyForwardTransform (freezeWorkBuffer.data());
+    
+            // -------------------------------------------------------
+            // 3. CAPTURE FROZEN FRAME if freeze just engaged
+            // -------------------------------------------------------
+            if (freeze > 0.5f && !freezeHasFrozenFrame)
+            {
+                // Capture current spectral frame with random phases
+                // for a more musical freeze (avoids comb filtering)
+                juce::Random rng;
+                for (int i = 0; i < freezeFFTSize; ++i)
+                {
+                    float mag   = freezeWorkBuffer[i * 2];
+                    float phase = rng.nextFloat() * juce::MathConstants<float>::twoPi;
+                    freezeFrozenFrame[i * 2]     = mag * std::cos (phase);
+                    freezeFrozenFrame[i * 2 + 1] = mag * std::sin (phase);
+                }
+                freezeHasFrozenFrame = true;
+            }
+            else if (freeze <= 0.5f)
+            {
+                freezeHasFrozenFrame = false;
+            }
+    
+            // -------------------------------------------------------
+            // 4. SELECT WHICH FRAME TO SYNTHESIZE
+            // -------------------------------------------------------
+            std::array<float, freezeFFTSize * 2> synthFrame;
+    
+	    if (freezeHasFrozenFrame)
+            {
+                float phaseRotation = pitch * juce::MathConstants<float>::pi * 0.1f;
+    
+                for (int i = 0; i < freezeFFTSize; ++i)
+                {
+                    float re    = freezeFrozenFrame[i * 2];
+                    float im    = freezeFrozenFrame[i * 2 + 1];
+                    float mag   = std::sqrt (re * re + im * im);
+                    float phase = std::atan2 (im, re) + phaseRotation * i;
+    
+                    // Blur — randomize phase slightly each frame
+                    if (blur > 0.001f)
+                        phase += (juce::Random::getSystemRandom().nextFloat() * 2.0f - 1.0f)
+                                 * blur * juce::MathConstants<float>::pi * 0.5f;
+    
+                    synthFrame[i * 2]     = mag * std::cos (phase);
+                    synthFrame[i * 2 + 1] = mag * std::sin (phase);
+                }
+            }
+            else
+            {
+                // Pass through live spectrum
+                for (int i = 0; i < freezeFFTSize * 2; ++i)
+                    synthFrame[i] = freezeWorkBuffer[i];
+            }
+    
+            // -------------------------------------------------------
+            // 5. INVERSE FFT + OVERLAP-ADD
+            // -------------------------------------------------------
+            freezeFFT.performRealOnlyInverseTransform (synthFrame.data());
+    
+            // Apply window and overlap-add into output buffer
+            float windowSum = 0.0f;
+            for (int i = 0; i < freezeFFTSize; ++i)
+                windowSum += freezeWindow[i] * freezeWindow[i];
+            float normFactor = freezeHopSize / windowSum;
+    
+            for (int i = 0; i < freezeFFTSize; ++i)
+            {
+                int outIdx = (freezeOutputReadPos + i) % (freezeFFTSize * 2);
+                freezeOutputBuffer[outIdx] += synthFrame[i * 2] * freezeWindow[i] * normFactor;
+            }
+        }
+    
+        // -------------------------------------------------------
+        // 6. READ FROM OUTPUT BUFFER
+        // -------------------------------------------------------
+        float frozen = freezeOutputBuffer[freezeOutputReadPos];
+        freezeOutputBuffer[freezeOutputReadPos] = 0.0f; // clear after read
+        freezeOutputReadPos = (freezeOutputReadPos + 1) % (freezeFFTSize * 2);
+    
+        // -------------------------------------------------------
+        // 7. SMOOTH MIX — ramp to prevent clicks when engaging
+        // -------------------------------------------------------
+        float targetMix = (freeze > 0.5f) ? blend : 0.0f;
+        float rampSpeed = 1.0f / (static_cast<float> (sampleRate) * 0.05f);
+        freezeMix = juce::jlimit (0.0f, 1.0f,
+                        freezeMix + (targetMix - freezeMix) * rampSpeed);
+    
+        return std::isfinite (frozen)
+                   ? frozen * freezeMix + input * (1.0f - freezeMix)
+                   : input;
+    }
+
     int getCurrentType() const noexcept { return static_cast<int>(currentType); }
 
 protected:
@@ -1444,6 +1711,41 @@ protected:
     int   oldChorusWritePtr  = 0;
     float oldChorusLFOPhase  = 0.0f;
     float oldChorusLastSample = 0.0f;
+
+    // OTT state
+    static constexpr int numOTTBands = 3;
+    // Per-band crossover filters (Linkwitz-Riley style using two SVF stages)
+    float ottLP1_s1[numOTTBands] { 0.0f }, ottLP1_s2[numOTTBands] { 0.0f };
+    float ottLP2_s1[numOTTBands] { 0.0f }, ottLP2_s2[numOTTBands] { 0.0f };
+    float ottHP1_s1[numOTTBands] { 0.0f }, ottHP1_s2[numOTTBands] { 0.0f };
+    float ottHP2_s1[numOTTBands] { 0.0f }, ottHP2_s2[numOTTBands] { 0.0f };
+    // Per-band compressor envelopes (upward and downward)
+    float ottEnvUp[numOTTBands]   { 0.0f };
+    float ottEnvDown[numOTTBands] { 0.0f };
+    // Crossover frequencies
+    static constexpr float ottLowMidFreq  = 200.0f;
+    static constexpr float ottMidHighFreq = 2500.0f;
+    float ottToneLast = 0.0f;
+
+    // Spectral Freeze state
+    static constexpr int freezeFFTOrder = 11; // 2048 point FFT
+    static constexpr int freezeFFTSize  = 1 << freezeFFTOrder;
+    static constexpr int freezeHopSize  = freezeFFTSize / 4;
+    
+    juce::dsp::FFT freezeFFT { freezeFFTOrder };
+    
+    std::array<float, freezeFFTSize * 2> freezeInputBuffer  { 0.0f };
+    std::array<float, freezeFFTSize * 2> freezeFrozenFrame  { 0.0f };
+    std::array<float, freezeFFTSize * 2> freezeOutputBuffer { 0.0f };
+    std::array<float, freezeFFTSize>     freezeWindow       { 0.0f };
+    std::array<float, freezeFFTSize * 2> freezeWorkBuffer   { 0.0f };
+    
+    int   freezeInputWritePos  = 0;
+    int   freezeOutputReadPos  = 0;
+    int   freezeHopCounter     = 0;
+    bool  freezeHasFrozenFrame = false;
+    float freezeMix            = 0.0f; // smoothed mix
+    bool  freezeWasActive      = false;
 
     // Parameters Cache
     double sampleRate { 44100.0 };

@@ -33,6 +33,11 @@ FMPluginAudioProcessor::FMPluginAudioProcessor()
         jassert (fxMixParams[i]    != nullptr);
         jassert (fxRatioParams[i]  != nullptr);
     }
+    // Add one always-on voice for external audio passthrough
+    auto* passthroughVoice = new FMVoice();
+    passthroughVoice->initParameters (apvts);
+    passthroughVoice->setAlwaysActive (true);
+    synth.addVoice (passthroughVoice);
 }
 
 FMPluginAudioProcessor::~FMPluginAudioProcessor() {}
@@ -56,6 +61,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout FMPluginAudioProcessor::crea
     std::vector<std::unique_ptr<juce::RangedAudioParameter>> params;
     juce::StringArray modeChoices { "Wave", "Additive", "Filter", "Ext. In" };
     juce::StringArray waveShapeChoices { "Sine", "Triangle", "Saw", "Square", "Pulse", "SquarePWM", "White Noise", "Pink Noise" };
+    juce::StringArray freqModeChoices { "Standard", "Sync", "Hz", "LFO" };
     auto filterTypeChoices = ProjectConfig::getFilterTypeChoices();
 
     // Generate parameters for each operator dynamically
@@ -67,9 +73,9 @@ juce::AudioProcessorValueTreeState::ParameterLayout FMPluginAudioProcessor::crea
         params.push_back (std::make_unique<juce::AudioParameterChoice> (juce::ParameterID { "MODE_" + opNum, 1 }, "Op " + opNum + " Mode", modeChoices, 0));
         params.push_back (std::make_unique<juce::AudioParameterChoice> (juce::ParameterID { "WAVE_SHAPE_" + opNum, 1 }, "Op " + opNum + " Wave Shape", waveShapeChoices, 0));
         params.push_back (std::make_unique<juce::AudioParameterChoice> (juce::ParameterID { "FILTER_TYPE_" + opNum, 1 }, "Op " + opNum + " Filter Type", filterTypeChoices, 0));
-        // Tempo Sync
-        params.push_back (std::make_unique<juce::AudioParameterBool> (juce::ParameterID { "TEMPO_SYNC_" + opNum, 1 }, "Op " + opNum + " Tempo Sync", false));
-        // Osc Settings - Ratios, Detune, Phase, Fold. We repurpose these for filter
+        // Tempo Sync/hz lock/LFO mode
+        params.push_back (std::make_unique<juce::AudioParameterChoice> (juce::ParameterID { "FREQ_MODE_" + opNum, 1 }, "Op " + opNum + " Freq Mode", freqModeChoices, 0));
+	// Osc Settings - Ratios, Detune, Phase, Fold. We repurpose these for filter
         params.push_back (std::make_unique<juce::AudioParameterFloat> (juce::ParameterID {"RATIO_" + opNum, 1}, "Op " + opNum + " Ratio", 0.01f, 16.0f, 1.0f));
         params.push_back (std::make_unique<juce::AudioParameterFloat> (juce::ParameterID {"DETUNE_" + opNum, 1}, "Op " + opNum + " Detune", -50.0f, 50.0f, 0.0f));
         params.push_back (std::make_unique<juce::AudioParameterFloat> (juce::ParameterID { "PHASE_" + opNum, 1 }, "Op " + opNum + " Phase", 0.0f, 360.0f, 0.0f));
@@ -213,6 +219,11 @@ void FMPluginAudioProcessor::setPolyphony (int numVoices)
             voice->setOversamplingFactor (currentOversamplingFactor);
         }
     }
+    // Add one always-on voice for external audio passthrough
+    auto* passthroughVoice = new FMVoice();
+    passthroughVoice->initParameters (apvts);
+    passthroughVoice->setAlwaysActive (true);
+    synth.addVoice (passthroughVoice);
 }
 
 void FMPluginAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
@@ -614,6 +625,29 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
                         processed = fxFilters[slot].processSampleOldChorus (inputSample, rate, depth,
                                                                              modeKnob, warmth,
                                                                              getSampleRate());
+                        processed = std::isfinite (processed) ? processed : 0.0f;
+                        break;
+                    }
+                    case 21: // OTT
+                    {
+                        float depth    = normalizedRatio;
+                        float timeKnob = dampingAmt;
+                        float upward   = phase / 360.0f;
+                        float tone     = juce::jlimit (0.0f, 1.0f, fold);
+                        processed = fxFilters[slot].processSampleOTT (inputSample, depth, timeKnob,
+                                                                       upward, tone, getSampleRate());
+                        processed = std::isfinite (processed) ? processed : 0.0f;
+                        break;
+                    }
+                    case 22: // Spectral Freeze
+                    {
+                        float freeze = normalizedRatio;
+                        float blend  = dampingAmt;
+                        float pitch  = phase / 360.0f;
+                        float blur   = juce::jlimit (0.0f, 1.0f, fold);
+                        processed = fxFilters[slot].processSampleSpectralFreeze (inputSample, freeze,
+                                                                                  blend, pitch, blur,
+                                                                                  getSampleRate());
                         processed = std::isfinite (processed) ? processed : 0.0f;
                         break;
                     }

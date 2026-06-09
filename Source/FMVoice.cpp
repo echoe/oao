@@ -307,16 +307,23 @@ void FMVoice::renderNextBlock (juce::AudioBuffer<float>& outputBuffer, int start
 
         // Mixbus main output
         float mixSample = 0.0f;
+        int   activeOps = 0;
         for (int i = 0; i < ProjectConfig::numOperators; ++i)
         {
-            mixSample += processedOpOutputs[i] * cachedOuts[i];
+            if (cachedOuts[i] > 0.001f)
+            {
+                mixSample += processedOpOutputs[i] * cachedOuts[i];
+                activeOps++;
+            }
         }
-        float polyphonyCushion = 1.0f / std::sqrt (static_cast<float> (ProjectConfig::numOperators));
+        
+        float polyphonyCushion = activeOps > 0
+            ? 1.0f / std::sqrt (static_cast<float> (activeOps))
+            : 1.0f;
         float finalGain = level * polyphonyCushion * 0.5f;
+        
         for (int channel = 0; channel < outputBuffer.getNumChannels(); ++channel)
-        {
             outputBuffer.addSample (channel, startSample + sample, mixSample * finalGain);
-        }
     }
     // Cleanup - check if voice is finished
     bool isAnyEnvelopeActive = false;

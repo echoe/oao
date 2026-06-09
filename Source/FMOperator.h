@@ -385,8 +385,9 @@ public:
                 }
 		//output
                 rawSample    = (gainCompensation > 0.0f) ? additiveSum / gainCompensation : 0.0f;
-                outputSample = std::tanh(rawSample + audioInputSum);
-            }
+                outputSample = std::isfinite(rawSample + audioInputSum)
+                               ? rawSample + audioInputSum : 0.0f;
+	    }
             else // Wave
             {
                 switch (waveShape)
@@ -446,11 +447,13 @@ public:
                 {
                     float drive        = 1.0f + (finalFoldDepth * 5.0f);
                     float foldedSample = std::sin(rawSample * drive) * (1.0f / std::sqrt(drive));
-                    outputSample       = std::tanh(foldedSample + audioInputSum);
-                }
+                    outputSample = std::isfinite(rawSample + audioInputSum)
+                                   ? rawSample + audioInputSum : 0.0f;
+		}
                 else
                 {
-                    outputSample = std::tanh(rawSample + audioInputSum);
+                    outputSample = std::isfinite(rawSample + audioInputSum) 
+                                   ? rawSample + audioInputSum : 0.0f;
                 }
             }
         }

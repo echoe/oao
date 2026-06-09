@@ -654,7 +654,7 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
     {
         auto* channelData = buffer.getWritePointer (channel);
         for (int sample = 0; sample < buffer.getNumSamples(); ++sample)
-            channelData[sample] = std::tanh (channelData[sample] * 0.4f);
+            channelData[sample] = std::tanh(channelData[sample] * 0.8f);
     }
     DBG ("end of processBlock - sample0: " + juce::String (buffer.getSample (0, 0)));
 }

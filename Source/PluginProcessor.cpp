@@ -5,7 +5,7 @@
 
 FMPluginAudioProcessor::FMPluginAudioProcessor()
     : AudioProcessor (BusesProperties()
-		    .withInput  ("Input",  juce::AudioChannelSet::stereo(), false) // optional input!
+		    .withInput  ("Input",  juce::AudioChannelSet::stereo(), false) // kept optional; not used for sample mode
 		    .withOutput ("Output", juce::AudioChannelSet::stereo(), true)),
       apvts (*this, nullptr, "Parameters", createParameterLayout())
 {
@@ -14,6 +14,10 @@ FMPluginAudioProcessor::FMPluginAudioProcessor()
     {
         auto* voice = new FMVoice();   // 1. Instantiate the voice
         voice->initParameters (apvts); // 2. Initialize parameters while it's in scope
+        // Push any already-loaded sample data into the voice (matters after state restore)
+        for (int opIdx = 0; opIdx < ProjectConfig::numOperators; ++opIdx)
+            if (loadedSamples[opIdx] != nullptr)
+                voice->setSampleData (opIdx, loadedSamples[opIdx]);
         synth.addVoice (voice);        // 3. Hand ownership over to the JUCE synth
     }
 
@@ -54,7 +58,7 @@ bool FMPluginAudioProcessor::isBusesLayoutSupported (const BusesLayout& layouts)
 juce::AudioProcessorValueTreeState::ParameterLayout FMPluginAudioProcessor::createParameterLayout()
 {
     std::vector<std::unique_ptr<juce::RangedAudioParameter>> params;
-    juce::StringArray modeChoices { "Wave", "Additive", "Filter", "Ext. In" };
+    juce::StringArray modeChoices { "Wave", "Additive", "Filter", "Sample" };
     juce::StringArray waveShapeChoices { "Sine", "Triangle", "Saw", "Square", "Pulse", "SquarePWM", "White Noise", "Pink Noise" };
     juce::StringArray freqModeChoices { "Standard", "Sync", "Hz", "LFO" };
     auto filterTypeChoices = ProjectConfig::getFilterTypeChoices();
@@ -311,30 +315,11 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
             scaledMidi.addEvent (meta.getMessage(), newPos);
         }
     
-        // Feed external audio per sample into voices before render
-        for (int i = 0; i < oversampledSize; ++i)
-        {
-            float extL = (inputL != nullptr && i < buffer.getNumSamples()) ? inputL[i] : 0.0f;
-            float extR = (inputR != nullptr && i < buffer.getNumSamples()) ? inputR[i] : 0.0f;
-            for (int v = 0; v < synth.getNumVoices(); ++v)
-                if (auto* voice = dynamic_cast<FMVoice*> (synth.getVoice (v)))
-                    voice->setExternalAudioSample (extL, extR);
-        }
-    
         synth.renderNextBlock (oversampledWrap, scaledMidi, 0, oversampledSize);
         oversampling->processSamplesDown (inputBlock);
     }
     else
     {
-        // Feed external audio per sample into voices before render
-        for (int i = 0; i < buffer.getNumSamples(); ++i)
-        {
-            float extL = inputL != nullptr ? inputL[i] : 0.0f;
-            float extR = inputR != nullptr ? inputR[i] : 0.0f;
-            for (int v = 0; v < synth.getNumVoices(); ++v)
-                if (auto* voice = dynamic_cast<FMVoice*> (synth.getVoice (v)))
-                    voice->setExternalAudioSample (extL, extR);
-        }
         synth.renderNextBlock (buffer, midiMessages, 0, buffer.getNumSamples());
     }
 
@@ -681,6 +666,48 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
             channelData[sample] = std::tanh(channelData[sample] * 0.8f);
     }
     DBG ("end of processBlock - sample0: " + juce::String (buffer.getSample (0, 0)));
+}
+
+void FMPluginAudioProcessor::loadSampleForOperator (int opIndex, const juce::File& file)
+{
+    if (opIndex < 0 || opIndex >= ProjectConfig::numOperators)
+        return;
+
+    // Load the audio file on the message thread into a new buffer
+    juce::AudioFormatManager formatManager;
+    formatManager.registerBasicFormats();
+
+    std::unique_ptr<juce::AudioFormatReader> reader (formatManager.createReaderFor (file));
+    if (reader == nullptr)
+    {
+        DBG ("loadSampleForOperator: could not read file " + file.getFullPathName());
+        return;
+    }
+
+    // Build a new buffer and read the whole file (up to ~60s at 48kHz to be safe)
+    auto newBuffer = std::make_shared<juce::AudioBuffer<float>> (
+        static_cast<int> (reader->numChannels),
+        static_cast<int> (juce::jmin ((juce::int64) reader->lengthInSamples, (juce::int64) 48000 * 60)));
+
+    reader->read (newBuffer.get(), 0, newBuffer->getNumSamples(), 0, true, true);
+
+    // Normalize so the loudest peak is 1.0 — keeps levels consistent regardless of source file
+    float peak = newBuffer->getMagnitude (0, newBuffer->getNumSamples());
+    if (peak > 0.0001f)
+        newBuffer->applyGain (1.0f / peak);
+
+    // Store the buffer and push it to all voices.
+    // The shared_ptr means the audio thread keeps reading the old buffer until it naturally
+    // finishes the current sample cycle — no locks needed.
+    loadedSamples[opIndex] = newBuffer;
+
+    for (int i = 0; i < synth.getNumVoices(); ++i)
+        if (auto* voice = dynamic_cast<FMVoice*> (synth.getVoice (i)))
+            voice->setSampleData (opIndex, newBuffer);
+
+    DBG ("loadSampleForOperator: loaded " + file.getFileName()
+         + " for op " + juce::String (opIndex + 1)
+         + " (" + juce::String (newBuffer->getNumSamples()) + " samples)");
 }
 
 juce::AudioProcessorEditor* FMPluginAudioProcessor::createEditor()

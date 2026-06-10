@@ -43,10 +43,11 @@ public:
     void setDAWTempo (float newBPM) noexcept;
     void resetVoiceState();
     void renderNextBlock (juce::AudioBuffer<float>& outputBuffer, int startSample, int numSamples) override;
-    void setExternalAudioSample (float left, float right) noexcept
+    // Distribute a loaded audio buffer to a specific operator index for sample mode.
+    void setSampleData (int opIndex, std::shared_ptr<juce::AudioBuffer<float>> buffer) noexcept
     {
-        externalAudioL = left;
-        externalAudioR = right;
+        if (opIndex >= 0 && opIndex < ProjectConfig::numOperators)
+            operators[opIndex].setSampleData (buffer);
     }
     //effects
     std::atomic<float> fxRatioMods[3]  { 0.0f, 0.0f, 0.0f };
@@ -56,8 +57,6 @@ public:
     std::atomic<float> fxLevelMods[3]  { 0.0f, 0.0f, 0.0f };
 
 private:
-    float externalAudioL = 0.0f;
-    float externalAudioR = 0.0f;
     double baseFrequency { 440.0 };
     bool alwaysActive = false;
     float level { 0.0f };

@@ -40,6 +40,9 @@ public:
     void getStateInformation (juce::MemoryBlock& destData) override;
     void setStateInformation (const void* data, int sizeInBytes) override;
     juce::AudioProcessorValueTreeState apvts;
+    // Load a WAV/AIFF/etc. file and distribute it to the given operator index on all voices.
+    // Safe to call from the message thread; uses a shared_ptr so the audio thread is not blocked.
+    void loadSampleForOperator (int opIndex, const juce::File& file);
     static constexpr int scopeBufferSize = 512;
     std::array<float, scopeBufferSize> scopeBuffer { 0.0f };
     std::atomic<int> scopeWritePos { 0 };
@@ -59,6 +62,8 @@ private:
     std::atomic<float>* fxDetuneParams[numFxSlots] { nullptr };
     std::atomic<float>* fxPhaseParams[numFxSlots]  { nullptr };
     std::atomic<float>* fxFoldParams[numFxSlots]   { nullptr };
+    // One shared sample buffer per operator slot (shared across all voices, set once)
+    std::array<std::shared_ptr<juce::AudioBuffer<float>>, ProjectConfig::numOperators> loadedSamples;
     // also for everything we need to flush on every run to not echo forever
     std::array<int, numFxSlots> lastFxFilterType { 0, 0, 0 };
     std::unique_ptr<juce::dsp::Oversampling<float>> oversampling;

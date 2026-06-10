@@ -3,6 +3,7 @@
 #include <JuceHeader.h>
 #include "SynthFilter.h"
 #include "WaveTable.h"
+#include <memory>
 
 class FMOperator
 {
@@ -27,6 +28,7 @@ public:
         envelope.setParameters (envParams);
         envelope.noteOn();
         phase = 0.0;
+        samplePlayPos = 0.0;
         internalFilter.reset();
     }
 
@@ -40,7 +42,8 @@ public:
     void resetVoiceState()
     {
         envelope.reset();
-        pinkB0 = pinkB1 = pinkB2 = pinkB3 = pinkB4 = pinkB5 = pinkB6 = 0.0f; // reset pink noise state. if this doesn't work put it in noteon
+        pinkB0 = pinkB1 = pinkB2 = pinkB3 = pinkB4 = pinkB5 = pinkB6 = 0.0f;
+        samplePlayPos = 0.0;
         internalFilter.reset();
     }
 
@@ -50,10 +53,12 @@ public:
         envelope.setSampleRate (currentSampleRate * factor);
     }
 
-    void setExternalAudioSample (float left, float right) noexcept
+    // Set a shared pointer to the loaded audio buffer for sample mode.
+    // Thread-safe for audio thread reads as long as the buffer is not mutated after loading.
+    void setSampleData (std::shared_ptr<juce::AudioBuffer<float>> newBuffer) noexcept
     {
-        externalAudioL = left;
-        externalAudioR = right;
+        sampleBuffer = newBuffer;
+        samplePlayPos = 0.0;
     }
 
     bool isActive() const { return envelope.isActive(); }
@@ -67,36 +72,87 @@ public:
         if (!envelope.isActive()) return 0.0f;
 
         float outputSample = 0.0f;
-	if (mode == 3) // wave
+        if (mode == 3) // Sample playback
         {
-            // Ratio knob → input gain
-            float inputGain = (ratio - 0.01f) / (16.0f - 0.01f) * 2.0f;
-            
-	    // Mix stereo to mono and apply gain
-            float extSample = (externalAudioL + externalAudioR) * 0.5f * inputGain;
-
-            // Detune knob → one-pole tone filter
-            float toneAmt     = (detune + 50.0f) / 100.0f;
-            float filterCoeff = juce::jlimit (0.01f, 0.99f, toneAmt);
-            extSample         = extSample * filterCoeff + externalAudioL * (1.0f - filterCoeff);
-            
-	    // Phase knob → FM modulation sensitivity
-            float modSensitivity = phaseKnob / 360.0f;
-            float modDepth       = std::tanh (modulationSum * 0.15f * modSensitivity);
-            extSample           *= (1.0f + modDepth);
-        
-            // Fold knob → wavefold depth
-            float foldDepth = juce::jlimit (0.0f, 1.0f, foldKnob + foldModOffset);
-            if (foldDepth > 0.001f)
+            auto buf = sampleBuffer; // local copy of shared_ptr — safe on audio thread
+            if (buf != nullptr && buf->getNumSamples() > 0)
             {
-                float drive = 1.0f + (foldDepth * 5.0f);
-                extSample   = std::sin (extSample * drive) * (1.0f / std::sqrt (drive));
+                int   numSamples   = buf->getNumSamples();
+                int   numChannels  = buf->getNumChannels();
+
+                // Ratio knob (0.01–16): playback speed multiplier. 1.0 = original pitch.
+                float normalizedRatio = (ratio - 0.01f) / (16.0f - 0.01f); // 0..1
+                float speedMult       = std::pow (2.0f, (normalizedRatio - 0.5f) * 4.0f); // ~0.25x to ~4x
+
+                // Detune knob (-50..50): start offset, 0..100% of sample length
+                float startFraction = (detune + 50.0f) / 100.0f;
+                float startSample   = startFraction * (numSamples - 1);
+
+                // Phase knob (0..360): >180 = loop, <=180 = one-shot
+                bool  shouldLoop    = (phaseKnob > 180.0f);
+
+                // FM modulation → subtle pitch-shift via speed nudge
+                float modSensitivity = phaseKnob / 360.0f;
+                float modSpeed       = speedMult * (1.0f + std::tanh (modulationSum * 0.15f * modSensitivity) * 0.5f);
+                modSpeed             = juce::jlimit (0.001f, 8.0f, modSpeed);
+
+                // Advance playback position (accounting for oversampling)
+                double playPos = samplePlayPos + startSample;
+
+                // Read sample with linear interpolation
+                double clampedPos = std::fmod (playPos, static_cast<double> (numSamples));
+                if (clampedPos < 0.0) clampedPos += numSamples;
+                int    idx0   = static_cast<int> (clampedPos) % numSamples;
+                int    idx1   = (idx0 + 1) % numSamples;
+                float  frac   = static_cast<float> (clampedPos - std::floor (clampedPos));
+
+                float sampleOut = 0.0f;
+                if (numChannels >= 2)
+                {
+                    float s0 = buf->getSample (0, idx0) * (1.0f - frac) + buf->getSample (0, idx1) * frac;
+                    float s1 = buf->getSample (1, idx0) * (1.0f - frac) + buf->getSample (1, idx1) * frac;
+                    sampleOut = (s0 + s1) * 0.5f;
+                }
+                else
+                {
+                    sampleOut = buf->getSample (0, idx0) * (1.0f - frac) + buf->getSample (0, idx1) * frac;
+                }
+
+                // Advance play position
+                samplePlayPos += modSpeed / (oversamplingFactor > 0 ? oversamplingFactor : 1);
+                double maxPos   = static_cast<double> (numSamples) - startSample;
+                if (maxPos < 1.0) maxPos = 1.0;
+
+                if (shouldLoop)
+                {
+                    // Wrap within the post-start region
+                    while (samplePlayPos >= maxPos)
+                        samplePlayPos -= maxPos;
+                }
+                else
+                {
+                    // One-shot: clamp at end (envelope will still release naturally)
+                    if (samplePlayPos >= maxPos)
+                        samplePlayPos = maxPos - 1.0;
+                }
+
+                // Fold knob → wavefold
+                float foldDepth = juce::jlimit (0.0f, 1.0f, foldKnob + foldModOffset);
+                if (foldDepth > 0.001f)
+                {
+                    float drive = 1.0f + (foldDepth * 5.0f);
+                    sampleOut   = std::sin (sampleOut * drive) * (1.0f / std::sqrt (drive));
+                }
+
+                outputSample = std::isfinite (sampleOut)
+                                   ? std::tanh (sampleOut + audioInputSum)
+                                   : 0.0f;
             }
-        
-            // Feed through audioInputSum so the audio matrix works
-            outputSample = std::isfinite (extSample)
-                               ? std::tanh (extSample + audioInputSum)
-                               : 0.0f;
+            else
+            {
+                // No sample loaded — output silence so the matrix still routes correctly
+                outputSample = std::isfinite (audioInputSum) ? audioInputSum : 0.0f;
+            }
         }
         else if (mode == 2) // filter
         {
@@ -505,8 +561,9 @@ public:
     }
 
 private:
-    float externalAudioL = 0.0f;
-    float externalAudioR = 0.0f;
+    // Shared pointer to loaded sample audio. Set from the main thread before playback.
+    std::shared_ptr<juce::AudioBuffer<float>> sampleBuffer;
+    double samplePlayPos = 0.0;
     WaveTable* waveTable = nullptr;
     double phase = 0.0;
     double currentSampleRate = 44100.0;

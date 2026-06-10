@@ -33,12 +33,39 @@ struct CompactOperatorGroup : public juce::Component
         // Letting us swap oscillator mode for easier operator control
         freqModeSelector.addItemList ({ "Std", "Sync", "Hz", "LFO" }, 1);
         addAndMakeVisible (freqModeSelector);
-	modeSelector.addItemList ({ "Wave", "Additive", "Filter", "Ext. In" }, 1);
+	modeSelector.addItemList ({ "Wave", "Additive", "Filter", "Sample" }, 1);
         addAndMakeVisible (modeSelector);
         waveShapeSelector.addItemList ({ "Sine", "Triangle", "Saw", "Square", "Pulse", "SquarePWM", "White Noise", "Pink Noise" }, 1);
         addAndMakeVisible (waveShapeSelector);
         filterTypeSelector.addItemList (ProjectConfig::getFilterTypeChoices(), 1);
         addAndMakeVisible (filterTypeSelector);
+
+        // Load Sample button — only shown in Sample mode
+        loadSampleButton.setButtonText ("Load Sample");
+        loadSampleButton.setVisible (false);
+        addAndMakeVisible (loadSampleButton);
+        loadSampleButton.onClick = [this]
+        {
+            fileChooser = std::make_unique<juce::FileChooser> (
+                "Load Sample for Operator " + opNum,
+                juce::File::getSpecialLocation (juce::File::userHomeDirectory),
+                "*.wav;*.aif;*.aiff;*.flac;*.ogg;*.mp3");
+
+            fileChooser->launchAsync (juce::FileBrowserComponent::openMode |
+                                      juce::FileBrowserComponent::canSelectFiles,
+                [this] (const juce::FileChooser& fc)
+                {
+                    auto results = fc.getResults();
+                    if (results.size() > 0 && onLoadSample)
+                    {
+                        int opIdx = opNum.getIntValue() - 1; // Convert "1"-"6" back to 0-index
+                        onLoadSample (opIdx, results[0]);
+
+                        // Update button text to show the loaded filename
+                        loadSampleButton.setButtonText (results[0].getFileNameWithoutExtension());
+                    }
+                });
+        };
 
         // APVTS Links
         freqModeAttach = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (apvts, "FREQ_MODE_" + opNum, freqModeSelector);
@@ -85,6 +112,8 @@ struct CompactOperatorGroup : public juce::Component
     
         if (filterTypeSelector.isVisible())
             filterTypeSelector.setBounds (topStrip.reduced (1));
+        else if (loadSampleButton.isVisible())
+            loadSampleButton.setBounds (topStrip.reduced (1));
         else
             waveShapeSelector.setBounds  (topStrip.reduced (1));
     
@@ -191,6 +220,9 @@ struct CompactOperatorGroup : public juce::Component
         updateSlider (releaseSlider);
     }
 
+    // Callback fired when the user picks a file. Receives (opIndex, file).
+    std::function<void(int, juce::File)> onLoadSample;
+
 private:
     // Combined logic method avoids layout text fighting
     OAOColors& colors;
@@ -209,13 +241,15 @@ private:
         int selectedFilter = filterTypeSelector.getSelectedId();
         waveShapeSelector.setVisible (isWaveMode);
         filterTypeSelector.setVisible (isFilterMode);
+        loadSampleButton.setVisible (isExtAudioMode);
 
         if (isExtAudioMode)
         {
-            ratioLabel.setText  ("Gain", juce::dontSendNotification);
-            detuneLabel.setText ("Tone", juce::dontSendNotification);
-            phaseLabel.setText  ("Mod",  juce::dontSendNotification);
-            foldLabel.setText   ("Fold", juce::dontSendNotification);
+            ratioLabel.setText  ("Speed",  juce::dontSendNotification);
+            detuneLabel.setText ("Start",  juce::dontSendNotification);
+            phaseLabel.setText  ("Loop",   juce::dontSendNotification);
+            foldLabel.setText   ("Fold",   juce::dontSendNotification);
+            ratioSlider.setTextValueSuffix ("");
         }
         else if (isAdditiveMode)
         {
@@ -272,6 +306,8 @@ private:
     juce::ComboBox waveShapeSelector;
     juce::ComboBox filterTypeSelector;
     juce::ComboBox freqModeSelector;
+    juce::TextButton loadSampleButton;
+    std::unique_ptr<juce::FileChooser> fileChooser;
 
     std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> modeAttach;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> waveShapeAttach;
@@ -285,11 +321,21 @@ private:
 class OperatorsPage : public juce::Component
 {
 public:
+    // Callback fired when any operator's Load Sample button is used.
+    // Receives (opIndex 0-based, file).
+    std::function<void(int, juce::File)> onLoadSample;
+
     OperatorsPage (juce::AudioProcessorValueTreeState& apvts, OAOColors& c) : colors (c)
     {
         for (int i = 0; i < ProjectConfig::numOperators; ++i)
         {
             opModules.push_back (std::make_unique<CompactOperatorGroup> (apvts, i, colors));
+            // Forward load-sample events up to whoever owns the OperatorsPage
+            opModules.back()->onLoadSample = [this] (int opIdx, juce::File file)
+            {
+                if (onLoadSample)
+                    onLoadSample (opIdx, file);
+            };
             addAndMakeVisible (*opModules.back());
         }
     }

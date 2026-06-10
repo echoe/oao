@@ -32,6 +32,12 @@ FMPluginAudioProcessorEditor::FMPluginAudioProcessorEditor (FMPluginAudioProcess
         repaint();
     };
 
+    // Wire the sample-load callback from the operators page to the processor
+    opsPage.onLoadSample = [&p] (int opIndex, juce::File file)
+    {
+        p.loadSampleForOperator (opIndex, file);
+    };
+
     addAndMakeVisible (presetBar);
     addAndMakeVisible (opsPage);
     addAndMakeVisible (matrixPage);

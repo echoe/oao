@@ -84,6 +84,11 @@ public:
                 float normalizedRatio = (ratio - 0.01f) / (16.0f - 0.01f); // 0..1
                 float speedMult       = std::pow (2.0f, (normalizedRatio - 0.5f) * 4.0f); // ~0.25x to ~4x
 
+                // Pitch the sample to the incoming MIDI note.
+                // Root is middle C (261.63 Hz) — playing C4 plays back at original speed.
+                static constexpr double rootHz = 261.6255653f; // C4
+                float pitchScale = static_cast<float> (baseFrequency / rootHz);
+
                 // Detune knob (-50..50): start offset, 0..100% of sample length
                 float startFraction = (detune + 50.0f) / 100.0f;
                 float startSample   = startFraction * (numSamples - 1);
@@ -93,7 +98,7 @@ public:
 
                 // FM modulation → subtle pitch-shift via speed nudge
                 float modSensitivity = phaseKnob / 360.0f;
-                float modSpeed       = speedMult * (1.0f + std::tanh (modulationSum * 0.15f * modSensitivity) * 0.5f);
+                float modSpeed       = speedMult * pitchScale * (1.0f + std::tanh (modulationSum * 0.15f * modSensitivity) * 0.5f);
                 modSpeed             = juce::jlimit (0.001f, 8.0f, modSpeed);
 
                 // Advance playback position (accounting for oversampling)

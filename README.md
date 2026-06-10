@@ -154,9 +154,11 @@ The process to add more effects is very easy:
 -In FMOperator.h, process the knobs to be correct given their start positions (which are from the default Wave 'Operators' page, these knobs are just relabeled with every change), and then pass them to the processing function.
 -In the processBlock effects loop in PluginProcessor.cpp, so the Effects page can work, add the case there. This is pretty much the same as FMOperator.h but with some differences that are pretty self-evident looking at the 16 (!) current examples.
 
-### Ext. In
-It's an external in! You can route external sound into the synth if you want now, and it will go through the modulation matrix like everything else (and will be affected by the filters). Use this as an extremely wacky eight-effect unit if you want :)
--Options: Gain, Tilt (quick EQ), Mod (controls how much the external in is affected by audio modulation), Fold(just like the normal Wave oscillator). These options are kind of whatever. If you think there should be other options, lemme know lol. I am not planning to tweak any of this other than gain ever.
+### Sample
+- Import an audio file, and modify it with the effects/route it just like everything else. Initially I wanted to pass audio through the plugin but that's a giant pain for multiple reasons and JUCE has this built in so it's very easy to implement!
+- You can import a sample of any size (as long as your RAM can handle it ...). Samples are automatically assumed to be pitched at c4 - midi notes above or below c4 pitch the sample up or down respectfully.
+- Options: Speed [which you can use as a sort of Ratio], Sample Start, Loop (>.5 means yes loop, <.5 means no loop), Fold
+- I recommend placing any files you want to import in your main presets folder if you want to make and load presets with it.
 
 ## Modulation Matrix
 - A 6 by 6 matrix letting you modulate any operator with any other operator. On the right of this, there is a 6-slot mod matrix, letting you modulate anything in the synth (including effects, but effects are global only) with one of the six operators.

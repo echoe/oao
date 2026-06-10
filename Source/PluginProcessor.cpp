@@ -5,20 +5,18 @@
 
 FMPluginAudioProcessor::FMPluginAudioProcessor()
     : AudioProcessor (BusesProperties()
-		    .withInput  ("Input",  juce::AudioChannelSet::stereo(), false) // kept optional; not used for sample mode
+		    .withInput  ("Input",  juce::AudioChannelSet::stereo(), false) // optional input!
 		    .withOutput ("Output", juce::AudioChannelSet::stereo(), true)),
       apvts (*this, nullptr, "Parameters", createParameterLayout())
 {
-    // This is the number of voices the synth has (8 voice polyphony).
     for (int i = 0; i < 8; ++i)
     {
-        auto* voice = new FMVoice();   // 1. Instantiate the voice
-        voice->initParameters (apvts); // 2. Initialize parameters while it's in scope
-        // Push any already-loaded sample data into the voice (matters after state restore)
+        auto* voice = new FMVoice();
+        voice->initParameters (apvts);
         for (int opIdx = 0; opIdx < ProjectConfig::numOperators; ++opIdx)
             if (loadedSamples[opIdx] != nullptr)
                 voice->setSampleData (opIdx, loadedSamples[opIdx]);
-        synth.addVoice (voice);        // 3. Hand ownership over to the JUCE synth
+        synth.addVoice (voice);
     }
 
     synth.addSound (new FMSound());
@@ -673,7 +671,6 @@ void FMPluginAudioProcessor::loadSampleForOperator (int opIndex, const juce::Fil
     if (opIndex < 0 || opIndex >= ProjectConfig::numOperators)
         return;
 
-    // Load the audio file on the message thread into a new buffer
     juce::AudioFormatManager formatManager;
     formatManager.registerBasicFormats();
 
@@ -684,21 +681,16 @@ void FMPluginAudioProcessor::loadSampleForOperator (int opIndex, const juce::Fil
         return;
     }
 
-    // Build a new buffer and read the whole file (up to ~60s at 48kHz to be safe)
     auto newBuffer = std::make_shared<juce::AudioBuffer<float>> (
         static_cast<int> (reader->numChannels),
-        static_cast<int> (juce::jmin ((juce::int64) reader->lengthInSamples, (juce::int64) 48000 * 60)));
+        static_cast<int> (reader->lengthInSamples));
 
     reader->read (newBuffer.get(), 0, newBuffer->getNumSamples(), 0, true, true);
 
-    // Normalize so the loudest peak is 1.0 — keeps levels consistent regardless of source file
     float peak = newBuffer->getMagnitude (0, newBuffer->getNumSamples());
     if (peak > 0.0001f)
         newBuffer->applyGain (1.0f / peak);
 
-    // Store the buffer and push it to all voices.
-    // The shared_ptr means the audio thread keeps reading the old buffer until it naturally
-    // finishes the current sample cycle — no locks needed.
     loadedSamples[opIndex] = newBuffer;
 
     for (int i = 0; i < synth.getNumVoices(); ++i)

@@ -18,19 +18,18 @@ else()
     )
     FetchContent_MakeAvailable(juce)
 endif()
-# ------------------------------------------------
-
+# Target 1: Synth
 juce_add_plugin(OAO
-    COMPANY_NAME "echoe"
+    COMPANY_NAME "Ecoe"
     IS_SYNTH TRUE
     NEEDS_MIDI_INPUT TRUE
     NEEDS_MIDI_OUTPUT FALSE
     IS_MIDI_EFFECT FALSE
     EDITOR_WANTS_KEYBOARD_FOCUS FALSE
     COPY_PLUGIN_AFTER_BUILD TRUE
-    PLUGIN_MANUFACTURER_CODE "YCom"
-    PLUGIN_PLUGIN_CODE "Sres"
-    FORMATS VST3 AU Standalone
+    PLUGIN_MANUFACTURER_CODE "Ecoe"
+    PLUGIN_PLUGIN_CODE "OAOS"
+    FORMATS VST3 Standalone
     PRODUCT_NAME "OAO")
 
 target_sources(OAO PRIVATE
@@ -56,3 +55,41 @@ target_link_libraries(OAO PRIVATE
 )
 
 juce_generate_juce_header(OAO)
+
+# Target 2: Effect
+juce_add_plugin(OAO_FX
+    COMPANY_NAME "Ecoe"
+    IS_SYNTH FALSE
+    NEEDS_MIDI_INPUT TRUE
+    NEEDS_MIDI_OUTPUT FALSE
+    IS_MIDI_EFFECT FALSE
+    EDITOR_WANTS_KEYBOARD_FOCUS FALSE
+    COPY_PLUGIN_AFTER_BUILD TRUE
+    PLUGIN_MANUFACTURER_CODE "Ecoe"
+    PLUGIN_PLUGIN_CODE "OAOX"
+    FORMATS VST3
+    PRODUCT_NAME "OAO FX")
+
+target_sources(OAO_FX PRIVATE
+    Source/PluginProcessor.h
+    Source/PluginProcessor.cpp
+    Source/PluginEditor.h
+    Source/PluginEditor.cpp
+    Source/FMVoice.cpp
+)
+
+target_compile_definitions(OAO_FX PRIVATE
+    JUCE_WEB_BROWSER=0
+    JUCE_USE_CURL=0
+    JUCE_VST3_CAN_REPLACE_VST2=0
+)
+
+target_compile_features(OAO_FX PRIVATE cxx_std_17)
+
+target_link_libraries(OAO_FX PRIVATE
+    juce::juce_audio_processors
+    juce::juce_dsp
+    juce::juce_audio_utils
+)
+
+juce_generate_juce_header(OAO_FX)

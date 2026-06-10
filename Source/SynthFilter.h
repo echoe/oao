@@ -990,17 +990,32 @@ public:
         // ==========================================
         // 4A. STUTTER LOOP MODE
         // ==========================================
-        if (on >= 0.5f)
+	if (on >= 0.5f)
         {
-            float rawCaptureStart = static_cast<float> (djfxWritePtr - captureSize + djfxBufferSize);
-            float captureStart = std::fmodf (rawCaptureStart, static_cast<float> (djfxBufferSize));
-    
-            // Wrap strictly within the capture window
-            while (djfxReadPtr >= captureStart + captureSize) djfxReadPtr -= captureSize;
-            while (djfxReadPtr < captureStart)                djfxReadPtr += captureSize;
-            
-            // Keep the timer at 0 so the first jump happens a full cycle AFTER turning off
-            djfxJumpTimer = 0; 
+            // Latch the loop start position ONLY once when entering the loop
+            if (djfxLoopStart < 0.0f)
+            {
+                float bufferMs = juce::jmap (bufferAmt, 0.0f, 1.0f, 10.0f, 2000.0f);
+                int captureSize = juce::jlimit (1, djfxBufferSize - 1, static_cast<int>(bufferMs / 1000.0f * sampleRate));
+
+                // Lock the start point to where the write pointer is right now
+                djfxLoopStart = static_cast<float>(djfxWritePtr);
+                djfxReadPtr = djfxLoopStart;
+            }
+
+            // Advance read pointer
+            djfxReadPtr += playbackSpeed;
+
+            // Calculate capture size based on the current bufferAmt
+            float bufferMs = juce::jmap (bufferAmt, 0.0f, 1.0f, 10.0f, 2000.0f);
+            int captureSize = static_cast<int>(bufferMs / 1000.0f * sampleRate);
+
+            // Keep read pointer strictly within the LATCHED window
+            // This ensures the loop doesn't move with the live input
+            float end = djfxLoopStart + (float)captureSize;
+
+            while (djfxReadPtr >= end) djfxReadPtr -= (float)captureSize;
+            while (djfxReadPtr < djfxLoopStart) djfxReadPtr += (float)captureSize;
         }
         // ==========================================
         // 4B. VARISPEED WITH RHYTHMIC JUMP
@@ -1612,7 +1627,7 @@ protected:
     int   djfxCaptureSize  = 0;
     int   djfxCaptureCount = 0;
     float djfxDriftPhase   = 0.0f;
-    float djfxJumpTimer = 0.0f;
+    float djfxJumpTimer = 0.0f; float djfxLoopStart = -1.0f; // -1 means no loop active
     juce::Random djfxRandom;
 
     // Harmonic Resonator state

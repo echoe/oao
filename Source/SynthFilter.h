@@ -29,10 +29,11 @@ public:
     {
         grains.resize (maxGrains, {0.0f, 0.0f, 0.0f, false});
     
-        // Build Hann window once
+        // Hann window
         for (int i = 0; i < freezeFFTSize; ++i)
             freezeWindow[i] = 0.5f * (1.0f - std::cos (
-                2.0f * juce::MathConstants<float>::pi * i / (freezeFFTSize - 1)));
+                2.0f * juce::MathConstants<float>::pi
+                * static_cast<float> (i) / static_cast<float> (freezeFFTSize - 1)));
     
         reset();
     }
@@ -202,12 +203,12 @@ public:
         freezeFrozenFrame.fill  (0.0f);
         freezeOutputBuffer.fill (0.0f);
         freezeWorkBuffer.fill   (0.0f);
+        freezeSynthFrame.fill   (0.0f);
         freezeInputWritePos    = 0;
         freezeOutputReadPos    = 0;
         freezeHopCounter       = 0;
         freezeHasFrozenFrame   = false;
         freezeMix              = 0.0f;
-        freezeWasActive        = false;
     }
 
     void noteStarted()
@@ -1417,7 +1418,7 @@ public:
                                         double sampleRate)
     {
         // -------------------------------------------------------
-        // 1. WRITE INPUT TO BUFFER
+        // 1. WRITE INPUT TO RING BUFFER
         // -------------------------------------------------------
         freezeInputBuffer[freezeInputWritePos] = input;
         freezeInputWritePos = (freezeInputWritePos + 1) % freezeFFTSize;
@@ -1430,29 +1431,33 @@ public:
         {
             freezeHopCounter = 0;
     
-            // Copy input ring buffer into work buffer with windowing
+            // Copy windowed input into work buffer as interleaved complex
             for (int i = 0; i < freezeFFTSize; ++i)
             {
                 int idx = (freezeInputWritePos + i) % freezeFFTSize;
                 freezeWorkBuffer[i * 2]     = freezeInputBuffer[idx] * freezeWindow[i];
-                freezeWorkBuffer[i * 2 + 1] = 0.0f;
+                freezeWorkBuffer[i * 2 + 1] = 0.0f; // imaginary = 0 for real input
             }
     
-            // Forward FFT
-            freezeFFT.performFrequencyOnlyForwardTransform (freezeWorkBuffer.data());
+            // Forward FFT — use RealOnly to get complex output with phase info
+            freezeFFT.performRealOnlyForwardTransform (freezeWorkBuffer.data());
     
             // -------------------------------------------------------
-            // 3. CAPTURE FROZEN FRAME if freeze just engaged
+            // 3. CAPTURE FROZEN FRAME when freeze first engages
             // -------------------------------------------------------
             if (freeze > 0.5f && !freezeHasFrozenFrame)
             {
-                // Capture current spectral frame with random phases
-                // for a more musical freeze (avoids comb filtering)
-                juce::Random rng;
+                // Copy current complex spectrum into frozen frame
+                // Randomize phases for a more musical freeze
                 for (int i = 0; i < freezeFFTSize; ++i)
                 {
-                    float mag   = freezeWorkBuffer[i * 2];
-                    float phase = rng.nextFloat() * juce::MathConstants<float>::twoPi;
+                    float re  = freezeWorkBuffer[i * 2];
+                    float im  = freezeWorkBuffer[i * 2 + 1];
+                    float mag = std::sqrt (re * re + im * im);
+    
+                    // Random phase to avoid comb filtering artifacts
+                    float phase = freezeRandom.nextFloat()
+                                  * juce::MathConstants<float>::twoPi;
                     freezeFrozenFrame[i * 2]     = mag * std::cos (phase);
                     freezeFrozenFrame[i * 2 + 1] = mag * std::sin (phase);
                 }
@@ -1464,73 +1469,69 @@ public:
             }
     
             // -------------------------------------------------------
-            // 4. SELECT WHICH FRAME TO SYNTHESIZE
+            // 4. BUILD SYNTHESIS FRAME
             // -------------------------------------------------------
-            std::array<float, freezeFFTSize * 2> synthFrame;
-    
-	    if (freezeHasFrozenFrame)
+            if (freezeHasFrozenFrame)
             {
-                float phaseRotation = pitch * juce::MathConstants<float>::pi * 0.1f;
-    
                 for (int i = 0; i < freezeFFTSize; ++i)
                 {
-                    float re    = freezeFrozenFrame[i * 2];
-                    float im    = freezeFrozenFrame[i * 2 + 1];
-                    float mag   = std::sqrt (re * re + im * im);
-                    float phase = std::atan2 (im, re) + phaseRotation * i;
-    
-                    // Blur — randomize phase slightly each frame
-                    if (blur > 0.001f)
-                        phase += (juce::Random::getSystemRandom().nextFloat() * 2.0f - 1.0f)
-                                 * blur * juce::MathConstants<float>::pi * 0.5f;
-    
-                    synthFrame[i * 2]     = mag * std::cos (phase);
-                    synthFrame[i * 2 + 1] = mag * std::sin (phase);
+                    // 1. Get the static magnitude from the captured frame
+                    float re  = freezeFrozenFrame[i * 2];
+                    float im  = freezeFrozenFrame[i * 2 + 1];
+                    float mag = std::sqrt (re * re + im * im);
+            
+                    // 2. PaulStretch Magic: Generate a completely new, 
+                    // random phase for this bin, EVERY single hop.
+                    float randomPhase = freezeRandom.nextFloat() * juce::MathConstants<float>::twoPi;
+            
+                    // 3. Reconstruct complex numbers with the static magnitude and new random phase
+                    freezeSynthFrame[i * 2]     = mag * std::cos (randomPhase);
+                    freezeSynthFrame[i * 2 + 1] = mag * std::sin (randomPhase);
                 }
             }
             else
             {
-                // Pass through live spectrum
+                // Pass through live spectrum unchanged
                 for (int i = 0; i < freezeFFTSize * 2; ++i)
-                    synthFrame[i] = freezeWorkBuffer[i];
-            }
+                    freezeSynthFrame[i] = freezeWorkBuffer[i];
+            } 
+            // -------------------------------------------------------
+            // 5. INVERSE FFT
+            // -------------------------------------------------------
+            freezeFFT.performRealOnlyInverseTransform (freezeSynthFrame.data());
     
             // -------------------------------------------------------
-            // 5. INVERSE FFT + OVERLAP-ADD
+            // 6. OVERLAP-ADD into output ring buffer
             // -------------------------------------------------------
-            freezeFFT.performRealOnlyInverseTransform (synthFrame.data());
-    
-            // Apply window and overlap-add into output buffer
-            float windowSum = 0.0f;
-            for (int i = 0; i < freezeFFTSize; ++i)
-                windowSum += freezeWindow[i] * freezeWindow[i];
-            float normFactor = freezeHopSize / windowSum;
+            // Standard OLA normalization for Hann window with 75% overlap
+            // normFactor = hopSize / sum(window^2) ≈ 0.667 for Hann at 4x overlap
+            float normFactor = static_cast<float> (freezeHopSize) / (freezeFFTSize * 0.375f);
     
             for (int i = 0; i < freezeFFTSize; ++i)
             {
                 int outIdx = (freezeOutputReadPos + i) % (freezeFFTSize * 2);
-                freezeOutputBuffer[outIdx] += synthFrame[i * 2] * freezeWindow[i] * normFactor;
+                freezeOutputBuffer[outIdx] += freezeSynthFrame[i * 2]
+                                              * freezeWindow[i] * normFactor;
             }
         }
     
         // -------------------------------------------------------
-        // 6. READ FROM OUTPUT BUFFER
+        // 7. READ ONE SAMPLE FROM OUTPUT BUFFER
         // -------------------------------------------------------
         float frozen = freezeOutputBuffer[freezeOutputReadPos];
         freezeOutputBuffer[freezeOutputReadPos] = 0.0f; // clear after read
         freezeOutputReadPos = (freezeOutputReadPos + 1) % (freezeFFTSize * 2);
     
         // -------------------------------------------------------
-        // 7. SMOOTH MIX — ramp to prevent clicks when engaging
+        // 8. SMOOTH MIX — 50ms ramp to prevent clicks
         // -------------------------------------------------------
         float targetMix = (freeze > 0.5f) ? blend : 0.0f;
         float rampSpeed = 1.0f / (static_cast<float> (sampleRate) * 0.05f);
-        freezeMix = juce::jlimit (0.0f, 1.0f,
-                        freezeMix + (targetMix - freezeMix) * rampSpeed);
+        freezeMix = freezeMix + (targetMix - freezeMix) * rampSpeed;
+        freezeMix = juce::jlimit (0.0f, 1.0f, freezeMix);
     
-        return std::isfinite (frozen)
-                   ? frozen * freezeMix + input * (1.0f - freezeMix)
-                   : input;
+        float output = frozen * freezeMix + input * (1.0f - freezeMix);
+        return std::isfinite (output) ? output : input;
     }
 
     int getCurrentType() const noexcept { return static_cast<int>(currentType); }
@@ -1728,9 +1729,9 @@ protected:
     float ottToneLast = 0.0f;
 
     // Spectral Freeze state
-    static constexpr int freezeFFTOrder = 11; // 2048 point FFT
-    static constexpr int freezeFFTSize  = 1 << freezeFFTOrder;
-    static constexpr int freezeHopSize  = freezeFFTSize / 4;
+    static constexpr int freezeFFTOrder = 14; // this is the power of 2 that defines the FFT size. 2^11 = 2048. 2^14 = 16384
+    static constexpr int freezeFFTSize  = 1 << freezeFFTOrder; // 2048
+    static constexpr int freezeHopSize  = freezeFFTSize / 4;   // 512
     
     juce::dsp::FFT freezeFFT { freezeFFTOrder };
     
@@ -1739,13 +1740,14 @@ protected:
     std::array<float, freezeFFTSize * 2> freezeOutputBuffer { 0.0f };
     std::array<float, freezeFFTSize>     freezeWindow       { 0.0f };
     std::array<float, freezeFFTSize * 2> freezeWorkBuffer   { 0.0f };
+    std::array<float, freezeFFTSize * 2> freezeSynthFrame   { 0.0f }; // moved to member
     
     int   freezeInputWritePos  = 0;
     int   freezeOutputReadPos  = 0;
     int   freezeHopCounter     = 0;
     bool  freezeHasFrozenFrame = false;
-    float freezeMix            = 0.0f; // smoothed mix
-    bool  freezeWasActive      = false;
+    float freezeMix            = 0.0f;
+    juce::Random freezeRandom; // dedicated RNG, not system random
 
     // Parameters Cache
     double sampleRate { 44100.0 };

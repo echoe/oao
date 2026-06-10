@@ -33,11 +33,6 @@ FMPluginAudioProcessor::FMPluginAudioProcessor()
         jassert (fxMixParams[i]    != nullptr);
         jassert (fxRatioParams[i]  != nullptr);
     }
-    // Add one always-on voice for external audio passthrough
-    auto* passthroughVoice = new FMVoice();
-    passthroughVoice->initParameters (apvts);
-    passthroughVoice->setAlwaysActive (true);
-    synth.addVoice (passthroughVoice);
 }
 
 FMPluginAudioProcessor::~FMPluginAudioProcessor() {}
@@ -219,11 +214,6 @@ void FMPluginAudioProcessor::setPolyphony (int numVoices)
             voice->setOversamplingFactor (currentOversamplingFactor);
         }
     }
-    // Add one always-on voice for external audio passthrough
-    auto* passthroughVoice = new FMVoice();
-    passthroughVoice->initParameters (apvts);
-    passthroughVoice->setAlwaysActive (true);
-    synth.addVoice (passthroughVoice);
 }
 
 void FMPluginAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)

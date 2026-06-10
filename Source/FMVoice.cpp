@@ -336,7 +336,7 @@ void FMVoice::renderNextBlock (juce::AudioBuffer<float>& outputBuffer, int start
         }
     }
 
-    if (!isAnyEnvelopeActive && !alwaysActive)
+    if (!isAnyEnvelopeActive)
     {
         clearCurrentNote();
         resetVoiceState();

@@ -33,13 +33,13 @@ public:
     bool canPlaySound (juce::SynthesiserSound* sound) override;
     void initParameters (juce::AudioProcessorValueTreeState& apvts);
     void setCurrentPlaybackSampleRate (double newRate) override;
+    void setBaseFrequency (float freq) noexcept { baseFrequency = freq; }
     void startNote (int midiNoteNumber, float velocity, juce::SynthesiserSound*, int) override;
     void stopNote (float velocity, bool allowTailOff) override;
     void pitchWheelMoved (int newPitchWheelValue) override;
     void controllerMoved (int controllerNumber, int newControllerValue) override;
     void setOversamplingFactor (int factor);
     void prepare (double sampleRate, int samplesPerBlock, WaveTable* wt);
-    void setAlwaysActive (bool shouldBeActive) noexcept { alwaysActive = shouldBeActive; }
     void setDAWTempo (float newBPM) noexcept;
     void resetVoiceState();
     void renderNextBlock (juce::AudioBuffer<float>& outputBuffer, int startSample, int numSamples) override;
@@ -48,17 +48,13 @@ public:
         externalAudioL = left;
         externalAudioR = right;
     }
-    bool isVoiceActive() const override
-    {
-        return alwaysActive || juce::SynthesiserVoice::isVoiceActive();
-    }
     //effects
     std::atomic<float> fxRatioMods[3]  { 0.0f, 0.0f, 0.0f };
     std::atomic<float> fxDetuneMods[3] { 0.0f, 0.0f, 0.0f };
     std::atomic<float> fxPhaseMods[3]  { 0.0f, 0.0f, 0.0f };
     std::atomic<float> fxFoldMods[3]   { 0.0f, 0.0f, 0.0f };
     std::atomic<float> fxLevelMods[3]  { 0.0f, 0.0f, 0.0f };
-    
+
 private:
     float externalAudioL = 0.0f;
     float externalAudioR = 0.0f;

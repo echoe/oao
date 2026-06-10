@@ -250,9 +250,9 @@ public:
                 float modDepth    = 1.0f - keytrackAmt;
                 float combFreq    = tunedFreq + modDepth * (modulationSum * 200.0f + cutoffModOffset * 4000.0f);
                 combFreq          = juce::jlimit(20.0f, static_cast<float>(currentSampleRate) * 0.49f, combFreq);
-                float feedbackAmt = juce::jlimit(-0.95f, 0.95f, (foldKnob * 2.0f) - 1.0f);
-                float dampingAmt  = juce::jlimit(0.001f, 0.95f, (detune + 50.0f) / 100.0f);
-                // output
+                float dampingAmt = juce::jlimit(0.001f, 0.95f, (foldKnob * 2.0f) - 1.0f);
+                float feedbackAmt  = juce::jlimit(-0.95f, 0.95f, (detune + 50.0f) / 100.0f);
+		// output
                 float output = internalFilter.processSampleComb(audioInputSum, combFreq, feedbackAmt, dampingAmt);
                 outputSample = std::isfinite(output) ? std::tanh(output) : 0.0f;
             }
@@ -341,17 +341,7 @@ public:
                                                                         currentSampleRate);
                 outputSample = std::isfinite (output) ? output : 0.0f;
             }
-            else if (filterType == 12) // Varispeed
-            {
-                float speed        = (ratio - 0.01f) / (16.0f - 0.01f);
-                float acceleration = juce::jlimit (0.0f, 1.0f, (detune + 50.0f) / 100.0f);
-                float depth        = phaseKnob / 360.0f;
-                float mode         = juce::jlimit (0.0f, 1.0f, foldKnob);
-                float output = internalFilter.processSampleVarispeed (audioInputSum, speed, acceleration,
-                                                                       depth, mode, currentSampleRate);
-                outputSample = std::isfinite (output) ? output : 0.0f;
-            }
-            else if (filterType == 13) // Scatter
+            else if (filterType == 12) // Scatter
             {
                 float pattern = (ratio - 0.01f) / (16.0f - 0.01f);
                 float size    = juce::jlimit (0.0f, 1.0f, (detune + 50.0f) / 100.0f);
@@ -361,7 +351,7 @@ public:
                                                                      speed, depth, currentSampleRate);
                 outputSample = std::isfinite (output) ? output : 0.0f;
             }
-            else if (filterType == 14) // Ring Modulator
+            else if (filterType == 13) // Ring Modulator
             {
                 // Frequency: ratio knob maps to 0.1Hz - 5000Hz exponentially
                 float normalizedRatio = (ratio - 0.01f) / (16.0f - 0.01f);
@@ -373,7 +363,7 @@ public:
                                                                      depth, feedback, currentSampleRate);
                 outputSample = std::isfinite (output) ? output : 0.0f;
             }
-            else if (filterType == 15) // Chorus
+            else if (filterType == 14) // Chorus
             {
                 float rate   = (ratio - 0.01f) / (16.0f - 0.01f);
                 float depth  = juce::jlimit (0.0f, 1.0f, (detune + 50.0f) / 100.0f);
@@ -383,7 +373,7 @@ public:
                                                                     spread, voices, currentSampleRate);
                 outputSample = std::isfinite (output) ? output : 0.0f;
             }
-            else if (filterType == 16) // Distortion
+            else if (filterType == 15) // Distortion
             {
                 float drive       = (ratio - 0.01f) / (16.0f - 0.01f);
                 float flavor      = juce::jlimit (0.0f, 1.0f, (detune + 50.0f) / 100.0f);
@@ -394,7 +384,7 @@ public:
                                                                         currentSampleRate);
                 outputSample = std::isfinite (output) ? output : 0.0f;
             }
-	    else if (filterType == 17) // DJFX Delay
+	    else if (filterType == 16) // DJFX Delay
             {
                 float bufferAmt = (ratio - 0.01f) / (16.0f - 0.01f);
                 float speed     = juce::jlimit (0.0f, 1.0f, (detune + 50.0f) / 100.0f);
@@ -404,7 +394,7 @@ public:
                                                                        on, drift, currentSampleRate);
                 outputSample = std::isfinite (output) ? output : 0.0f;
             }
-            else if (filterType == 18) // Harmonic Resonator
+            else if (filterType == 17) // Harmonic Resonator
             {
                 float root       = (ratio - 0.01f) / (16.0f - 0.01f);
                 float scaleKnob  = juce::jlimit (0.0f, 1.0f, (detune + 50.0f) / 100.0f);
@@ -415,7 +405,7 @@ public:
                                                                                 resonDepth, currentSampleRate);
                 outputSample = std::isfinite (output) ? output : 0.0f;
             }
-            else if (filterType == 19) // Ambient Delay
+            else if (filterType == 18) // Ambient Delay
             {
                 float time      = (ratio - 0.01f) / (16.0f - 0.01f);
                 float feedbk    = juce::jlimit (0.0f, 0.98f, (detune + 50.0f) / 100.0f);
@@ -427,7 +417,7 @@ public:
                                                                           currentSampleRate);
                 outputSample = std::isfinite (output) ? output : 0.0f;
             }
-            else if (filterType == 20) // Old Chorus
+            else if (filterType == 19) // Old Chorus
             {
                 float rate    = (ratio - 0.01f) / (16.0f - 0.01f);
                 float depth   = juce::jlimit (0.0f, 1.0f, (detune + 50.0f) / 100.0f);
@@ -439,7 +429,7 @@ public:
                                                                        currentSampleRate);
                 outputSample = std::isfinite (output) ? output : 0.0f;
             }
-            else if (filterType == 21) // OTT
+            else if (filterType == 20) // OTT
             {
                 float depth   = (ratio - 0.01f) / (16.0f - 0.01f);
                 float timeKnob = juce::jlimit (0.0f, 1.0f, (detune + 50.0f) / 100.0f);
@@ -450,7 +440,7 @@ public:
                                                                  upward, tone, currentSampleRate);
                 outputSample = std::isfinite (output) ? output : 0.0f;
             }
-            else if (filterType == 22) // Spectral Freeze
+            else if (filterType == 21) // Spectral Freeze
             {
                 float freeze = (ratio - 0.01f) / (16.0f - 0.01f);
                 float blend  = juce::jlimit (0.0f, 1.0f, (detune + 50.0f) / 100.0f);

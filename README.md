@@ -105,12 +105,6 @@ Additional Notes:
 #### Compressor
 - Options: Threshold, Ratio, Attack, Release
 - it's a compressor
-#### Varispeed
-- Options: Speed, Acceleration, Depth, Mode
-- Speed controls the amount that the speed should vary by.
-- Acceleration is how fast the effect changes the speed of the incoming audio.
-- Depth controls how much the speed varies around the target speed.
-- Mode is 'Direction'. If it's under .45, it's slowing down. if it's over .55, it's speeding up. if it's in the middle, it's not doing either.
 #### Scatter
 - Options: Pattern, Size, Speed, Depth
 - Pattern 0.0-0.25: Stutter (repeats short segments)
@@ -124,16 +118,19 @@ Additional Notes:
 - Options: Frequency (that rings out), Shape (of modulation), Depth (of modulation), Feedback (from modulation)
 #### Chorus
 - Options: Rate (speed chorus moves), Depth (size of chorus), Spread (in the stereo field), Voices (1-8)
-- This is a modern chorus! Wow.
+- This is a modern chorus! Wow. zzz
 #### Distortion
 - Options: Drive, Flavor, Tone, Degradation
 - Drive: move sound
 - Flavor: morphs between distortion types. 0.0-0.25: Soft clip, 0.25-0.5 Hard clip, 0.5-0.75 Foldback, 0.75-1.0: Digital (sign function / bit mangle).
 - Tone: post-distortion onepole filter
 - Degradation: adds various sample-distruction effects.
-#### Harmonic Resonator
-- Options: Root, Scale, Brightness, Depth
-Note: The scales are major, minor, pentatonic, whole, and chromatic.
+#### DJFX Delay
+- Options: Buffer, Speed, Loop On, Drift
+Note: Without the loop on this functions as a varispeed that 'catches up' to the audio going through the playhead every Buffer seconds! I love this effect, haha, and I hope you do too.
+#### Resonator
+- Options: Root, Stretch, Brightness, Depth
+This goes shoom. Add a delay or reverb on top for extreme shine :D
 #### Ambient Shimmer
 -Options: Time, Feedback, Shimmer, Diffusion
 Note: This ambient shimmer delay has a 16 second (!!!) possible time. Shimmer is a one-octave-up duplication of the sound and the knob acts as a mix knob for that.

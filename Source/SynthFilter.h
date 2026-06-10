@@ -1417,16 +1417,12 @@ public:
                                         float pitch, float blur,
                                         double sampleRate)
     {
-        // -------------------------------------------------------
-        // 1. WRITE INPUT TO RING BUFFER
-        // -------------------------------------------------------
+        // write input to ring buffer
         freezeInputBuffer[freezeInputWritePos] = input;
         freezeInputWritePos = (freezeInputWritePos + 1) % freezeFFTSize;
         freezeHopCounter++;
     
-        // -------------------------------------------------------
-        // 2. PROCESS A NEW FFT FRAME EVERY HOP
-        // -------------------------------------------------------
+        // process a new fft frame on every hop
         if (freezeHopCounter >= freezeHopSize)
         {
             freezeHopCounter = 0;
@@ -1442,9 +1438,7 @@ public:
             // Forward FFT — use RealOnly to get complex output with phase info
             freezeFFT.performRealOnlyForwardTransform (freezeWorkBuffer.data());
     
-            // -------------------------------------------------------
-            // 3. CAPTURE FROZEN FRAME when freeze first engages
-            // -------------------------------------------------------
+            // capture frozen frame when freeze first engages
             if (freeze > 0.5f && !freezeHasFrozenFrame)
             {
                 // Copy current complex spectrum into frozen frame
@@ -1468,23 +1462,20 @@ public:
                 freezeHasFrozenFrame = false;
             }
     
-            // -------------------------------------------------------
             // 4. BUILD SYNTHESIS FRAME
-            // -------------------------------------------------------
             if (freezeHasFrozenFrame)
             {
                 for (int i = 0; i < freezeFFTSize; ++i)
                 {
-                    // 1. Get the static magnitude from the captured frame
+                    // get the static magnitude from the captured frame
                     float re  = freezeFrozenFrame[i * 2];
                     float im  = freezeFrozenFrame[i * 2 + 1];
                     float mag = std::sqrt (re * re + im * im);
             
-                    // 2. PaulStretch Magic: Generate a completely new, 
-                    // random phase for this bin, EVERY single hop.
+                    // make a new random phase for this bin on every hop
                     float randomPhase = freezeRandom.nextFloat() * juce::MathConstants<float>::twoPi;
             
-                    // 3. Reconstruct complex numbers with the static magnitude and new random phase
+                    // reconstruct complex numbers with the static magnitude and new random phase
                     freezeSynthFrame[i * 2]     = mag * std::cos (randomPhase);
                     freezeSynthFrame[i * 2 + 1] = mag * std::sin (randomPhase);
                 }
@@ -1495,14 +1486,10 @@ public:
                 for (int i = 0; i < freezeFFTSize * 2; ++i)
                     freezeSynthFrame[i] = freezeWorkBuffer[i];
             } 
-            // -------------------------------------------------------
             // 5. INVERSE FFT
-            // -------------------------------------------------------
             freezeFFT.performRealOnlyInverseTransform (freezeSynthFrame.data());
     
-            // -------------------------------------------------------
             // 6. OVERLAP-ADD into output ring buffer
-            // -------------------------------------------------------
             // Standard OLA normalization for Hann window with 75% overlap
             // normFactor = hopSize / sum(window^2) ≈ 0.667 for Hann at 4x overlap
             float normFactor = static_cast<float> (freezeHopSize) / (freezeFFTSize * 0.375f);
@@ -1514,17 +1501,11 @@ public:
                                               * freezeWindow[i] * normFactor;
             }
         }
-    
-        // -------------------------------------------------------
         // 7. READ ONE SAMPLE FROM OUTPUT BUFFER
-        // -------------------------------------------------------
         float frozen = freezeOutputBuffer[freezeOutputReadPos];
         freezeOutputBuffer[freezeOutputReadPos] = 0.0f; // clear after read
         freezeOutputReadPos = (freezeOutputReadPos + 1) % (freezeFFTSize * 2);
-    
-        // -------------------------------------------------------
         // 8. SMOOTH MIX — 50ms ramp to prevent clicks
-        // -------------------------------------------------------
         float targetMix = (freeze > 0.5f) ? blend : 0.0f;
         float rampSpeed = 1.0f / (static_cast<float> (sampleRate) * 0.05f);
         freezeMix = freezeMix + (targetMix - freezeMix) * rampSpeed;

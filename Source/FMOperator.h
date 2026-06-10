@@ -29,6 +29,7 @@ public:
         envelope.noteOn();
         phase = 0.0;
         samplePlayPos = 0.0;
+        pingPongDir   = 1.0f;
         internalFilter.reset();
     }
 
@@ -44,6 +45,7 @@ public:
         envelope.reset();
         pinkB0 = pinkB1 = pinkB2 = pinkB3 = pinkB4 = pinkB5 = pinkB6 = 0.0f;
         samplePlayPos = 0.0;
+        pingPongDir   = 1.0f;
         internalFilter.reset();
     }
 
@@ -77,71 +79,124 @@ public:
             auto buf = sampleBuffer; // local copy of shared_ptr — safe on audio thread
             if (buf != nullptr && buf->getNumSamples() > 0)
             {
-                int   numSamples   = buf->getNumSamples();
-                int   numChannels  = buf->getNumChannels();
+                int numSamples  = buf->getNumSamples();
+                int numChannels = buf->getNumChannels();
 
+                // --- Speed / pitch ---
                 // Ratio knob (0.01–16): playback speed multiplier. 1.0 = original pitch.
                 float normalizedRatio = (ratio - 0.01f) / (16.0f - 0.01f); // 0..1
                 float speedMult       = std::pow (2.0f, (normalizedRatio - 0.5f) * 4.0f); // ~0.25x to ~4x
 
                 // Pitch the sample to the incoming MIDI note.
                 // Root is middle C (261.63 Hz) — playing C4 plays back at original speed.
-                static constexpr double rootHz = 261.6255653f; // C4
+                static constexpr double rootHz = 261.6255653;
                 float pitchScale = static_cast<float> (baseFrequency / rootHz);
 
-                // Detune knob (-50..50): start offset, 0..100% of sample length
+                // FM modulation → subtle pitch nudge via speed
+                float modSpeed = speedMult * pitchScale
+                                 * (1.0f + std::tanh (modulationSum * 0.15f) * 0.5f);
+                modSpeed = juce::jlimit (0.001f, 8.0f, modSpeed);
+
+                // --- Region: start and end ---
+                // Detune knob (-50..50): start point, 0..100% of sample
                 float startFraction = (detune + 50.0f) / 100.0f;
-                float startSample   = startFraction * (numSamples - 1);
+                double startSample  = startFraction * (numSamples - 1);
 
-                // Phase knob (0..360): >180 = loop, <=180 = one-shot
-                bool  shouldLoop    = (phaseKnob > 180.0f);
+                // Phase knob (0..360): end point. 360 = full sample end, 0 = just past start.
+                // Minimum window is 64 samples to avoid divide-by-zero / DC bursts.
+                float endFraction  = phaseKnob / 360.0f;
+                double endSample   = startSample + std::max (64.0,
+                                         endFraction * (numSamples - 1 - startSample));
+                endSample          = std::min (endSample, static_cast<double> (numSamples - 1));
+                double regionLen   = endSample - startSample;
+                if (regionLen < 1.0) regionLen = 1.0;
 
-                // FM modulation → subtle pitch-shift via speed nudge
-                float modSensitivity = phaseKnob / 360.0f;
-                float modSpeed       = speedMult * pitchScale * (1.0f + std::tanh (modulationSum * 0.15f * modSensitivity) * 0.5f);
-                modSpeed             = juce::jlimit (0.001f, 8.0f, modSpeed);
+                // --- Play mode (freqMode re-used as play-mode selector) ---
+                // freqMode: 0 = One-shot, 1 = Loop, 2 = Ping-pong, 3 = Stutter
+                int playMode = freqMode; // passed in from cachedFreqModes[]
 
-                // Advance playback position (accounting for oversampling)
-                double playPos = samplePlayPos + startSample;
-
-                // Read sample with linear interpolation
-                double clampedPos = std::fmod (playPos, static_cast<double> (numSamples));
-                if (clampedPos < 0.0) clampedPos += numSamples;
-                int    idx0   = static_cast<int> (clampedPos) % numSamples;
-                int    idx1   = (idx0 + 1) % numSamples;
-                float  frac   = static_cast<float> (clampedPos - std::floor (clampedPos));
+                // --- Advance playback position ---
+                double advance = modSpeed / (oversamplingFactor > 0 ? oversamplingFactor : 1);
 
                 float sampleOut = 0.0f;
-                if (numChannels >= 2)
+
+                if (playMode == 3) // Stutter: repeat a tiny window around current position
                 {
-                    float s0 = buf->getSample (0, idx0) * (1.0f - frac) + buf->getSample (0, idx1) * frac;
-                    float s1 = buf->getSample (1, idx0) * (1.0f - frac) + buf->getSample (1, idx1) * frac;
-                    sampleOut = (s0 + s1) * 0.5f;
+                    // Window size: 1–50ms mapped from phase knob (0..360 → 0..1)
+                    double windowSamples = std::max (64.0, (phaseKnob / 360.0f) * currentSampleRate * 0.05);
+                    double playPos       = startSample + std::fmod (samplePlayPos, windowSamples);
+
+                    int   idx0 = static_cast<int> (playPos) % numSamples;
+                    int   idx1 = (idx0 + 1) % numSamples;
+                    float frac = static_cast<float> (playPos - std::floor (playPos));
+
+                    if (numChannels >= 2)
+                    {
+                        float s0 = buf->getSample (0, idx0) * (1.0f - frac) + buf->getSample (0, idx1) * frac;
+                        float s1 = buf->getSample (1, idx0) * (1.0f - frac) + buf->getSample (1, idx1) * frac;
+                        sampleOut = (s0 + s1) * 0.5f;
+                    }
+                    else
+                    {
+                        sampleOut = buf->getSample (0, idx0) * (1.0f - frac) + buf->getSample (0, idx1) * frac;
+                    }
+
+                    samplePlayPos += advance;
+                    if (samplePlayPos >= windowSamples)
+                        samplePlayPos -= windowSamples;
                 }
                 else
                 {
-                    sampleOut = buf->getSample (0, idx0) * (1.0f - frac) + buf->getSample (0, idx1) * frac;
+                    // All other modes read from the start→end region
+                    double playPos = startSample + samplePlayPos;
+
+                    // Clamp to valid buffer range
+                    playPos = juce::jlimit (0.0, static_cast<double> (numSamples - 1), playPos);
+
+                    int   idx0 = static_cast<int> (playPos) % numSamples;
+                    int   idx1 = (idx0 + 1) % numSamples;
+                    float frac = static_cast<float> (playPos - std::floor (playPos));
+
+                    if (numChannels >= 2)
+                    {
+                        float s0 = buf->getSample (0, idx0) * (1.0f - frac) + buf->getSample (0, idx1) * frac;
+                        float s1 = buf->getSample (1, idx0) * (1.0f - frac) + buf->getSample (1, idx1) * frac;
+                        sampleOut = (s0 + s1) * 0.5f;
+                    }
+                    else
+                    {
+                        sampleOut = buf->getSample (0, idx0) * (1.0f - frac) + buf->getSample (0, idx1) * frac;
+                    }
+
+                    if (playMode == 0) // One-shot: clamp at end
+                    {
+                        samplePlayPos += advance;
+                        if (samplePlayPos >= regionLen)
+                            samplePlayPos = regionLen - 1.0;
+                    }
+                    else if (playMode == 1) // Loop: wrap at end back to start
+                    {
+                        samplePlayPos += advance;
+                        while (samplePlayPos >= regionLen)
+                            samplePlayPos -= regionLen;
+                    }
+                    else // Ping-pong: bounce direction at each end
+                    {
+                        samplePlayPos += pingPongDir * advance;
+                        if (samplePlayPos >= regionLen)
+                        {
+                            samplePlayPos = regionLen - 1.0;
+                            pingPongDir   = -1.0f;
+                        }
+                        else if (samplePlayPos <= 0.0)
+                        {
+                            samplePlayPos = 0.0;
+                            pingPongDir   = 1.0f;
+                        }
+                    }
                 }
 
-                // Advance play position
-                samplePlayPos += modSpeed / (oversamplingFactor > 0 ? oversamplingFactor : 1);
-                double maxPos   = static_cast<double> (numSamples) - startSample;
-                if (maxPos < 1.0) maxPos = 1.0;
-
-                if (shouldLoop)
-                {
-                    // Wrap within the post-start region
-                    while (samplePlayPos >= maxPos)
-                        samplePlayPos -= maxPos;
-                }
-                else
-                {
-                    // One-shot: clamp at end (envelope will still release naturally)
-                    if (samplePlayPos >= maxPos)
-                        samplePlayPos = maxPos - 1.0;
-                }
-
-                // Fold knob → wavefold
+                // Fold knob → wavefold on the output sample
                 float foldDepth = juce::jlimit (0.0f, 1.0f, foldKnob + foldModOffset);
                 if (foldDepth > 0.001f)
                 {
@@ -155,7 +210,7 @@ public:
             }
             else
             {
-                // No sample loaded — output silence so the matrix still routes correctly
+                // No sample loaded — pass audio matrix input through silently
                 outputSample = std::isfinite (audioInputSum) ? audioInputSum : 0.0f;
             }
         }
@@ -568,8 +623,9 @@ public:
 private:
     // Shared pointer to loaded sample audio. Set from the main thread before playback.
     std::shared_ptr<juce::AudioBuffer<float>> sampleBuffer;
-    double samplePlayPos = 0.0;
-    WaveTable* waveTable = nullptr;
+    double samplePlayPos  = 0.0;
+    float  pingPongDir    = 1.0f; // +1 = forward, -1 = backward (ping-pong mode)
+    WaveTable* waveTable  = nullptr;
     double phase = 0.0;
     double currentSampleRate = 44100.0;
     int oversamplingFactor = 1;

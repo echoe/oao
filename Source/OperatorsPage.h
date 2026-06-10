@@ -107,7 +107,7 @@ struct CompactOperatorGroup : public juce::Component
         // --- TOP STRIP ---
         auto topStrip = area.removeFromTop (h * 0.12f);
         opHeaderLabel.setBounds (topStrip.removeFromLeft (w * 0.25f));
-	freqModeSelector.setBounds (topStrip.removeFromLeft (w * 0.18f).reduced (1));
+	freqModeSelector.setBounds (topStrip.removeFromLeft (w * 0.20f).reduced (1));
 	modeSelector.setBounds  (topStrip.removeFromLeft (w * 0.25f).reduced (1));
     
         if (filterTypeSelector.isVisible())
@@ -242,16 +242,39 @@ private:
         waveShapeSelector.setVisible (isWaveMode);
         filterTypeSelector.setVisible (isFilterMode);
         loadSampleButton.setVisible (isExtAudioMode);
-
+        phaseSlider.setVisible (true);
+        phaseLabel.setVisible  (true);
+        // Handle frequencies
         if (isExtAudioMode)
         {
-            ratioLabel.setText  ("Speed",  juce::dontSendNotification);
-            detuneLabel.setText ("Start",  juce::dontSendNotification);
-            phaseLabel.setText  ("Loop",   juce::dontSendNotification);
-            foldLabel.setText   ("Fold",   juce::dontSendNotification);
-            ratioSlider.setTextValueSuffix ("");
+            // Swap freqMode selector to play-mode choices
+	    int savedId = freqModeSelector.getSelectedId();
+            freqModeSelector.clear (juce::dontSendNotification);
+            freqModeSelector.addItemList ({ "Oneshot", "Loop", "Pingpong", "Stutter" }, 1);
+	    freqModeSelector.setSelectedId (savedId > 0 ? savedId : 1, juce::dontSendNotification);
         }
-        else if (isAdditiveMode)
+        else
+        {
+            // Restore standard freqMode choices when leaving sample mode
+            if (freqModeSelector.getNumItems() != 4 ||
+                freqModeSelector.getItemText (0) != "Std")
+            {
+                int savedId = freqModeSelector.getSelectedId();
+                freqModeSelector.clear (juce::dontSendNotification);
+                freqModeSelector.addItemList ({ "Std", "Sync", "Hz", "LFO" }, 1);
+                freqModeSelector.setSelectedId (savedId > 0 ? savedId : 1, juce::dontSendNotification);
+            }
+        }
+	// Handle knobs
+	if (isExtAudioMode)
+        {
+            ratioLabel.setText  ("Speed",  juce::dontSendNotification);
+            ratioSlider.setTextValueSuffix ("");
+	    detuneLabel.setText ("Start",  juce::dontSendNotification);
+            phaseLabel.setText  ("End",    juce::dontSendNotification);
+            foldLabel.setText   ("Fold",   juce::dontSendNotification);
+	}
+	else if (isAdditiveMode)
         {
             ratioLabel.setText (isHz ? "Freq" : (isSync ? "Sync Rate" : "Ratio"), juce::dontSendNotification);
             ratioSlider.setTextValueSuffix (isHz ? " Hz" : (isSync ? "x" : ""));

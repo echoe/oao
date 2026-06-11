@@ -2,7 +2,7 @@
 #pragma once
 #include <JuceHeader.h>
 #include "FMOperator.h"
-#include "SynthFilter.h"
+#include "SynthEffect.h"
 #include "Constants.h"
 #include "WaveTable.h"
 #include <array>
@@ -12,7 +12,7 @@ struct OperatorParameterCache
 {
     std::atomic<float>* mode { nullptr };
     std::atomic<float>* wave { nullptr };
-    std::atomic<float>* filterType { nullptr };
+    std::atomic<float>* effectType { nullptr };
     std::atomic<float>* ratio { nullptr };
     std::atomic<float>* detune { nullptr };
     std::atomic<float>* phase { nullptr };

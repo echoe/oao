@@ -4,7 +4,7 @@
 #include <juce_dsp/juce_dsp.h>
 #include "FMVoice.h"
 #include "WaveTable.h"
-#include "SynthFilter.h"
+#include "SynthEffect.h"
 
 // Simple dummy sound struct needed by juce::Synthesiser
 struct FMSound : public juce::SynthesiserSound
@@ -57,7 +57,7 @@ private:
     void updateVoices();
     //effects
     static constexpr int numFxSlots = 3;
-    std::array<SynthFilter, numFxSlots> fxFilters; 
+    std::array<SynthEffect, numFxSlots> fxEffects; 
     // Parameter pointers for each effects slot
     std::atomic<float>* fxTypeParams[numFxSlots]   { nullptr };
     std::atomic<float>* fxSyncParams[numFxSlots]   { nullptr };
@@ -69,7 +69,7 @@ private:
     // One shared sample buffer per operator slot (shared across all voices, set once)
     std::array<std::shared_ptr<juce::AudioBuffer<float>>, ProjectConfig::numOperators> loadedSamples;
     // also for everything we need to flush on every run to not echo forever
-    std::array<int, numFxSlots> lastFxFilterType { 0, 0, 0 };
+    std::array<int, numFxSlots> lastFxEffectType { 0, 0, 0 };
     std::unique_ptr<juce::dsp::Oversampling<float>> oversampling;
     int currentOversamplingFactor = 1;
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (FMPluginAudioProcessor)

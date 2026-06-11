@@ -1,4 +1,4 @@
-// SynthFilter.h
+// SynthEffect.h
 #pragma once
 #include <JuceHeader.h>
 #include <cmath>
@@ -20,12 +20,12 @@ static constexpr Vowel VOWEL_TABLE[5] = {
     { 300.0f,  870.0f, 2240.0f }  // 4.0 -> U
 };
 
-class SynthFilter
+class SynthEffect
 {
 public:
-    enum FilterType { Lowpass = 0, Highpass, Bandpass, Comb, Granular, Formant };
+    enum EffectType { Lowpass = 0, Highpass, Bandpass, Comb, Granular, Formant };
     
-    SynthFilter() : freezeFFT (freezeFFTOrder)
+    SynthEffect() : freezeFFT (freezeFFTOrder)
     {
         grains.resize (maxGrains, {0.0f, 0.0f, 0.0f, false});
     
@@ -37,7 +37,7 @@ public:
     
         reset();
     }
-    virtual ~SynthFilter() = default; 
+    virtual ~SynthEffect() = default; 
 
     void prepare (double newSampleRate)
     {
@@ -74,7 +74,7 @@ public:
 
     void setType (int typeIndex)
     {
-        currentType = static_cast<FilterType>(juce::jlimit (0, 5, typeIndex));
+        currentType = static_cast<EffectType>(juce::jlimit (0, 5, typeIndex));
     }
 
     float getPrecalculatedK() const noexcept
@@ -208,7 +208,7 @@ public:
         freezeHopCounter = 0;
         freezeHasFrozenFrame = false;
         freezeMix = 0.0f;
-        // filter + drive
+        // effect + drive
 	fd_s1 = 0.0f; fd_s2 = 0.0f;
 	// 3-lane eq
         eq_s1_low = 0.0f; eq_s2_low = 0.0f;
@@ -356,7 +356,7 @@ public:
         return std::tanh(outputAccumulator * 0.33f);
     }
 
-    // Standard Comb Filter
+    // Comb Filter
     float processSampleComb (float input, float freqHz, float feedback, float dampingNormalized)
     {
         if (combBuffer.empty()) return input;
@@ -380,7 +380,7 @@ public:
         return output;
     }
 
-    // Granular Resonator / Glitch Filter
+    // Granular Resonator / Glitch Effect
     float processSampleGranular (float input, float freqHz, float scatterAmount, float grainDurationMs, float feedback, float dampingNormalized)
     {
         if (combBuffer.empty()) return input;
@@ -544,7 +544,7 @@ public:
                                   float diffusion, float damping,
                                   double sampleRate)
     {
-        // cascade allpass filters
+        // cascade allpass effects
 	// Array of mutually prime numbers for smooth diffusion
         static constexpr std::array<int, 4> primeDelays = { 211, 347, 523, 701 };
     
@@ -957,7 +957,7 @@ public:
                 distorted = 0.0f;
         }
     
-        // 4. TONE — post-distortion one-pole filter
+        // 4. TONE — post-distortion one-pole effect
         // 0.0 = dark (heavy low-pass), 0.5 = neutral, 1.0 = bright
         float toneCutoff = 200.0f + tone * 19800.0f; // 200Hz to 20kHz
         float toneAlpha  = 1.0f - std::exp (-2.0f * juce::MathConstants<float>::pi
@@ -1531,7 +1531,7 @@ public:
                     float im  = freezeWorkBuffer[i * 2 + 1];
                     float mag = std::sqrt (re * re + im * im);
     
-                    // Random phase to avoid comb filtering artifacts
+                    // Random phase to avoid comb effecting artifacts
                     float phase = freezeRandom.nextFloat()
                                   * juce::MathConstants<float>::twoPi;
                     freezeFrozenFrame[i * 2]     = mag * std::cos (phase);
@@ -1620,11 +1620,11 @@ public:
         fd_s2 = 2.0f * lp - fd_s2;
         
         // Latch stable mode selection
-        float filtered = (modeNorm < 0.5f) ? lp : hp;
+        float effected = (modeNorm < 0.5f) ? lp : hp;
         
         // Knob 3: Overdrive circuit multiplier (1x to 16x)
         float driveAmt = 1.0f + driveNorm * 15.0f;
-        float driven = filtered * driveAmt;
+        float driven = effected * driveAmt;
         
         // Nonlinear soft clipping saturation
         float saturated = std::tanh (driven);
@@ -1694,13 +1694,13 @@ public:
         // Strips out subsonic buildup so self-oscillation stays in the musical mid-range
         float hpAlpha = 1.0f - std::exp (-2.0f * juce::MathConstants<float>::pi * 80.0f / static_cast<float> (sampleRate));
         tcHighPassState += hpAlpha * (tcDampingState - tcHighPassState);
-        float filteredSample = tcDampingState - tcHighPassState;
+        float effectedSample = tcDampingState - tcHighPassState;
     
         // Bounded Tape Saturation
         // Allow feedback to push slightly past 1.0 (up to 1.2) for true dub self-oscillation
         float dubFeedback = juce::jlimit (0.0f, 1.2f, feedbackNorm * 1.3f); 
         float driveAmt = 1.0f + driveNorm * 9.0f; 
-        float tapeInput = input + (filteredSample * dubFeedback);
+        float tapeInput = input + (effectedSample * dubFeedback);
         float tapedSignal = std::tanh (tapeInput * driveAmt) / driveAmt;
         tcDelayBuffer[tcWritePtr] = tapedSignal;
         tcWritePtr = (tcWritePtr + 1) % tcDelayBufferSize;
@@ -1708,7 +1708,7 @@ public:
         return delayedSample * driveAmt; 
     }
 
-    float processSampleLoFi (float input, float decimateNorm, float bitsNorm, float wearNorm, float filterNorm, double sampleRate)
+    float processSampleLoFi (float input, float decimateNorm, float bitsNorm, float wearNorm, float effectNorm, double sampleRate)
     {
         // 1. DIGITAL DECIMATION (Sample Rate Reduction)
         // Maps from 1 (no downsampling) to 40 (heavy robotic downsampling)
@@ -1754,9 +1754,9 @@ public:
         output = std::tanh ((output + crackle) * driveAmt) / std::tanh (driveAmt);
     
         // 4. VINYL FILTER (Dynamic Vintage Bandpass Taper)
-        // As filterNorm increases, it narrows the frequency spectrum into a gramophone/phone sound
-        float lpCutoff = juce::jmap (1.0f - filterNorm, 0.0f, 1.0f, 400.0f, 18000.0f);
-        float hpCutoff = juce::jmap (filterNorm, 0.0f, 1.0f, 20.0f, 500.0f);
+        // As effectNorm increases, it narrows the frequency spectrum into a gramophone/phone sound
+        float lpCutoff = juce::jmap (1.0f - effectNorm, 0.0f, 1.0f, 400.0f, 18000.0f);
+        float hpCutoff = juce::jmap (effectNorm, 0.0f, 1.0f, 20.0f, 500.0f);
         
         // 1-Pole Lowpass Stage
         float lpAlpha = 1.0f - std::exp (-2.0f * juce::MathConstants<float>::pi * lpCutoff / static_cast<float> (sampleRate));
@@ -1829,12 +1829,12 @@ protected:
     std::vector<Grain> grains;
     uint32_t lcgState { 12345 }; // Seed for fastRandom()
 
-    // Tape filter state
+    // Tape effect state
     float tapePhase        = 0.0f;  // wobble LFO phase
     float tapeDelayBuffer[8192] { 0.0f }; // short delay for wow/flutter
     int   tapeWritePtr     = 0;
     float tapeReadPtr      = 0.0f;
-    float tapeLastSample   = 0.0f; // for age/HF loss one-pole filter
+    float tapeLastSample   = 0.0f; // for age/HF loss one-pole effect
     float tapeSatDrive     = 1.0f;
 
     // Bitcrusher state
@@ -1893,7 +1893,7 @@ protected:
     std::array<float, numChorusVoices> chorusLFOPhases { 0.0f, 0.0f, 0.0f, 0.0f };
 
     // Distortion state
-    float distToneState  = 0.0f; // one-pole tone filter state
+    float distToneState  = 0.0f; // one-pole tone effect state
     float distLastSign   = 1.0f; // for zero-crossing degradation
     int   distGlitchCount = 0;   // glitch counter
     juce::Random distRandom;
@@ -1959,7 +1959,7 @@ protected:
 
     // OTT state
     static constexpr int numOTTBands = 3;
-    // Per-band crossover filters (Linkwitz-Riley style using two SVF stages)
+    // Per-band crossover effects (Linkwitz-Riley style using two SVF stages)
     float ottLP1_s1[numOTTBands] { 0.0f }, ottLP1_s2[numOTTBands] { 0.0f };
     float ottLP2_s1[numOTTBands] { 0.0f }, ottLP2_s2[numOTTBands] { 0.0f };
     float ottHP1_s1[numOTTBands] { 0.0f }, ottHP1_s2[numOTTBands] { 0.0f };
@@ -2015,5 +2015,5 @@ protected:
     double sampleRate { 44100.0 };
     float targetCutoff { 1000.0f };
     float targetResonance { 0.707f };
-    FilterType currentType { Lowpass };
+    EffectType currentType { Lowpass };
 };

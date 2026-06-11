@@ -66,7 +66,7 @@ Additional Notes:
 Additional Notes:
 - It's a 32-partial additive oscillator, if you were wondering! I thought about it and it made the most sense to me just for CPU usage reasons. But IDK, maybe it's fine to be 32 or 64? You can change this to however many partials you want and build it yourself, just change 'numPartials' in 'FMOperator.h' and rebuild the synth yourself :)
 
-### Filter:
+### Effect:
 #### None
 - Options: It doesn't do anything
 - Use this as a passthrough! 
@@ -135,7 +135,7 @@ Additional Notes:
 - Options: Time, Feedback, Damping, Drive
 - A delay modeled after a famous Time Control delay, that quickly feeds back into itself. ... Care with this one, it's easy to get it to self-oscillate!
 #### Ambient Shimmer
--Options: Time, Feedback, Shimmer, Diffusion
+- Options: Time, Feedback, Shimmer, Diffusion
 - Note: This ambient shimmer delay has a 16 second (!!!) possible time. Shimmer is a one-octave-up duplication of the sound and the knob acts as a mix knob for that.
 #### DJFX Delay
 - Options: Buffer, Speed, Loop On, Drift
@@ -157,17 +157,17 @@ Additional Notes:
 - Options: Drive, Shimmer [Shimmer Pitch], Tone, Decay
 - Make your sound go (glittery noises)!
 #### Spectral Freeze
--Options: Freeze, Blend, Pitch, Blur
+- Options: Freeze, Blend, Pitch, Blur
 Take the incoming audio. Pause it. Twist it and reverse it.
 
 #### More?
-The process to add more effects is very easy:
--Add necessary state variables to SynthFilter.h's private section, and any variables it needs to reset to the reset() call.
--Add a processing function to SynthFilter.h that actually takes input and processes the input into the effect result.
--Update Constants.h to add the effect in the FilterChoices array and in the case settings.
--In FMOperator.h, process the knobs to be correct given their start positions (which are from the default Wave 'Operators' page, these knobs are just relabeled with every change), and then pass them to the processing function.
--In the processBlock effects loop in PluginProcessor.cpp, so the Effects page can work, add the case there. This is pretty much the same as FMOperator.h but with some differences that are pretty self-evident looking at the 24 (!) current examples.
--There is also an FX-Specific plugin that now builds, where you can use the effects by themselves.
+ The process to add more effects is very easy:
+- Add necessary state variables to SynthEffect.h's private section, and any variables it needs to reset to the reset() call.
+- Add a processing function to SynthEffect.h that actually takes input and processes the input into the effect result.
+- Update Constants.h to add the effect in the EffectChoices array and in the case settings.
+- In FMOperator.h, process the knobs to be correct given their start positions (which are from the default Wave 'Operators' page, these knobs are just relabeled with every change), and then pass them to the processing function.
+- In the processBlock effects loop in PluginProcessor.cpp, so the Effects page can work, add the case there. This is pretty much the same as FMOperator.h but with some differences that are pretty self-evident looking at the 24 (!) current examples.
+- There is also an FX-Specific plugin that now builds, where you can use the effects by themselves.
 
 ### Sample
 - Import an audio file, and modify it with the effects/route it just like everything else. Initially I wanted to pass audio through the plugin but that's a giant pain for multiple reasons and JUCE has this built in so it's very easy to implement!
@@ -179,7 +179,7 @@ The process to add more effects is very easy:
 
 ## Modulation Matrix
 - A 6 by 6 matrix letting you modulate any operator with any other operator. On the right of this, there is a 6-slot mod matrix, letting you modulate anything in the synth (including effects, but effects are global only) with one of the six operators.
-- This is a frequency modulation matrix - you are modulating the frequency of anything you target (including targeting a filter) with the wave of whatever you are sending in.
+- This is a frequency modulation matrix - you are modulating the frequency of anything you target (including targeting an effect) with the wave of whatever you are sending in.
 - NOTE FOR THE 6-SLOT MOD MATRIX: The targets are labeled with the slot they are in (Slot A, Slot B, Slot C, Slot D). This correlates to the knobs left to right - by default, for the Wave operator type, this will affect Ratio, Detune, Phase (or PWM), and Fold. But it will transparently affect that knob, with whatever you have in that slot.
 
 ## Audio Matrix
@@ -188,21 +188,21 @@ The process to add more effects is very easy:
 - The default 'Init' state just has Operator 1 audible. You can check this when you open the synth up by opening up this page and looking on the far right.
 
 ## Effects
-- Use any three of the effects that you want at the end of the chain. They always run in serial. You can target them in the extra modulation matrix
+- Use any three of the effects that you want at the end of the chain. They always run in serial. You can target them in the extra modulation matrix too!
 
 ## Settings
-A settings page for two things:
+- A settings page for two things:
 ### Size
 - Set the size of the plugin window from 50% to 200%. This doesn't work perfectly but it's something!
 ### Theme
-Select your color theme from one of eight preset choices, or make your own with fice color presets! All pages will pick up the new colors and refresh.
+- Select your color theme from one of eight preset choices, or make your own with fice color presets! All pages will pick up the new colors and refresh.
 
 
 ## Other Features:
 - You can sync an operator to DAW tempo and use it as an LFO. Do you want more LFOs? Why have LFOs when you can just have more operators??
-- You can pass audio into an operator with the audio routing matrix, so you can use an operator as a filter. Do you want a filter? Why have filters when you can just have more operators??
+- You can pass audio into an operator with the audio routing matrix. Stack that audio!!!
 - You can modulate any operator with any other operator.
-- You can route a track into this synth, then have a midi track playing on the same track and just take the input, and use any of the effects in it on ... anything.
+- If you want to use the effects on other things, use the effects plugin :)
 
 Pictures of the synth in use are provided in the pictures/ folder, and I've switched between themes for each picture so you can get an idea of the theme options. There are also build scripts in the main folder, and built vst3 and standalone builds for all three OS's in the release folder.
 This is mostly AI-coded, but I am actively using the synth myself and have read over all of the code and think I understand it (though how much can one understand code they haven't written themselves?). Your mileage, as always, may vary.

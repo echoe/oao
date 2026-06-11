@@ -66,10 +66,10 @@ bool FMPluginAudioProcessor::isBusesLayoutSupported (const BusesLayout& layouts)
 juce::AudioProcessorValueTreeState::ParameterLayout FMPluginAudioProcessor::createParameterLayout()
 {
     std::vector<std::unique_ptr<juce::RangedAudioParameter>> params;
-    juce::StringArray modeChoices { "Wave", "Additive", "Filter", "Sample" };
+    juce::StringArray modeChoices { "Wave", "Additive", "Effect", "Sample" };
     juce::StringArray waveShapeChoices { "Sine", "Triangle", "Saw", "Square", "Pulse", "SquarePWM", "White Noise", "Pink Noise" };
     juce::StringArray freqModeChoices { "Standard", "Sync", "Hz", "LFO" };
-    auto filterTypeChoices = ProjectConfig::getFilterTypeChoices();
+    auto effectTypeChoices = ProjectConfig::getEffectTypeChoices();
 
     // Generate parameters for each operator dynamically
     for (int i = 0; i < ProjectConfig::numOperators; ++i)
@@ -79,10 +79,10 @@ juce::AudioProcessorValueTreeState::ParameterLayout FMPluginAudioProcessor::crea
         // Wave
         params.push_back (std::make_unique<juce::AudioParameterChoice> (juce::ParameterID { "MODE_" + opNum, 1 }, "Op " + opNum + " Mode", modeChoices, 0));
         params.push_back (std::make_unique<juce::AudioParameterChoice> (juce::ParameterID { "WAVE_SHAPE_" + opNum, 1 }, "Op " + opNum + " Wave Shape", waveShapeChoices, 0));
-        params.push_back (std::make_unique<juce::AudioParameterChoice> (juce::ParameterID { "FILTER_TYPE_" + opNum, 1 }, "Op " + opNum + " Filter Type", filterTypeChoices, 0));
+        params.push_back (std::make_unique<juce::AudioParameterChoice> (juce::ParameterID { "FILTER_TYPE_" + opNum, 1 }, "Op " + opNum + " Effect Type", effectTypeChoices, 0));
         // Tempo Sync/hz lock/LFO mode
         params.push_back (std::make_unique<juce::AudioParameterChoice> (juce::ParameterID { "FREQ_MODE_" + opNum, 1 }, "Op " + opNum + " Freq Mode", freqModeChoices, 0));
-	// Osc Settings - Ratios, Detune, Phase, Fold. We repurpose these for filter
+	// Osc Settings - Ratios, Detune, Phase, Fold. We repurpose these for effect
         params.push_back (std::make_unique<juce::AudioParameterFloat> (juce::ParameterID {"RATIO_" + opNum, 1}, "Op " + opNum + " Ratio", 0.01f, 16.0f, 1.0f));
         params.push_back (std::make_unique<juce::AudioParameterFloat> (juce::ParameterID {"DETUNE_" + opNum, 1}, "Op " + opNum + " Detune", -50.0f, 50.0f, 0.0f));
         params.push_back (std::make_unique<juce::AudioParameterFloat> (juce::ParameterID { "PHASE_" + opNum, 1 }, "Op " + opNum + " Phase", 0.0f, 360.0f, 0.0f));
@@ -101,7 +101,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout FMPluginAudioProcessor::crea
     {
         juce::String s = juce::String (i + 1);
         params.push_back (std::make_unique<juce::AudioParameterChoice> (
-            juce::ParameterID { "FX_TYPE_" + s, 1 }, "FX " + s + " Type", filterTypeChoices, 0));
+            juce::ParameterID { "FX_TYPE_" + s, 1 }, "FX " + s + " Type", effectTypeChoices, 0));
         params.push_back (std::make_unique<juce::AudioParameterBool> (
             juce::ParameterID { "FX_SYNC_" + s, 1 }, "FX " + s + " Sync", false));
         params.push_back (std::make_unique<juce::AudioParameterFloat> (
@@ -243,8 +243,8 @@ void FMPluginAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlo
     setOversamplingFactor (1);
     for (int i = 0; i < numFxSlots; ++i)
     {
-        fxFilters[i].prepare (sampleRate);
-        fxFilters[i].reset();
+        fxEffects[i].prepare (sampleRate);
+        fxEffects[i].reset();
     }
 }
 
@@ -386,7 +386,7 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
     
         for (int slot = 0; slot < numFxSlots; ++slot)
         {
-            int   filterType = static_cast<int> (fxTypeParams[slot]->load  (std::memory_order_relaxed));
+            int   effectType = static_cast<int> (fxTypeParams[slot]->load  (std::memory_order_relaxed));
             float ratio  = fxRatioParams[slot]->load  (std::memory_order_relaxed) + fxRatioModSum[slot];
             float detune = fxDetuneParams[slot]->load (std::memory_order_relaxed) + fxDetuneModSum[slot];
             float phase  = fxPhaseParams[slot]->load  (std::memory_order_relaxed) + fxPhaseModSum[slot];
@@ -395,13 +395,13 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
                            fxMixParams[slot]->load (std::memory_order_relaxed) + fxLevelModSum[slot]);
 	    bool  isSynced   = fxSyncParams[slot]->load   (std::memory_order_relaxed) > 0.5f;
 
-	    if (filterType != lastFxFilterType[slot])
+	    if (effectType != lastFxEffectType[slot])
             {
-                fxFilters[slot].reset();
-                lastFxFilterType[slot] = filterType;
+                fxEffects[slot].reset();
+                lastFxEffectType[slot] = effectType;
             }
 
-            if (filterType == 0) continue; // None — skip entirely
+            if (effectType == 0) continue; // None — skip entirely
 
             // Compute cutoff from ratio knob (same mapping as operators)
             float normalizedRatio = (ratio - 0.01f) / (16.0f - 0.01f);
@@ -428,31 +428,31 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
                 // Mix L+R to mono for processing, then spread back to stereo
                 float inputSample = (leftData[i] + rightData[i]) * 0.5f;
                 float processed   = 0.0f;
-                switch (filterType)
+                switch (effectType)
                 {
                     case 1: // Lowpass
                     case 2: // Highpass
                     case 3: // Bandpass
                     {
-                        fxFilters[slot].setResonance (coupledRes);
-                        float k = fxFilters[slot].getPrecalculatedK();
-                        processed = fxFilters[slot].processSampleAudioRate (inputSample, baseCutoff, k);
+                        fxEffects[slot].setResonance (coupledRes);
+                        float k = fxEffects[slot].getPrecalculatedK();
+                        processed = fxEffects[slot].processSampleAudioRate (inputSample, baseCutoff, k);
                         break;
                     }
-                    case 4: // Filter + Drive
+                    case 4: // Effect + Drive
                     {
                         float cutoff   = normalizedRatio;
                         float res      = dampingAmt;
                         float drive    = phase / 360.0f;
                         float LP_or_HP = juce::jlimit (0.0f, 1.0f, fold);
                     
-                        processed = fxFilters[slot].processSampleFilterDrive (inputSample, cutoff, res, drive, LP_or_HP, getSampleRate());
+                        processed = fxEffects[slot].processSampleFilterDrive (inputSample, cutoff, res, drive, LP_or_HP, getSampleRate());
                         processed = std::isfinite (processed) ? processed : 0.0f;
                         break;
                     }
                     case 5: // Comb
                     {
-                        processed = fxFilters[slot].processSampleComb (inputSample, baseCutoff, feedbackAmt, dampingAmt);
+                        processed = fxEffects[slot].processSampleComb (inputSample, baseCutoff, feedbackAmt, dampingAmt);
                         processed = std::isfinite (processed) ? std::tanh (processed) : 0.0f;
                         break;
                     }
@@ -467,7 +467,7 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
                         float qFactor          = juce::jmap (normalizedDetune, 0.0f, 1.0f, 2.0f, 15.0f);
                         float drive            = 1.0f + (fold * 4.0f);
                         float drivenInput      = std::tanh (inputSample * drive);
-                        float output           = fxFilters[slot].processSampleFormant (drivenInput, dynamicVowel, qFactor);
+                        float output           = fxEffects[slot].processSampleFormant (drivenInput, dynamicVowel, qFactor);
                         processed              = std::isfinite (output) ? std::tanh (output) : 0.0f;
                         break;
                     }
@@ -477,7 +477,7 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
                         float compRatio = dampingAmt;
                         float attack    = phase / 360.0f;
                         float release   = juce::jlimit (0.0f, 1.0f, fold);
-                        processed = fxFilters[slot].processSampleCompressor (inputSample, threshold,
+                        processed = fxEffects[slot].processSampleCompressor (inputSample, threshold,
                                                                               compRatio, attack, release,
                                                                               getSampleRate());
                         processed = std::isfinite (processed) ? processed : 0.0f;
@@ -490,7 +490,7 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
                         float highGain = phase / 360.0f;
                         float master   = juce::jlimit (0.0f, 1.0f, fold);
                         
-                        processed = fxFilters[slot].processSampleThreeBandEQ (inputSample, lowGain, midGain, highGain, master, getSampleRate());
+                        processed = fxEffects[slot].processSampleThreeBandEQ (inputSample, lowGain, midGain, highGain, master, getSampleRate());
                         processed = std::isfinite (processed) ? processed : 0.0f;
                         break;
                     }
@@ -500,7 +500,7 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
                         float timeKnob = dampingAmt;
                         float upward   = phase / 360.0f;
                         float tone     = juce::jlimit (0.0f, 1.0f, fold);
-                        processed = fxFilters[slot].processSampleOTT (inputSample, depth, timeKnob,
+                        processed = fxEffects[slot].processSampleOTT (inputSample, depth, timeKnob,
                                                                        upward, tone, getSampleRate());
                         processed = std::isfinite (processed) ? processed : 0.0f;
                         break;
@@ -512,7 +512,7 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
                         float wear     = phase / 360.0f;
                         float tone     = juce::jlimit (0.0f, 1.0f, fold);
                     
-                        processed = fxFilters[slot].processSampleLoFi (inputSample, decimate, bits, wear, tone, getSampleRate());
+                        processed = fxEffects[slot].processSampleLoFi (inputSample, decimate, bits, wear, tone, getSampleRate());
                         break;
                     }
                     case 11: // Tape
@@ -521,7 +521,7 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
                         float age        = dampingAmt;
                         float saturation = phase / 360.0f;
                         float bias       = juce::jlimit (0.0f, 1.0f, fold);
-                        processed = fxFilters[slot].processSampleTape (inputSample, wobbleRate, age,
+                        processed = fxEffects[slot].processSampleTape (inputSample, wobbleRate, age,
                                                                         saturation, bias, getSampleRate());
                         processed = std::isfinite (processed) ? processed : 0.0f;
                         break;
@@ -532,7 +532,7 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
                         float depth  = dampingAmt;
                         float spread = phase / 360.0f;
                         float voices = juce::jlimit (0.0f, 1.0f, fold);
-                        processed = fxFilters[slot].processSampleChorus (inputSample, rate, depth,
+                        processed = fxEffects[slot].processSampleChorus (inputSample, rate, depth,
                                                                           spread, voices, getSampleRate());
                         processed = std::isfinite (processed) ? processed : 0.0f;
                         break;
@@ -543,7 +543,7 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
                         float depth    = dampingAmt;
                         float modeKnob = phase / 360.0f;
                         float warmth   = juce::jlimit (0.0f, 1.0f, fold);
-                        processed = fxFilters[slot].processSampleOldChorus (inputSample, rate, depth,
+                        processed = fxEffects[slot].processSampleOldChorus (inputSample, rate, depth,
                                                                              modeKnob, warmth,
                                                                              getSampleRate());
                         processed = std::isfinite (processed) ? processed : 0.0f;
@@ -555,7 +555,7 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
                         float flavor      = dampingAmt;
                         float toneKnob    = phase / 360.0f;
                         float degradation = juce::jlimit (0.0f, 1.0f, fold);
-                        processed = fxFilters[slot].processSampleDistortion (inputSample, drive, flavor,
+                        processed = fxEffects[slot].processSampleDistortion (inputSample, drive, flavor,
                                                                               toneKnob, degradation,
                                                                               getSampleRate());
                         processed = std::isfinite (processed) ? processed : 0.0f;
@@ -567,7 +567,7 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
                         float rate   = dampingAmt;
                         float jitter = phase / 360.0f;
                         float noise  = juce::jlimit (0.0f, 1.0f, fold);
-                        processed = fxFilters[slot].processSampleBitcrush (inputSample, bits, rate,
+                        processed = fxEffects[slot].processSampleBitcrush (inputSample, bits, rate,
                                                                            jitter, noise, getSampleRate());
                         processed = std::isfinite (processed) ? processed : 0.0f;
                         break;
@@ -578,7 +578,7 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
                         float shape     = dampingAmt;
                         float depth     = phase / 360.0f;
                         float feedback  = juce::jlimit (0.0f, 0.95f, fold);
-                        processed = fxFilters[slot].processSampleRingMod (inputSample, frequency, shape,
+                        processed = fxEffects[slot].processSampleRingMod (inputSample, frequency, shape,
                                                                            depth, feedback, getSampleRate());
                         processed = std::isfinite (processed) ? processed : 0.0f;
                         break;
@@ -589,7 +589,7 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
                         float decay     = dampingAmt;
                         float diffusion = phase / 360.0f;
                         float damping   = juce::jlimit (0.0f, 1.0f, fold);
-                        processed = fxFilters[slot].processSampleAllpassReverb (inputSample, size, decay,
+                        processed = fxEffects[slot].processSampleAllpassReverb (inputSample, size, decay,
                                                                                  diffusion, damping, getSampleRate());
                         processed = std::isfinite (processed) ? std::tanh (processed) : 0.0f;
                         break;
@@ -600,7 +600,7 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
                         float feedback  = dampingAmt;
                         float diffusion = phase / 360.0f;
                         float damping   = juce::jlimit (0.0f, 1.0f, fold);
-                        processed = fxFilters[slot].processSampleAllpassDelay (inputSample, time, feedback,
+                        processed = fxEffects[slot].processSampleAllpassDelay (inputSample, time, feedback,
                                                                                diffusion, damping, getSampleRate());
                         processed = std::isfinite (processed) ? std::tanh (processed) : 0.0f;
                         break;
@@ -612,7 +612,7 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
                         float damping   = phase / 360.0f;
                         float drive     = juce::jlimit (0.0f, 1.0f, fold);
                         
-                        processed = fxFilters[slot].processSampleTimeCtrlDelay (inputSample, delayTime, feedback, damping, drive, getSampleRate());
+                        processed = fxEffects[slot].processSampleTimeCtrlDelay (inputSample, delayTime, feedback, damping, drive, getSampleRate());
                         processed = std::isfinite (processed) ? processed : 0.0f;
                         break;
                     }
@@ -622,7 +622,7 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
                         float feedbk     = dampingAmt;
                         float shimmerAmt = phase / 360.0f;
                         float diffusion  = juce::jlimit (0.0f, 1.0f, fold);
-                        processed = fxFilters[slot].processSampleAmbientDelay (inputSample, time, feedbk,
+                        processed = fxEffects[slot].processSampleAmbientDelay (inputSample, time, feedbk,
                                                                                 shimmerAmt, diffusion,
                                                                                 getSampleRate());
                         processed = std::isfinite (processed) ? processed : 0.0f;
@@ -634,7 +634,7 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
                         float speed     = dampingAmt;
                         float on        = phase / 360.0f;
                         float drift     = juce::jlimit (0.0f, 1.0f, fold);
-                        processed = fxFilters[slot].processSampleDJFXDelay (inputSample, bufferAmt, speed,
+                        processed = fxEffects[slot].processSampleDJFXDelay (inputSample, bufferAmt, speed,
                                                                              on, drift, getSampleRate());
                         processed = std::isfinite (processed) ? processed : 0.0f;
                         break;
@@ -645,7 +645,7 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
                         float size    = dampingAmt;
                         float speed   = phase / 360.0f;
                         float depth   = juce::jlimit (0.0f, 1.0f, fold);
-                        processed = fxFilters[slot].processSampleScatter (inputSample, pattern, size,
+                        processed = fxEffects[slot].processSampleScatter (inputSample, pattern, size,
                                                                            speed, depth, getSampleRate());
                         processed = std::isfinite (processed) ? processed : 0.0f;
                         break;
@@ -655,7 +655,7 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
                     {   
                         float grainDurationMs = juce::jmap (normalizedRatio, 0.0f, 1.0f, 10.0f, 1000.0f);
                         float scatterAmt      = juce::jlimit (0.0f, 1.0f, phase / 360.0f);
-                        processed = fxFilters[slot].processSampleGranular (inputSample, baseCutoff, scatterAmt, grainDurationMs, feedbackAmt, dampingAmt);
+                        processed = fxEffects[slot].processSampleGranular (inputSample, baseCutoff, scatterAmt, grainDurationMs, feedbackAmt, dampingAmt);
                         processed = std::isfinite (processed) ? std::tanh (processed) : 0.0f;
                         break;
                     }
@@ -665,7 +665,7 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
                         float shimmer = juce::jlimit (0.0f, 1.0f, phase / 360.0f);
                         float tone    = juce::jlimit (0.0f, 1.0f, dampingAmt);
                         float decay   = juce::jlimit (0.0f, 1.0f, fold);
-                        processed     = fxFilters[slot].processSampleColorBass (inputSample, drive,
+                        processed     = fxEffects[slot].processSampleColorBass (inputSample, drive,
                                                                                  shimmer, tone,
                                                                                  decay, getSampleRate());
                         processed = std::isfinite (processed) ? processed : 0.0f;
@@ -677,7 +677,7 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
                         float blend  = dampingAmt;
                         float pitch  = phase / 360.0f;
                         float blur   = juce::jlimit (0.0f, 1.0f, fold);
-                        processed = fxFilters[slot].processSampleSpectralFreeze (inputSample, freeze,
+                        processed = fxEffects[slot].processSampleSpectralFreeze (inputSample, freeze,
                                                                                   blend, pitch, blur,
                                                                                   getSampleRate());
                         processed = std::isfinite (processed) ? processed : 0.0f;
@@ -885,7 +885,7 @@ void FMPluginAudioProcessor::reset() // This function solves issues if you're lo
 {
     // Tell the synth engine to kill hanging voice notes
     synth.allNotesOff (0, false);
-    // Also clear filters, which aren't cleared by the above.
+    // Also clear effects, which aren't cleared by the above.
     for (int i = 0; i < synth.getNumVoices(); ++i)
         {
             if (auto* voice = dynamic_cast<FMVoice*> (synth.getVoice (i)))
@@ -893,10 +893,10 @@ void FMPluginAudioProcessor::reset() // This function solves issues if you're lo
                 voice->resetVoiceState();
             }
         }
-    // and clear effect filters
+    // and clear effect effects
     for (int i = 0; i < numFxSlots; ++i)
     {
-        fxFilters[i].reset();
+        fxEffects[i].reset();
     }
 }
 

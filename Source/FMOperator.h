@@ -117,23 +117,24 @@ public:
 
                 // --- Advance playback position ---
                 double advance = modSpeed / (oversamplingFactor > 0 ? oversamplingFactor : 1);
-
                 float sampleOut = 0.0f;
 
-                if (playMode == 3) // Stutter: loop a short window starting at startSample
+		if (playMode == 3) // Stutter: loop a window controlled by foldKnob
                 {
-                    // Window size: up to regionLen, controlled by End (phase) knob.
-                    // Small End = tiny stutter grain. Large End = long stutter loop.
-                    double windowSamples = std::max (64.0, regionLen);
-                    double playPos       = startSample + std::fmod (samplePlayPos, windowSamples);
-
-                    // Clamp to buffer bounds
+                    // Map foldKnob (0..1) to a grain window size (e.g., 256 to 32768 samples)
+                    float foldDepth = juce::jlimit (0.0f, 1.0f, foldKnob + foldModOffset);
+                    double windowSamples = 256.0 + (foldDepth * 32512.0);
+                
+                    // Ensure we don't exceed the actual region length if it's smaller
+                    windowSamples = std::min(windowSamples, (double)regionLen);
+                
+                    double playPos = startSample + std::fmod (samplePlayPos, windowSamples);
                     playPos = juce::jlimit (0.0, static_cast<double> (numSamples - 1), playPos);
-
+                
                     int   idx0 = static_cast<int> (playPos);
                     int   idx1 = juce::jmin (idx0 + 1, numSamples - 1);
                     float frac = static_cast<float> (playPos - std::floor (playPos));
-
+                
                     if (numChannels >= 2)
                     {
                         float s0 = buf->getSample (0, idx0) * (1.0f - frac) + buf->getSample (0, idx1) * frac;
@@ -144,22 +145,21 @@ public:
                     {
                         sampleOut = buf->getSample (0, idx0) * (1.0f - frac) + buf->getSample (0, idx1) * frac;
                     }
-
+                
                     samplePlayPos += advance;
-                    if (samplePlayPos >= windowSamples)
+                    while (samplePlayPos >= windowSamples)
                         samplePlayPos -= windowSamples;
                 }
-
-		else
+                else
                 {
-                    // One-shot / Loop / Ping-pong: all read within [startSample, endSample]
+                    // One-shot / Loop / Ping-pong
                     double playPos = startSample + samplePlayPos;
                     playPos = juce::jlimit (startSample, endSample, playPos);
-
+                
                     int   idx0 = static_cast<int> (playPos);
                     int   idx1 = juce::jmin (idx0 + 1, numSamples - 1);
                     float frac = static_cast<float> (playPos - std::floor (playPos));
-
+                
                     if (numChannels >= 2)
                     {
                         float s0 = buf->getSample (0, idx0) * (1.0f - frac) + buf->getSample (0, idx1) * frac;
@@ -170,31 +170,31 @@ public:
                     {
                         sampleOut = buf->getSample (0, idx0) * (1.0f - frac) + buf->getSample (0, idx1) * frac;
                     }
-
-                    if (playMode == 0) // One-shot: clamp at end, envelope handles fade
+                
+                    if (playMode == 0) // One-shot
                     {
                         samplePlayPos += advance;
                         if (samplePlayPos >= regionLen)
                             samplePlayPos = regionLen - 1.0;
                     }
-                    else if (playMode == 1) // Loop: wrap back to start of region
+                    else if (playMode == 1) // Loop
                     {
                         samplePlayPos += advance;
                         while (samplePlayPos >= regionLen)
                             samplePlayPos -= regionLen;
                     }
-                    else // Ping-pong: bounce at each boundary
+                    else // Ping-pong
                     {
                         samplePlayPos += pingPongDir * advance;
                         if (samplePlayPos >= regionLen)
                         {
-                            samplePlayPos = regionLen - 1.0;
-                            pingPongDir   = -1.0f;
+                            samplePlayPos = (2.0 * regionLen) - samplePlayPos;
+                            pingPongDir = -1.0f;
                         }
                         else if (samplePlayPos <= 0.0)
                         {
-                            samplePlayPos = 0.0;
-                            pingPongDir   = 1.0f;
+                            samplePlayPos = -samplePlayPos;
+                            pingPongDir = 1.0f;
                         }
                     }
                 }

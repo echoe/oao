@@ -72,6 +72,7 @@ Additional Notes:
 - Samples are automatically assumed to be pitched at c4 - midi notes above or below c4 pitch the sample up or down respectfully.
 - Sample playback: Oneshot, Loop, Pingpong, Scatter
 - Sample options: Speed, Sample Start, Loop (>.5 means yes loop, <.5 means no loop), Fold
+- For the Scatter mode, the 'Fold' option sets the window size of the scatter!
 - Note: When you save a preset, the preset saves a copy of the sample in the xml. Long samples will make very large presets.
 
 ### Effect:
@@ -174,7 +175,7 @@ Take the incoming audio. Pause it. Twist it and reverse it.
 - Add a processing function to SynthEffect.h that actually takes input and processes the input into the effect result.
 - Update Constants.h to add the effect in the EffectChoices array and in the case settings.
 - In FMOperator.h, process the knobs to be correct given their start positions (which are from the default Wave 'Operators' page, these knobs are just relabeled with every change), and then pass them to the processing function.
-- In the processBlock effects loop in PluginProcessor.cpp, so the Effects page can work, add the case there. This is pretty much the same as FMOperator.h but with some differences that are pretty self-evident looking at the 24 (!) current examples.
+- In the processBlock effects loop in PluginProcessor.cpp, so the Effects page can work, add the case there. This is pretty much the same as FMOperator.h but with some differences that are pretty self-evident looking at the 25 (!) current examples.
 - There is also an FX-Specific plugin that now builds, where you can use the effects by themselves.
 
 ## Modulation Matrix

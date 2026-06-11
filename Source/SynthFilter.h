@@ -219,7 +219,7 @@ public:
 	tcDampingState = 0.0f; tcHighPassState = 0.0f;
 	// lofi
 	lofiDownsampleCounter = 0.0f; lofiHoldSample = 0.0f;
-        lofiLPState = 0.0f; lofiHPState = 0.0f; lofiNoiseSeed = 123456789 //mono
+        lofiLPState = 0.0f; lofiHPState = 0.0f; lofiNoiseSeed = 123456789; //mono
     }
 
     void noteStarted()

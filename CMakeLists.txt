@@ -57,7 +57,7 @@ target_link_libraries(OAO PRIVATE
 juce_generate_juce_header(OAO)
 
 # Target 2: Effect
-juce_add_plugin(OAOFX
+juce_add_plugin(OAO_FX
     COMPANY_NAME "echoe"
     IS_SYNTH FALSE
     NEEDS_MIDI_INPUT FALSE
@@ -68,7 +68,7 @@ juce_add_plugin(OAOFX
     PLUGIN_MANUFACTURER_CODE "Ecoe"
     PLUGIN_PLUGIN_CODE "OAOX"
     FORMATS VST3
-    PRODUCT_NAME "OAOFX")
+    PRODUCT_NAME "OAO FX")
 
 target_sources(OAO_FX PRIVATE
     Source/PluginProcessor.h
@@ -78,19 +78,19 @@ target_sources(OAO_FX PRIVATE
     Source/FMVoice.cpp
 )
 
-target_compile_definitions(OAOFX PRIVATE
+target_compile_definitions(OAO_FX PRIVATE
     JUCE_WEB_BROWSER=0
     JUCE_USE_CURL=0
     JUCE_VST3_CAN_REPLACE_VST2=0
     OAO_FX_ONLY=1
 )
 
-target_compile_features(OAOFX PRIVATE cxx_std_17)
+target_compile_features(OAO_FX PRIVATE cxx_std_17)
 
-target_link_libraries(OAOFX PRIVATE
+target_link_libraries(OAO_FX PRIVATE
     juce::juce_audio_processors
     juce::juce_dsp
     juce::juce_audio_utils
 )
 
-juce_generate_juce_header(OAOFX)
+juce_generate_juce_header(OAO_FX)

@@ -397,18 +397,18 @@ public:
                                                                        on, drift, currentSampleRate);
                 outputSample = std::isfinite (output) ? output : 0.0f;
             }
-            else if (filterType == 17) // Harmonic Resonator
+            else if (filterType == 17) // Color Bass
             {
-                float root       = (ratio - 0.01f) / (16.0f - 0.01f);
-                float scaleKnob  = juce::jlimit (0.0f, 1.0f, (detune + 50.0f) / 100.0f);
-                float brightness = phaseKnob / 360.0f;
-                float resonDepth = juce::jlimit (0.0f, 1.0f, foldKnob);
-                float output = internalFilter.processSampleHarmonicResonator (audioInputSum, root,
-                                                                                scaleKnob, brightness,
-                                                                                resonDepth, currentSampleRate);
+                float drive   = juce::jlimit (0.0f, 1.0f, (ratio - 0.01f) / (16.0f - 0.01f));
+                float shimmer = juce::jlimit (0.0f, 1.0f, phaseKnob / 360.0f);
+                float tone    = juce::jlimit (0.0f, 1.0f, (detune + 50.0f) / 100.0f);
+                float decay   = juce::jlimit (0.0f, 1.0f, foldKnob);
+                float output  = internalFilter.processSampleColorBass (audioInputSum, drive,
+                                                                        shimmer, tone,
+                                                                        decay, currentSampleRate);
                 outputSample = std::isfinite (output) ? output : 0.0f;
             }
-            else if (filterType == 18) // Ambient Delay
+	    else if (filterType == 18) // Ambient Delay
             {
                 float time      = (ratio - 0.01f) / (16.0f - 0.01f);
                 float feedbk    = juce::jlimit (0.0f, 0.98f, (detune + 50.0f) / 100.0f);

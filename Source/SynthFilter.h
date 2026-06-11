@@ -158,13 +158,22 @@ public:
         djfxCaptureSize  = 0;
         djfxCaptureCount = 0;
         djfxDriftPhase   = 0.0f;
-        // color resonator
-        resS1.fill (0.0f);
-        resS2.fill (0.0f);
-        cachedRoot = cachedStretch = cachedBrightness = cachedDepth = -1.0f;
-        cachedNoteCount = 0;
+	// Color Bass
+        resS1.fill (0.0f); resS2.fill (0.0f);
         resB0.fill (0.0f); resB2.fill (0.0f);
         resA1.fill (0.0f); resA2.fill (0.0f);
+        cachedDrive        = -1.0f;
+        cachedTone         = -1.0f;
+        cachedDecay        = -1.0f;
+        cachedDetectedFreq =  0.0f;
+        grainBuf.fill (0.0f);
+        grainWritePos      = 0;
+        pitchPhase         = 0.0f;
+        tiltLowZ           = 0.0f;
+        zcPrev             = 0.0f;
+        zcPeriodSamples    = 0.0f;
+        zcSampleCount      = 0;
+        detectedFreq       = 80.0f;
 	// ambient shimmer
         ambientBuffer.fill (0.0f);
         ambientWritePtr   = 0;
@@ -1044,49 +1053,98 @@ public:
         return std::isfinite (output) ? output : 0.0f;
     }
 
-    float processSampleHarmonicResonator (float input, float root, float stretchAmount,
-                                           float brightness, float depth,
-                                           double sampleRate)
+    float processSampleColorBass (float  input,
+                                   float  drive,
+                                   float  shimmer,
+                                   float  tone,
+                                   float  decay,
+                                   double sampleRate)
     {
-        // 1. Smooth base frequency instead of stepped semitones. 
-        // 'root' (0.0 to 1.0) now sweeps smoothly from 220Hz up to ~880Hz (2 octaves).
-        float rootFreq = 220.0f * std::pow (2.0f, root * 2.0f); 
-        
-        // 2. Shimmer & Tail parameters
-        float octaveShift = 1.0f + brightness * 3.0f;
-        float q           = juce::jmap (depth, 0.0f, 1.0f, 2.0f, 200.0f);
+        //------------------------------------------------------------------
+        // 1. PITCH DETECTION  (zero-crossing period estimator)
+        //------------------------------------------------------------------
+        ++zcSampleCount;
+        if (zcPrev <= 0.0f && input > 0.0f)
+        {
+            if (zcSampleCount > 16)
+            {
+                zcPeriodSamples = zcPeriodSamples * 0.85f
+                                  + static_cast<float> (zcSampleCount) * 0.15f;
+                float freq = static_cast<float> (sampleRate) / zcPeriodSamples;
+                if (freq >= 30.0f && freq <= 400.0f)
+                    detectedFreq = freq;
+            }
+            zcSampleCount = 0;
+        }
+        zcPrev = input;
     
-        // Recompute coefficients only when knobs change
-        bool needsUpdate = (root          != cachedRoot          ||
-                            stretchAmount != cachedStretch       ||
-                            brightness    != cachedBrightness    ||
-                            depth         != cachedDepth);
+        float rootFreq = detectedFreq;
+    
+        //------------------------------------------------------------------
+        // 2. PITCH-SHIFTED EXCITER  (fixed perfect fifth = +7 semitones)
+        //    Hardcoded to P5 as the most universally musical shimmer interval.
+        //    Change the semitones constant to 4 (M3), 5 (P4), or 12 (Oct)
+        //    if you want a different default.
+        //------------------------------------------------------------------
+        constexpr float kShimmerSemitones = 7.0f;   // perfect fifth
+        constexpr float kPitchRatio       = 1.4983f; // std::pow(2, 7/12) baked out
+    
+        int   writeMod = grainWritePos & (kGrainSize * 2 - 1);
+        grainBuf[writeMod] = input;
+    
+        pitchPhase += kPitchRatio;
+        if (pitchPhase >= static_cast<float> (kGrainSize))
+            pitchPhase -= static_cast<float> (kGrainSize);
+    
+        int   readInt  = static_cast<int> (pitchPhase);
+        float readFrac = pitchPhase - static_cast<float> (readInt);
+        int   r0 = (grainWritePos - kGrainSize + readInt)     & (kGrainSize * 2 - 1);
+        int   r1 = (grainWritePos - kGrainSize + readInt + 1) & (kGrainSize * 2 - 1);
+    
+        float windowPhase  = pitchPhase / static_cast<float> (kGrainSize);
+        float hannWindow   = 0.5f - 0.5f * std::cos (2.0f * juce::MathConstants<float>::pi
+                                                      * windowPhase);
+        float shiftedInput = (grainBuf[r0] + readFrac * (grainBuf[r1] - grainBuf[r0]))
+                             * hannWindow;
+    
+        ++grainWritePos;
+    
+        //------------------------------------------------------------------
+        // 3. RESONATOR COEFFICIENT UPDATE  (only on knob change or pitch drift)
+        //------------------------------------------------------------------
+        const float harmonicRatios[7] = { 1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f, 7.0f };
+        const int   numHarmonics      = 7;
+    
+        float q        = juce::jmap (decay, 0.0f, 1.0f, 8.0f, 220.0f);
+        float shimmerQ = q * 3.0f;
+    
+        bool needsUpdate = (drive != cachedDrive ||
+                            tone  != cachedTone  ||
+                            decay != cachedDecay);
+    
+        float freqRatio = (detectedFreq > 0.0f)
+                          ? detectedFreq / std::max (1.0f, cachedDetectedFreq)
+                          : 1.0f;
+        if (freqRatio > 1.029f || freqRatio < 0.972f)
+            needsUpdate = true;
     
         if (needsUpdate)
         {
-            cachedRoot       = root;
-            cachedStretch    = stretchAmount;
-            cachedBrightness = brightness;
-            cachedDepth      = depth;
-            
-            // NOTE: Memory clearing removed here to prevent clicking during knob sweeps!
+            cachedDrive        = drive;
+            cachedTone         = tone;
+            cachedDecay        = decay;
+            cachedDetectedFreq = detectedFreq;
     
             int bandIdx = 0;
-            
-            // Generate lower bands mathematically
-            for (int note = 0; note < numResonatorBands - 1; ++note)
-            {
-                // Base harmonic multiplier (1, 2, 3, 4...)
-                float harmonic = static_cast<float> (note + 1);
-                
-                // The 'stretchAmount' (0.0 to 1.0) detunes the harmonics into inharmonic ratios.
-                // This exponent math pushes higher bands further out of tune, creating a bell-like metallic spread.
-                float inharmonicity = std::pow (1.0f + (stretchAmount * 0.1f), note);
-                
-                float bandFreq = juce::jlimit (20.0f, static_cast<float> (sampleRate) * 0.45f,
-                                               rootFreq * harmonic * inharmonicity * octaveShift);
     
-                float w0    = 2.0f * juce::MathConstants<float>::pi * bandFreq / static_cast<float> (sampleRate);
+            for (int h = 0; h < numHarmonics && bandIdx < numResonatorBands; ++h)
+            {
+                float bandFreq = juce::jlimit (
+                    20.0f, static_cast<float> (sampleRate) * 0.45f,
+                    rootFreq * harmonicRatios[h]);
+    
+                float w0    = 2.0f * juce::MathConstants<float>::pi * bandFreq
+                              / static_cast<float> (sampleRate);
                 float sinW0 = std::sin (w0);
                 float cosW0 = std::cos (w0);
                 float alpha = sinW0 / (2.0f * q);
@@ -1096,54 +1154,113 @@ public:
                 resB2[bandIdx] = -alpha / a0;
                 resA1[bandIdx] = -2.0f * cosW0 / a0;
                 resA2[bandIdx] = (1.0f - alpha) / a0;
-                bandIdx++;
+                ++bandIdx;
             }
     
-            // Dedicated Top Shimmer Band (forced an octave above the highest generated band)
-            float highestFreq = rootFreq * (numResonatorBands - 1) * std::pow(1.0f + (stretchAmount * 0.1f), numResonatorBands - 2) * octaveShift;
-            float shimmerFreq = juce::jlimit (20.0f, static_cast<float> (sampleRate) * 0.45f, highestFreq * 2.0f);
-            
-            float w0    = 2.0f * juce::MathConstants<float>::pi * shimmerFreq / static_cast<float> (sampleRate);
-            float sinW0 = std::sin (w0);
-            float cosW0 = std::cos (w0);
-            float alpha = sinW0 / (2.0f * q * 0.5f); // Slightly wider Q for the top band so it catches more audio
-            float a0    = 1.0f + alpha;
+            // Shimmer band 1: P5 above root (× kPitchRatio × 2)
+            if (bandIdx < numResonatorBands)
+            {
+                float shimFreq = juce::jlimit (
+                    20.0f, static_cast<float> (sampleRate) * 0.45f,
+                    rootFreq * kPitchRatio * 2.0f);
     
-            resB0[bandIdx] =  alpha / a0;
-            resB2[bandIdx] = -alpha / a0;
-            resA1[bandIdx] = -2.0f * cosW0 / a0;
-            resA2[bandIdx] = (1.0f - alpha) / a0;
-            bandIdx++;
+                float w0    = 2.0f * juce::MathConstants<float>::pi * shimFreq
+                              / static_cast<float> (sampleRate);
+                float sinW0 = std::sin (w0);
+                float cosW0 = std::cos (w0);
+                float alpha = sinW0 / (2.0f * shimmerQ);
+                float a0    = 1.0f + alpha;
+    
+                resB0[bandIdx] =  alpha / a0;
+                resB2[bandIdx] = -alpha / a0;
+                resA1[bandIdx] = -2.0f * cosW0 / a0;
+                resA2[bandIdx] = (1.0f - alpha) / a0;
+                ++bandIdx;
+            }
+    
+            // Shimmer band 2: P5 two octaves up (× kPitchRatio × 4)
+            if (bandIdx < numResonatorBands)
+            {
+                float shimFreq = juce::jlimit (
+                    20.0f, static_cast<float> (sampleRate) * 0.45f,
+                    rootFreq * kPitchRatio * 4.0f);
+    
+                float w0    = 2.0f * juce::MathConstants<float>::pi * shimFreq
+                              / static_cast<float> (sampleRate);
+                float sinW0 = std::sin (w0);
+                float cosW0 = std::cos (w0);
+                float alpha = sinW0 / (2.0f * shimmerQ * 1.5f);
+                float a0    = 1.0f + alpha;
+    
+                resB0[bandIdx] =  alpha / a0;
+                resB2[bandIdx] = -alpha / a0;
+                resA1[bandIdx] = -2.0f * cosW0 / a0;
+                resA2[bandIdx] = (1.0f - alpha) / a0;
+            }
         }
     
-        // Process each band with cached coefficients
-        float output  = 0.0f;
-        int   bandIdx = 0;
+        //------------------------------------------------------------------
+        // 4. PROCESS RESONATORS
+        //------------------------------------------------------------------
+        float bodyOut    = 0.0f;
+        float shimmerOut = 0.0f;
+        int   bandIdx    = 0;
     
-        for (int note = 0; note < numResonatorBands - 1; ++note)
+        for (int h = 0; h < numHarmonics && bandIdx < numResonatorBands; ++h)
         {
-            float bandOut     = resB0[bandIdx] * input + resS1[bandIdx];
-            resS1[bandIdx]    = -resA1[bandIdx] * bandOut + resS2[bandIdx];
-            resS2[bandIdx]    = -resA2[bandIdx] * bandOut + resB2[bandIdx] * input;
-            output           += bandOut;
-            bandIdx++;
+            float bandOut  = resB0[bandIdx] * input + resS1[bandIdx];
+            resS1[bandIdx] = -resA1[bandIdx] * bandOut + resS2[bandIdx];
+            resS2[bandIdx] = -resA2[bandIdx] * bandOut + resB2[bandIdx] * input;
+            bodyOut       += bandOut;
+            ++bandIdx;
         }
     
-        // Process Top Shimmer Band
         if (bandIdx < numResonatorBands)
         {
-            float bandOut     = resB0[bandIdx] * input + resS1[bandIdx];
-            resS1[bandIdx]    = -resA1[bandIdx] * bandOut + resS2[bandIdx];
-            resS2[bandIdx]    = -resA2[bandIdx] * bandOut + resB2[bandIdx] * input;
-            output           += bandOut * 0.7f; // Mixed a bit hotter for top-end sparkle
+            float bandOut  = resB0[bandIdx] * shiftedInput + resS1[bandIdx];
+            resS1[bandIdx] = -resA1[bandIdx] * bandOut + resS2[bandIdx];
+            resS2[bandIdx] = -resA2[bandIdx] * bandOut + resB2[bandIdx] * shiftedInput;
+            shimmerOut    += bandOut * 1.2f;
+            ++bandIdx;
         }
     
-        // Dynamic gain staging to prevent blowing out your speakers
-        float wetGain = 1.0f / std::sqrt (static_cast<float> (numResonatorBands));
-        float wet     = output * wetGain;
-        
-        // Safety check for exploded filter math
-        return std::isfinite (wet) ? (wet + input * 0.3f) : input;
+        if (bandIdx < numResonatorBands)
+        {
+            float bandOut  = resB0[bandIdx] * shiftedInput + resS1[bandIdx];
+            resS1[bandIdx] = -resA1[bandIdx] * bandOut + resS2[bandIdx];
+            resS2[bandIdx] = -resA2[bandIdx] * bandOut + resB2[bandIdx] * shiftedInput;
+            shimmerOut    += bandOut * 0.8f;
+        }
+    
+        //------------------------------------------------------------------
+        // 5. TILT EQ
+        //------------------------------------------------------------------
+        float tiltAmt  = (tone - 0.5f) * 2.0f;
+        float tiltFreq = 800.0f;
+        float tiltCoef = std::exp (-2.0f * juce::MathConstants<float>::pi
+                                   * tiltFreq / static_cast<float> (sampleRate));
+    
+        tiltLowZ       = tiltLowZ * tiltCoef + bodyOut * (1.0f - tiltCoef);
+        float tiltHigh = bodyOut - tiltLowZ;
+        float tiltedBody = bodyOut + tiltAmt * (tiltHigh - tiltLowZ) * 0.5f;
+    
+        //------------------------------------------------------------------
+        // 6. SATURATION
+        //------------------------------------------------------------------
+        float driveGain  = 1.0f + drive * 15.0f;
+        float bodyDriven = std::tanh (tiltedBody * driveGain) / std::tanh (driveGain);
+        float shimDriven = std::tanh (shimmerOut * driveGain) / std::tanh (driveGain);
+    
+        //------------------------------------------------------------------
+        // 7. MIX
+        //------------------------------------------------------------------
+        float bodyNorm    = bodyDriven / std::sqrt (static_cast<float> (numHarmonics));
+        float shimmerNorm = shimDriven / std::sqrt (2.0f);
+    
+        float wet = bodyNorm + shimmerNorm * shimmer;
+        float out = wet * 0.7f + input * 0.3f;
+    
+        return std::isfinite (out) ? out : input;
     }
 
     float processSampleAmbientDelay (float input, float time, float feedback,
@@ -1630,16 +1747,28 @@ protected:
     float djfxJumpTimer = 0.0f; float djfxLoopStart = -1.0f; // -1 means no loop active
     juce::Random djfxRandom;
 
-    // Harmonic Resonator state
-    static constexpr int numResonatorBands = 8;
+    // Color Bass state
+    static constexpr int numResonatorBands = 9;
     std::array<float, numResonatorBands> resS1 { 0.0f };
     std::array<float, numResonatorBands> resS2 { 0.0f };
-    // Harmonic Resonator coefficient cache
-    float cachedRoot = -1.0f, cachedStretch = -1.0f;
-    float cachedBrightness = -1.0f, cachedDepth = -1.0f;
-    int   cachedNoteCount = 0;
-    std::array<float, 9> resB0 { 0.0f }, resB2 { 0.0f };
-    std::array<float, 9> resA1 { 0.0f }, resA2 { 0.0f };
+    std::array<float, numResonatorBands> resB0 { 0.0f }, resB2 { 0.0f };
+    std::array<float, numResonatorBands> resA1 { 0.0f }, resA2 { 0.0f };
+    
+    float cachedDrive        = -1.0f;
+    float cachedTone         = -1.0f;
+    float cachedDecay        = -1.0f;
+    float cachedDetectedFreq =  0.0f;
+    
+    static constexpr int kGrainSize = 512;
+    std::array<float, kGrainSize * 2> grainBuf {};
+    int   grainWritePos = 0;
+    float pitchPhase    = 0.0f;
+    
+    float tiltLowZ         = 0.0f;
+    float zcPrev           = 0.0f;
+    float zcPeriodSamples  = 0.0f;
+    int   zcSampleCount    = 0;
+    float detectedFreq     = 80.0f;
 
     // Ambient Delay state. First Delay itself
     static constexpr int ambientBufferSize = 384000; // 8 seconds at 48kHz

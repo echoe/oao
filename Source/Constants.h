@@ -14,7 +14,7 @@ namespace ProjectConfig
     // Filters list
     inline juce::StringArray getFilterTypeChoices()
     {
-        return { "None", "Lowpass", "Highpass", "Bandpass", "Comb", "Granular", "Formant", "Tape", "Bitcrush", "AP Delay", "AP Reverb", "Compressor", "Scatter", "Ring Mod", "Chorus", "Distortion", "DJFX Delay", "Resonator", "Ambient Shimmer", "Old Chorus", "OTT", "Spectral Freeze" };
+        return { "None", "Lowpass", "Highpass", "Bandpass", "Comb", "Granular", "Formant", "Tape", "Bitcrush", "AP Delay", "AP Reverb", "Compressor", "Scatter", "Ring Mod", "Chorus", "Distortion", "DJFX Delay", "Color Bass", "Ambient Shimmer", "Old Chorus", "OTT", "Spectral Freeze" };
     }
     // Filters knobs list
     inline std::array<const char*, 4> getFilterKnobLabels (int filterTypeIndex)
@@ -38,7 +38,7 @@ namespace ProjectConfig
 	    case 14: return { "Rate",      "Depth",    "Spread",    "Voices"   }; // Chorus
             case 15: return { "Drive",     "Flavor",   "Tone",      "Degrade"  }; // Distortion
             case 16: return { "Buffer",    "Speed",    "Loop On",   "Drift"    }; // DJFX Delay
-            case 17: return { "Root",      "Stretch",  "Brightness","Depth"    }; // Resonator
+            case 17: return { "Drive",     "Shimmer",  "Tone",      "Decay"    }; // Color Bass
 	    case 18: return { "Time",      "Feedback", "Shimmer",   "Diffusion"}; // Ambient Shimmer
             case 19: return { "Rate",      "Depth",    "Mode",      "Warmth"   }; // Old Chorus
             case 20: return { "Depth",     "Time",     "Upward",    "Tone"     }; // OTT

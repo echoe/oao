@@ -580,19 +580,19 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
                         processed = std::isfinite (processed) ? processed : 0.0f;
                         break;
                     }
-                    case 17: // Harmonic Resonator
+                    case 17: // Color Bass
                     {
-                        float root       = normalizedRatio;
-                        float scaleKnob  = dampingAmt;
-                        float brightness = phase / 360.0f;
-                        float resonDepth = juce::jlimit (0.0f, 1.0f, fold);
-                        processed = fxFilters[slot].processSampleHarmonicResonator (inputSample, root,
-                                                                                      scaleKnob, brightness,
-                                                                                      resonDepth, getSampleRate());
+                        float drive   = juce::jlimit (0.0f, 1.0f, normalizedRatio);
+                        float shimmer = juce::jlimit (0.0f, 1.0f, phase / 360.0f);
+                        float tone    = juce::jlimit (0.0f, 1.0f, dampingAmt);
+                        float decay   = juce::jlimit (0.0f, 1.0f, fold);
+                        processed     = fxFilters[slot].processSampleColorBass (inputSample, drive,
+                                                                                 shimmer, tone,
+                                                                                 decay, getSampleRate());
                         processed = std::isfinite (processed) ? processed : 0.0f;
                         break;
                     }
-                    case 18: // Ambient Delay
+		    case 18: // Ambient Delay
                     {
                         float time       = normalizedRatio;
                         float feedbk     = dampingAmt;

@@ -94,3 +94,33 @@ target_link_libraries(OAO_FX PRIVATE
 )
 
 juce_generate_juce_header(OAO_FX)
+
+# Enable CTest integration
+enable_testing()
+
+# Create the command-line executable for testing
+add_executable(OAO_Tests
+    Source/Tests/Main.cpp
+    Source/Tests/SmartRandomizerTests.cpp
+    Source/PluginProcessor.cpp
+    Source/FMVoice.cpp
+)
+
+# Only link core JUCE modules
+target_link_libraries(OAO_Tests PRIVATE
+    juce::juce_core
+    juce::juce_data_structures
+    juce::juce_audio_basics
+    juce::juce_events # Required for JUCE MessageManager/Test Runner
+)
+
+# IMPORTANT: Disable the features that require system libraries
+target_compile_definitions(OAO_Tests PRIVATE
+    JUCE_WEB_BROWSER=0
+    JUCE_USE_CURL=0
+    JUCE_USE_X11=0
+    JUCE_USE_GTK=0
+)
+
+# Register the test with CMake
+add_test(NAME OAOTestSuite COMMAND OAO_Tests)

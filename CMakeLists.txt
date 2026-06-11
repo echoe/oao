@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
-project(OAO VERSION 2.0.1 LANGUAGES C CXX)
+project(OAO VERSION 2.0.3 LANGUAGES C CXX)
 
 # --- Use local JUCE if available, otherwise fetch ---
 set(JUCE_LOCAL_PATH "$ENV{HOME}/JUCE" CACHE PATH "Path to local JUCE installation")
@@ -57,7 +57,7 @@ target_link_libraries(OAO PRIVATE
 juce_generate_juce_header(OAO)
 
 # Target 2: Effect
-juce_add_plugin(OAO_FX
+juce_add_plugin(OAOFX
     COMPANY_NAME "echoe"
     IS_SYNTH FALSE
     NEEDS_MIDI_INPUT FALSE
@@ -68,7 +68,7 @@ juce_add_plugin(OAO_FX
     PLUGIN_MANUFACTURER_CODE "Ecoe"
     PLUGIN_PLUGIN_CODE "OAOX"
     FORMATS VST3
-    PRODUCT_NAME "OAO_FX")
+    PRODUCT_NAME "OAOFX")
 
 target_sources(OAO_FX PRIVATE
     Source/PluginProcessor.h
@@ -78,19 +78,19 @@ target_sources(OAO_FX PRIVATE
     Source/FMVoice.cpp
 )
 
-target_compile_definitions(OAO_FX PRIVATE
+target_compile_definitions(OAOFX PRIVATE
     JUCE_WEB_BROWSER=0
     JUCE_USE_CURL=0
     JUCE_VST3_CAN_REPLACE_VST2=0
     OAO_FX_ONLY=1
 )
 
-target_compile_features(OAO_FX PRIVATE cxx_std_17)
+target_compile_features(OAOFX PRIVATE cxx_std_17)
 
-target_link_libraries(OAO_FX PRIVATE
+target_link_libraries(OAOFX PRIVATE
     juce::juce_audio_processors
     juce::juce_dsp
     juce::juce_audio_utils
 )
 
-juce_generate_juce_header(OAO_FX)
+juce_generate_juce_header(OAOFX)

@@ -66,6 +66,14 @@ Additional Notes:
 Additional Notes:
 - It's a 32-partial additive oscillator, if you were wondering! I thought about it and it made the most sense to me just for CPU usage reasons. But IDK, maybe it's fine to be 32 or 64? You can change this to however many partials you want and build it yourself, just change 'numPartials' in 'FMOperator.h' and rebuild the synth yourself :)
 
+### Sample
+- Import an audio file, and modify it with the effects/route it just like everything else. Initially I wanted to pass audio through the plugin but that's a giant pain for multiple reasons and JUCE has this built in so it's very easy to implement!
+- You can import a sample of any size (as long as your RAM can handle it ...).
+- Samples are automatically assumed to be pitched at c4 - midi notes above or below c4 pitch the sample up or down respectfully.
+- Sample playback: Oneshot, Loop, Pingpong, Scatter
+- Sample options: Speed, Sample Start, Loop (>.5 means yes loop, <.5 means no loop), Fold
+- Note: When you save a preset, the preset saves a copy of the sample in the xml. Long samples will make very large presets.
+
 ### Effect:
 #### None
 - Options: It doesn't do anything
@@ -168,14 +176,6 @@ Take the incoming audio. Pause it. Twist it and reverse it.
 - In FMOperator.h, process the knobs to be correct given their start positions (which are from the default Wave 'Operators' page, these knobs are just relabeled with every change), and then pass them to the processing function.
 - In the processBlock effects loop in PluginProcessor.cpp, so the Effects page can work, add the case there. This is pretty much the same as FMOperator.h but with some differences that are pretty self-evident looking at the 24 (!) current examples.
 - There is also an FX-Specific plugin that now builds, where you can use the effects by themselves.
-
-### Sample
-- Import an audio file, and modify it with the effects/route it just like everything else. Initially I wanted to pass audio through the plugin but that's a giant pain for multiple reasons and JUCE has this built in so it's very easy to implement!
-- You can import a sample of any size (as long as your RAM can handle it ...).
-- Samples are automatically assumed to be pitched at c4 - midi notes above or below c4 pitch the sample up or down respectfully.
-- Sample playback: Oneshot, Loop, Pingpong, Scatter
-- Sample options: Speed, Sample Start, Loop (>.5 means yes loop, <.5 means no loop), Fold
-- Note: When you save a preset, the preset saves a copy of the sample in the xml. Long samples will make very large presets.
 
 ## Modulation Matrix
 - A 6 by 6 matrix letting you modulate any operator with any other operator. On the right of this, there is a 6-slot mod matrix, letting you modulate anything in the synth (including effects, but effects are global only) with one of the six operators.

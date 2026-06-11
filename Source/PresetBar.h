@@ -439,7 +439,7 @@ private:
                     newValue = parameterRange.convertTo0to1(static_cast<float>(targetedChoice));
                 }
                 
-                // --- 5. TIMBRE (Pitch, Shape, Filter) ---
+                // --- 5. TIMBRE (Pitch, Shape, Effect) ---
                 else if (paramID.startsWith("RATIO"))
                 {
                     // For FM drums: Low ratio (0-1) = Kicks/Toms. High/Weird ratio (3+) = Hats/Metallic.

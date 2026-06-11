@@ -33,12 +33,12 @@ struct CompactOperatorGroup : public juce::Component
         // Letting us swap oscillator mode for easier operator control
         freqModeSelector.addItemList ({ "Std", "Sync", "Hz", "LFO" }, 1);
         addAndMakeVisible (freqModeSelector);
-	modeSelector.addItemList ({ "Wave", "Additive", "Filter", "Sample" }, 1);
+	modeSelector.addItemList ({ "Wave", "Additive", "Sample", "Effect" }, 1);
         addAndMakeVisible (modeSelector);
         waveShapeSelector.addItemList ({ "Sine", "Triangle", "Saw", "Square", "Pulse", "SquarePWM", "White Noise", "Pink Noise" }, 1);
         addAndMakeVisible (waveShapeSelector);
-        filterTypeSelector.addItemList (ProjectConfig::getFilterTypeChoices(), 1);
-        addAndMakeVisible (filterTypeSelector);
+        effectTypeSelector.addItemList (ProjectConfig::getEffectTypeChoices(), 1);
+        addAndMakeVisible (effectTypeSelector);
 
         // Load Sample button — only shown in Sample mode
         loadSampleButton.setButtonText ("Load Sample");
@@ -79,13 +79,13 @@ struct CompactOperatorGroup : public juce::Component
         releaseAttach = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (apvts, "RELEASE_" + opNum, releaseSlider);
         modeAttach      = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (apvts, "MODE_" + opNum, modeSelector);
         waveShapeAttach = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (apvts, "WAVE_SHAPE_" + opNum, waveShapeSelector);
-        filterTypeAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (apvts, "FILTER_TYPE_" + opNum, filterTypeSelector);
+        effectTypeAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (apvts, "FILTER_TYPE_" + opNum, effectTypeSelector);
 
         // Safe UI state triggers using the stored class member reference
         modeSelector.onChange = [this]() { updateUIState(); };
         waveShapeSelector.onChange = [this]() { updateUIState(); };
 	freqModeSelector.onChange = [this]() { updateUIState(); };
-	filterTypeSelector.onChange = [this]() {updateUIState(); };
+	effectTypeSelector.onChange = [this]() {updateUIState(); };
         updateUIState(); // on load
     }
 
@@ -110,8 +110,8 @@ struct CompactOperatorGroup : public juce::Component
 	freqModeSelector.setBounds (topStrip.removeFromLeft (w * 0.18f).reduced (1));
 	modeSelector.setBounds  (topStrip.removeFromLeft (w * 0.25f).reduced (1));
     
-        if (filterTypeSelector.isVisible())
-            filterTypeSelector.setBounds (topStrip.reduced (1));
+        if (effectTypeSelector.isVisible())
+            effectTypeSelector.setBounds (topStrip.reduced (1));
         else if (loadSampleButton.isVisible())
             loadSampleButton.setBounds (topStrip.reduced (1));
         else
@@ -201,7 +201,7 @@ struct CompactOperatorGroup : public juce::Component
 
         updateComboBox (modeSelector);
         updateComboBox (waveShapeSelector);
-        updateComboBox (filterTypeSelector);
+        updateComboBox (effectTypeSelector);
 
         // 3. Helper lambda to update Sliders cleanly
         auto updateSlider = [this](juce::Slider& s) {
@@ -236,21 +236,21 @@ private:
         int selectedMode   = modeSelector.getSelectedId();
         bool isWaveMode    = (selectedMode == 1);
         bool isAdditiveMode = (selectedMode == 2);
-        bool isFilterMode  = (selectedMode == 3);
-        bool isExtAudioMode = (selectedMode == 4);
+        bool isSampleMode = (selectedMode == 3);
+	bool isEffectMode  = (selectedMode == 4);
 	int freqMode        = freqModeSelector.getSelectedId();
         bool isSync         = (freqMode == 2);
         bool isHz           = (freqMode == 3);
         bool isLFO          = (freqMode == 4);
-        int selectedFilter = filterTypeSelector.getSelectedId();
+        int selectedEffect = effectTypeSelector.getSelectedId();
         waveShapeSelector.setVisible (isWaveMode);
-        filterTypeSelector.setVisible (isFilterMode);
-        loadSampleButton.setVisible (isExtAudioMode);
+        effectTypeSelector.setVisible (isEffectMode);
+        loadSampleButton.setVisible (isSampleMode);
         phaseSlider.setVisible (true);
         phaseLabel.setVisible  (true);
 
         // Swap freqMode selector items depending on whether we're in sample mode or not
-        if (isExtAudioMode)
+        if (isSampleMode)
         {
             if (freqModeSelector.getItemText (0) != "One-shot")
             {
@@ -277,7 +277,7 @@ private:
         }
 
         // Knob labels — one clean chain covering all four modes
-        if (isExtAudioMode)
+        if (isSampleMode)
         {
             ratioLabel.setText  ("Speed", juce::dontSendNotification);
             detuneLabel.setText ("Start", juce::dontSendNotification);
@@ -293,9 +293,9 @@ private:
             phaseLabel.setText  ("Stretch",  juce::dontSendNotification);
             foldLabel.setText   ("Odd/Even", juce::dontSendNotification);
         }
-        else if (isFilterMode)
+        else if (isEffectMode)
         {
-            auto labels = ProjectConfig::getFilterKnobLabels (selectedFilter - 1);
+            auto labels = ProjectConfig::getEffectKnobLabels (selectedEffect - 1);
             ratioLabel.setText  (labels[0], juce::dontSendNotification);
             detuneLabel.setText (labels[1], juce::dontSendNotification);
             phaseLabel.setText  (labels[2], juce::dontSendNotification);
@@ -336,14 +336,14 @@ private:
     
     juce::ComboBox modeSelector;
     juce::ComboBox waveShapeSelector;
-    juce::ComboBox filterTypeSelector;
+    juce::ComboBox effectTypeSelector;
     juce::ComboBox freqModeSelector;
     juce::TextButton loadSampleButton;
     std::unique_ptr<juce::FileChooser> fileChooser;
 
     std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> modeAttach;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> waveShapeAttach;
-    std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> filterTypeAttachment;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> effectTypeAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> freqModeAttach;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> ratioAttach, detuneAttach, phaseAttach, foldAttach;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> attackAttach, decayAttach, sustainAttach, releaseAttach;

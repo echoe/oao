@@ -44,7 +44,7 @@ void FMVoice::initParameters (juce::AudioProcessorValueTreeState& apvts)
 
         check("MODE_" + opNum, opParams[i].mode);
         check("WAVE_SHAPE_" + opNum, opParams[i].wave);
-        check("FILTER_TYPE_" + opNum, opParams[i].filterType);
+        check("FILTER_TYPE_" + opNum, opParams[i].effectType);
         check("RATIO_" + opNum, opParams[i].ratio);
         check("DETUNE_" + opNum, opParams[i].detune);
         check("PHASE_" + opNum, opParams[i].phase);
@@ -167,7 +167,7 @@ void FMVoice::renderNextBlock (juce::AudioBuffer<float>& outputBuffer, int start
 
     // Cache parameters for all operators.
     std::array<float, ProjectConfig::numOperators> cachedRatios, cachedDetunes, cachedPhases, cachedFolds, cachedOuts;
-    std::array<int, ProjectConfig::numOperators> cachedModes, cachedShapes, cachedFilterTypes;
+    std::array<int, ProjectConfig::numOperators> cachedModes, cachedShapes, cachedEffectTypes;
     std::array<bool, ProjectConfig::numOperators> cachedFreqModes;
     std::array<float, ProjectConfig::numOperators> cachedAttacks, cachedDecays, cachedSustains, cachedReleases;
 
@@ -180,7 +180,7 @@ void FMVoice::renderNextBlock (juce::AudioBuffer<float>& outputBuffer, int start
         cachedOuts[i]      = safeLoad(opParams[i].out, 0.0f);
         cachedModes[i]       = static_cast<int>(safeLoad(opParams[i].mode, 0.0f));
         cachedShapes[i]      = static_cast<int>(safeLoad(opParams[i].wave, 0.0f));
-        cachedFilterTypes[i] = static_cast<int>(safeLoad(opParams[i].filterType, 0.0f));
+        cachedEffectTypes[i] = static_cast<int>(safeLoad(opParams[i].effectType, 0.0f));
         cachedFreqModes[i] = static_cast<int> (safeLoad (opParams[i].freqMode, 0.0f));
     }
 
@@ -285,7 +285,7 @@ void FMVoice::renderNextBlock (juce::AudioBuffer<float>& outputBuffer, int start
                 foldModOffsets[dest],
                 cachedModes[dest], 
                 cachedShapes[dest], 
-                cachedFilterTypes[dest], 
+                cachedEffectTypes[dest], 
                 cachedFreqModes[dest]
             );
 

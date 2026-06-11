@@ -11,15 +11,15 @@ namespace ProjectConfig
     // Base plugin size
     static constexpr int pluginSizeX = 1000;
     static constexpr int pluginSizeY = 700;
-    // Filters list
-    inline juce::StringArray getFilterTypeChoices()
+    // Effects list
+    inline juce::StringArray getEffectTypeChoices()
     {
-        return { "None", "Lowpass", "Highpass", "Bandpass", "Drive Filter", "Comb", "Formant", "Compressor", "3-bar EQ", "OTT", "Lofi", "Tape", "Chorus", "Old Chorus", "Distortion", "Bitcrush", "Ring Mod", "AP Reverb", "AP Delay", "Timeshift Delay", "Shimmer Delay", "DJFX Delay", "Scatter", "Granular", "Color Bass", "Spectral Freeze" };
+        return { "None", "Lowpass", "Highpass", "Bandpass", "Filter Drive", "Comb", "Formant", "Compressor", "3-bar EQ", "OTT", "Lofi", "Tape", "Chorus", "Old Chorus", "Distortion", "Bitcrush", "Ring Mod", "AP Reverb", "AP Delay", "Timeshift Delay", "Shimmer Delay", "DJFX Delay", "Scatter", "Granular", "Color Bass", "Spectral Freeze" };
     }
-    // Filters knobs list
-    inline std::array<const char*, 4> getFilterKnobLabels (int filterTypeIndex)
+    // Effects knobs list
+    inline std::array<const char*, 4> getEffectKnobLabels (int effectTypeIndex)
     {
-        switch (filterTypeIndex)
+        switch (effectTypeIndex)
         {
             case 0:  return { "--",        "--",       "--",        "--"       }; // None
             case 1:  return { "Cutoff",    "Resonance","Keytrack",  "Feedback" }; // Lowpass
@@ -27,7 +27,7 @@ namespace ProjectConfig
             case 3:  return { "Cutoff",    "Resonance","Keytrack",  "Feedback" }; // Bandpass
             case 4:  return { "Cutoff",    "Resonance","Overdrive", "Mode"     }; // Filter w/Drive
             case 5:  return { "Cutoff",    "Damping",  "Keytrack",  "Feedback" }; // Comb
-            case 6:  return { "Vowel",     "Nasal",    "Vowel Mod", "Drive"    }; // Formant. End of filters
+            case 6:  return { "Vowel",     "Nasal",    "Vowel Mod", "Drive"    }; // Formant. End of effects
 	    case 7:  return { "Threshold", "Ratio",    "Attack",    "Release"  }; // Compressor. EQ-ish ...
             case 8:  return { "Low Gain",  "Mid Gain", "High Gain", "Gain"     }; // 3-bar EQ.
             case 9:  return { "Depth",     "Time",     "Upward",    "Tone"     }; // OTT

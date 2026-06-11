@@ -11,10 +11,10 @@ public:
 	    : colors (c)
     {
         juce::String s = juce::String (slotIndex + 1);
-        // Filter type selector. We grab the list from Constants.h
-        filterSelector.addItemList (ProjectConfig::getFilterTypeChoices(), 1);
-	filterSelector.setSelectedId (1, juce::dontSendNotification);
-        addAndMakeVisible (filterSelector);
+        // Effect type selector. We grab the list from Constants.h
+        effectSelector.addItemList (ProjectConfig::getEffectTypeChoices(), 1);
+	effectSelector.setSelectedId (1, juce::dontSendNotification);
+        addAndMakeVisible (effectSelector);
         // Sync button
         syncButton.setButtonText ("Sync");
         syncButton.setClickingTogglesState (true);
@@ -41,8 +41,8 @@ public:
         slotLabel.setJustificationType (juce::Justification::centred);
         addAndMakeVisible (slotLabel);
         // Attachments
-	filterAttach = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (
-            apvts, "FX_TYPE_" + s, filterSelector);
+	effectAttach = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (
+            apvts, "FX_TYPE_" + s, effectSelector);
         syncAttach = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (
             apvts, "FX_SYNC_" + s, syncButton);
         mixAttach = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
@@ -52,15 +52,15 @@ public:
         for (int i = 0; i < 4; ++i)
             knobAttachments[i] = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
                 apvts, knobIDs[i] + s, knobs[i]);
-        // Update labels when filter type changes, and update on instantiate
-        filterSelector.onChange = [this] { updateLabels(); };
+        // Update labels when effect type changes, and update on instantiate
+        effectSelector.onChange = [this] { updateLabels(); };
         updateLabels();
     }
 
     void updateLabels()
     {
-        int typeIndex = filterSelector.getSelectedId() - 1; // ComboBox is 1-indexed
-	auto labels = ProjectConfig::getFilterKnobLabels (typeIndex);
+        int typeIndex = effectSelector.getSelectedId() - 1; // ComboBox is 1-indexed
+	auto labels = ProjectConfig::getEffectKnobLabels (typeIndex);
         for (int i = 0; i < 4; ++i)
             knobLabels[i].setText (labels[i], juce::dontSendNotification);
     }
@@ -83,8 +83,8 @@ public:
         for (int i = 0; i < 4; ++i)
             knobLabels[i].setColour (juce::Label::textColourId, colors.text);
         // Update ComboBox
-        filterSelector.setColour (juce::ComboBox::backgroundColourId, colors.surface);
-        filterSelector.setColour (juce::ComboBox::textColourId, colors.text);
+        effectSelector.setColour (juce::ComboBox::backgroundColourId, colors.surface);
+        effectSelector.setColour (juce::ComboBox::textColourId, colors.text);
         // Update Mix Slider
         mixSlider.setColour (juce::Slider::textBoxBackgroundColourId, colors.surface);
         mixSlider.setColour (juce::Slider::textBoxTextColourId, colors.text);
@@ -96,18 +96,18 @@ public:
             knobs[i].sendLookAndFeelChange();
         }
         // Nudge the others
-        filterSelector.sendLookAndFeelChange();
+        effectSelector.sendLookAndFeelChange();
         mixSlider.sendLookAndFeelChange();
     }
 
     void resized() override
     {
         auto area = getLocalBounds().reduced (getWidth() * 0.02f);
-        // Top row: slot label, filter selector, sync button
+        // Top row: slot label, effect selector, sync button
         auto topRow = area.removeFromTop (getHeight() * 0.18f);
         slotLabel.setBounds      (topRow.removeFromLeft (topRow.getWidth() * 0.08f));
         syncButton.setBounds     (topRow.removeFromRight (topRow.getWidth() * 0.12f).reduced (2));
-        filterSelector.setBounds (topRow.reduced (2));
+        effectSelector.setBounds (topRow.reduced (2));
         area.removeFromTop (getHeight() * 0.02f);
         // Mix knob on the left
         auto mixArea = area.removeFromLeft (area.getWidth() * 0.12f);
@@ -135,14 +135,14 @@ private:
     }
     OAOColors& colors;
     juce::Label    slotLabel;
-    juce::ComboBox filterSelector;
+    juce::ComboBox effectSelector;
     juce::TextButton syncButton;
     juce::Slider   mixSlider;
     juce::Label    mixLabel;
     juce::Slider   knobs[4];
     juce::Label    knobLabels[4];
 
-    std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> filterAttach;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> effectAttach;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment>   syncAttach;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>   mixAttach;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>   knobAttachments[4];

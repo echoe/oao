@@ -282,7 +282,7 @@ private:
             ratioLabel.setText  ("Speed", juce::dontSendNotification);
             detuneLabel.setText ("Start", juce::dontSendNotification);
             phaseLabel.setText  ("End",   juce::dontSendNotification);
-            foldLabel.setText   ("Fold",  juce::dontSendNotification);
+            foldLabel.setText   ("Boundary",  juce::dontSendNotification);
             ratioSlider.setTextValueSuffix ("");
         }
         else if (isAdditiveMode)

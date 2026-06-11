@@ -28,8 +28,11 @@ public:
         envelope.setParameters (envParams);
         envelope.noteOn();
         phase = 0.0;
-        samplePlayPos = 0.0;
-        pingPongDir   = 1.0f;
+        samplePlayPos  = 0.0;
+        xfadePlayPos   = 0.0;
+        pingPongDir    = 1.0f;
+        xfadePingDir   = 1.0f;
+        xfadeActive    = false;
         internalEffect.reset();
     }
 
@@ -45,7 +48,10 @@ public:
         envelope.reset();
         pinkB0 = pinkB1 = pinkB2 = pinkB3 = pinkB4 = pinkB5 = pinkB6 = 0.0f;
         samplePlayPos = 0.0;
+        xfadePlayPos  = 0.0;
         pingPongDir   = 1.0f;
+        xfadePingDir  = 1.0f;
+        xfadeActive   = false;
         internalEffect.reset();
     }
 
@@ -59,8 +65,10 @@ public:
     // Thread-safe for audio thread reads as long as the buffer is not mutated after loading.
     void setSampleData (std::shared_ptr<juce::AudioBuffer<float>> newBuffer) noexcept
     {
-        sampleBuffer = newBuffer;
+        sampleBuffer  = newBuffer;
         samplePlayPos = 0.0;
+        xfadePlayPos  = 0.0;
+        xfadeActive   = false;
     }
 
     bool isActive() const { return envelope.isActive(); }
@@ -113,98 +121,144 @@ public:
 
                 // --- Play mode (freqMode re-used as play-mode selector) ---
                 // freqMode: 0 = One-shot, 1 = Loop, 2 = Ping-pong, 3 = Stutter
-                int playMode = freqMode; // passed in from cachedFreqModes[]
+                int playMode = freqMode;
+
+                // --- foldKnob re-purposed: boundary behaviour per mode ---
+                // One-shot:   fade-out length at end of region (0 = hard stop, 1 = full-region fade)
+                // Loop:       crossfade length at loop seam    (0 = hard loop, 1 = long blend)
+                // Ping-pong:  crossfade length at turnarounds  (same semantics as loop)
+                // Stutter:    grain window size                (256..32768 samples)
+                float boundaryKnob = juce::jlimit (0.0f, 1.0f, foldKnob + foldModOffset);
 
                 // --- Advance playback position ---
                 double advance = modSpeed / (oversamplingFactor > 0 ? oversamplingFactor : 1);
                 float sampleOut = 0.0f;
 
-		if (playMode == 3) // Stutter: loop a window controlled by foldKnob
+                // Helper: linearly interpolated sample read at an absolute position
+                auto readSample = [&] (double pos) -> float
                 {
-                    // Map foldKnob (0..1) to a grain window size (e.g., 256 to 32768 samples)
-                    float foldDepth = juce::jlimit (0.0f, 1.0f, foldKnob + foldModOffset);
-                    double windowSamples = 256.0 + (foldDepth * 32512.0);
-                
-                    // Ensure we don't exceed the actual region length if it's smaller
-                    windowSamples = std::min(windowSamples, (double)regionLen);
-                
-                    double playPos = startSample + std::fmod (samplePlayPos, windowSamples);
-                    playPos = juce::jlimit (0.0, static_cast<double> (numSamples - 1), playPos);
-                
-                    int   idx0 = static_cast<int> (playPos);
+                    pos = juce::jlimit (0.0, static_cast<double> (numSamples - 1), pos);
+                    int   idx0 = static_cast<int> (pos);
                     int   idx1 = juce::jmin (idx0 + 1, numSamples - 1);
-                    float frac = static_cast<float> (playPos - std::floor (playPos));
-                
+                    float frac = static_cast<float> (pos - std::floor (pos));
                     if (numChannels >= 2)
                     {
                         float s0 = buf->getSample (0, idx0) * (1.0f - frac) + buf->getSample (0, idx1) * frac;
                         float s1 = buf->getSample (1, idx0) * (1.0f - frac) + buf->getSample (1, idx1) * frac;
-                        sampleOut = (s0 + s1) * 0.5f;
+                        return (s0 + s1) * 0.5f;
                     }
-                    else
-                    {
-                        sampleOut = buf->getSample (0, idx0) * (1.0f - frac) + buf->getSample (0, idx1) * frac;
-                    }
-                
+                    return buf->getSample (0, idx0) * (1.0f - frac) + buf->getSample (0, idx1) * frac;
+                };
+
+                if (playMode == 3) // Stutter: loop a grain window whose size is boundaryKnob
+                {
+                    // Map 0..1 → ~2048 samples (46ms) to 50% of the region, in samples
+                    double minWindow    = 2048.0;
+                    double maxWindow    = regionLen * 0.5;
+                    maxWindow           = std::max (maxWindow, minWindow + 1.0); // ensure range is valid
+                    double windowSamples = minWindow + (boundaryKnob * (maxWindow - minWindow));
+
+                    double playPos = startSample + std::fmod (samplePlayPos, windowSamples);
+                    sampleOut = readSample (playPos);
+
                     samplePlayPos += advance;
                     while (samplePlayPos >= windowSamples)
                         samplePlayPos -= windowSamples;
                 }
-                else
+                else if (playMode == 0) // One-shot with fade-out
                 {
-                    // One-shot / Loop / Ping-pong
                     double playPos = startSample + samplePlayPos;
-                    playPos = juce::jlimit (startSample, endSample, playPos);
-                
-                    int   idx0 = static_cast<int> (playPos);
-                    int   idx1 = juce::jmin (idx0 + 1, numSamples - 1);
-                    float frac = static_cast<float> (playPos - std::floor (playPos));
-                
-                    if (numChannels >= 2)
+                    sampleOut = readSample (playPos);
+
+                    samplePlayPos += advance;
+
+                    if (samplePlayPos >= regionLen)
                     {
-                        float s0 = buf->getSample (0, idx0) * (1.0f - frac) + buf->getSample (0, idx1) * frac;
-                        float s1 = buf->getSample (1, idx0) * (1.0f - frac) + buf->getSample (1, idx1) * frac;
-                        sampleOut = (s0 + s1) * 0.5f;
+                        // Clamp at the very last valid position and kill the voice.
+                        samplePlayPos = regionLen - 1.0;
+                        envelope.noteOff(); // stop the envelope — operator is done
                     }
                     else
                     {
-                        sampleOut = buf->getSample (0, idx0) * (1.0f - frac) + buf->getSample (0, idx1) * frac;
-                    }
-                
-                    if (playMode == 0) // One-shot
-                    {
-                        samplePlayPos += advance;
-                        if (samplePlayPos >= regionLen)
-                            samplePlayPos = regionLen - 1.0;
-                    }
-                    else if (playMode == 1) // Loop
-                    {
-                        samplePlayPos += advance;
-                        while (samplePlayPos >= regionLen)
-                            samplePlayPos -= regionLen;
-                    }
-                    else // Ping-pong
-                    {
-                        samplePlayPos += pingPongDir * advance;
-                        if (samplePlayPos >= regionLen)
+                        // Fade-out: apply gain ramp over the tail defined by boundaryKnob.
+                        // boundaryKnob == 0 → no fade (hard stop at end).
+                        // boundaryKnob == 1 → fade starts from the very beginning of the region.
+                        double fadeLen = boundaryKnob * regionLen;
+                        if (fadeLen > 1.0)
                         {
-                            samplePlayPos = (2.0 * regionLen) - samplePlayPos;
-                            pingPongDir = -1.0f;
-                        }
-                        else if (samplePlayPos <= 0.0)
-                        {
-                            samplePlayPos = -samplePlayPos;
-                            pingPongDir = 1.0f;
+                            double distFromEnd = regionLen - samplePlayPos;
+                            if (distFromEnd < fadeLen)
+                            {
+                                float fadeGain = static_cast<float> (distFromEnd / fadeLen);
+                                sampleOut *= fadeGain;
+                            }
                         }
                     }
                 }
-
-                // Fold knob → wavefold on the output sample
-                float foldDepth = juce::jlimit (0.0f, 1.0f, foldKnob + foldModOffset);
-                if (foldDepth > 0.001f)
+                else if (playMode == 1) // Loop with crossfade at seam
                 {
-                    float drive = 1.0f + (foldDepth * 5.0f);
-                    sampleOut   = std::sin (sampleOut * drive) * (1.0f / std::sqrt (drive));
+                    // Crossfade length: boundaryKnob maps 0..1 → 0..25% of region.
+                    // Keeping it capped at 25% avoids the two heads overlapping past the midpoint.
+                    double xfadeLen = boundaryKnob * regionLen * 0.25;
+
+                    double playPos = startSample + samplePlayPos;
+                    sampleOut = readSample (playPos);
+
+                    if (xfadeLen > 1.0 && samplePlayPos >= (regionLen - xfadeLen))
+                    {
+                        // Blend with a second head that is xfadeLen samples behind the loop start.
+                        double xPos        = startSample + (samplePlayPos - (regionLen - xfadeLen));
+                        float  xSample     = readSample (startSample + xPos);
+                        float  xfadeAlpha  = static_cast<float> ((samplePlayPos - (regionLen - xfadeLen)) / xfadeLen);
+                        xfadeAlpha         = juce::jlimit (0.0f, 1.0f, xfadeAlpha);
+                        sampleOut          = sampleOut * (1.0f - xfadeAlpha) + xSample * xfadeAlpha;
+                    }
+
+                    samplePlayPos += advance;
+                    while (samplePlayPos >= regionLen)
+                        samplePlayPos -= regionLen;
+                }
+                else // Ping-pong with crossfade at turnarounds
+                {
+                    // Crossfade length: same cap as loop mode.
+                    double xfadeLen = boundaryKnob * regionLen * 0.25;
+
+                    double playPos = startSample + samplePlayPos;
+                    sampleOut = readSample (playPos);
+
+                    // Blend near either turnaround point using a mirrored read-head.
+                    if (xfadeLen > 1.0)
+                    {
+                        double distFromEdge = (pingPongDir > 0.0f)
+                                              ? (regionLen - samplePlayPos)  // approaching end
+                                              : samplePlayPos;               // approaching start
+
+                        if (distFromEdge < xfadeLen)
+                        {
+                            // Mirror position: reflects off whichever wall we're near.
+                            double mirrorPos = (pingPongDir > 0.0f)
+                                              ? (startSample + regionLen - distFromEdge)
+                                              : (startSample + distFromEdge);
+                            float  mirrorSample = readSample (mirrorPos);
+                            float  xfadeAlpha   = static_cast<float> (1.0 - (distFromEdge / xfadeLen));
+                            xfadeAlpha          = juce::jlimit (0.0f, 1.0f, xfadeAlpha);
+                            sampleOut           = sampleOut * (1.0f - xfadeAlpha) + mirrorSample * xfadeAlpha;
+                        }
+                    }
+
+                    samplePlayPos += pingPongDir * advance;
+
+                    // Reflect off end — clamp with jlimit to guard against large overshoots.
+                    if (samplePlayPos >= regionLen)
+                    {
+                        samplePlayPos = juce::jlimit (0.0, regionLen, (2.0 * regionLen) - samplePlayPos);
+                        pingPongDir   = -1.0f;
+                    }
+                    else if (samplePlayPos <= 0.0)
+                    {
+                        samplePlayPos = juce::jlimit (0.0, regionLen, -samplePlayPos);
+                        pingPongDir   = 1.0f;
+                    }
                 }
 
                 outputSample = std::isfinite (sampleOut)
@@ -265,7 +319,7 @@ public:
                 combFreq          = juce::jlimit(20.0f, static_cast<float>(currentSampleRate) * 0.49f, combFreq);
                 float dampingAmt = juce::jlimit(0.001f, 0.95f, (foldKnob * 2.0f) - 1.0f);
                 float feedbackAmt  = juce::jlimit(-0.95f, 0.95f, (detune + 50.0f) / 100.0f);
-		// output
+                // output
                 float output = internalEffect.processSampleComb(audioInputSum, combFreq, feedbackAmt, dampingAmt);
                 outputSample = std::isfinite(output) ? std::tanh(output) : 0.0f;
             }
@@ -494,10 +548,10 @@ public:
                                                                             currentSampleRate);
                 outputSample = std::isfinite (output) ? output : 0.0f;
             }
-	}
+        }
         else // Here are our oscillators, Wave and Additive. They all need these:
         {
-	    // keytracking, fm, tempo sync, osc hz set
+            // keytracking, fm, tempo sync, osc hz set
             float nodeTargetFrequency;
             switch (freqMode)
             {
@@ -520,13 +574,13 @@ public:
                     nodeTargetFrequency = baseFrequency * ratio;
                     break;
             }
-	    float totalSemitones = (detune / 100.0f) + (pitchModOffset * 12.0f);
+            float totalSemitones = (detune / 100.0f) + (pitchModOffset * 12.0f);
             float modulatedFreq  = nodeTargetFrequency * std::pow(2.0f, totalSemitones / 12.0f);
             modulatedFreq = juce::jlimit(0.1f, static_cast<float>(currentSampleRate) * 0.49f, modulatedFreq);
-	    // Corrected phaseIncrement to take into account oversampling.
-	    double phaseIncrement = (modulatedFreq * juce::MathConstants<double>::twoPi) 
+            // Corrected phaseIncrement to take into account oversampling.
+            double phaseIncrement = (modulatedFreq * juce::MathConstants<double>::twoPi) 
                         / (currentSampleRate * oversamplingFactor);
-	    phase += phaseIncrement;
+            phase += phaseIncrement;
             if (phase >= juce::MathConstants<double>::twoPi)
                 phase -= juce::MathConstants<double>::twoPi;
             float processedModSum = std::tanh(modulationSum * 0.15f) * (juce::MathConstants<float>::pi * 2.0f);
@@ -538,7 +592,7 @@ public:
             float rawSample = 0.0f;
             if (mode == 1) // Additive
             {
-		// required constants
+                // required constants
                 const int numPartials  = 32;
                 float additiveSum      = 0.0f;
                 float gainCompensation = 0.0f;
@@ -557,7 +611,7 @@ public:
 
                 float dt = static_cast<float>(phaseIncrement / juce::MathConstants<double>::twoPi);
 
-                for (int k = 1; k <= numPartials; ++k) //Process the partials to create output
+                for (int k = 1; k <= numPartials; ++k) // Process the partials to create output
                 {
                     bool isEven = (k % 2 == 0);
                     float oeAmp = juce::jlimit(0.0f, 1.0f, isEven
@@ -574,11 +628,11 @@ public:
                     additiveSum      += amplitude * partialSample;
                     gainCompensation += amplitude;
                 }
-		//output
+                // output
                 rawSample    = (gainCompensation > 0.0f) ? additiveSum / gainCompensation : 0.0f;
                 outputSample = std::isfinite(rawSample + audioInputSum)
                                ? rawSample + audioInputSum : 0.0f;
-	    }
+            }
             else // Wave
             {
                 switch (waveShape)
@@ -616,7 +670,7 @@ public:
                         rawSample -= polyBlep (t2, dt);
                         break;
                     }
-		    case 6:  rawSample = random.nextFloat() * 2.0f - 1.0f;         break; //white noise
+                    case 6:  rawSample = random.nextFloat() * 2.0f - 1.0f;         break; // white noise
                     case 7: // pink
                     {
                         float white = random.nextFloat() * 2.0f - 1.0f;
@@ -630,20 +684,21 @@ public:
                         pinkB6 = white * 0.115926f;
                         break;
                     }
-                    default: rawSample = waveTable->lookupSine     (wrappedPhase); break;
+                    default: rawSample = waveTable->lookupSine (wrappedPhase); break;
                 }
 
                 float finalFoldDepth = juce::jlimit(0.0f, 1.0f, foldKnob + foldModOffset);
                 if (finalFoldDepth > 0.001f)
                 {
                     float drive        = 1.0f + (finalFoldDepth * 5.0f);
-                    float foldedSample = std::sin(rawSample * drive) * (1.0f / std::sqrt(drive));
-                    outputSample = std::isfinite(rawSample + audioInputSum)
-                                   ? rawSample + audioInputSum : 0.0f;
-		}
+                    // BUG FIX: was using rawSample here instead of foldedSample
+                    float foldedSample = std::sin (rawSample * drive) * (1.0f / std::sqrt (drive));
+                    outputSample = std::isfinite (foldedSample + audioInputSum)
+                                   ? foldedSample + audioInputSum : 0.0f;
+                }
                 else
                 {
-                    outputSample = std::isfinite(rawSample + audioInputSum) 
+                    outputSample = std::isfinite (rawSample + audioInputSum) 
                                    ? rawSample + audioInputSum : 0.0f;
                 }
             }
@@ -655,17 +710,24 @@ public:
 private:
     // Shared pointer to loaded sample audio. Set from the main thread before playback.
     std::shared_ptr<juce::AudioBuffer<float>> sampleBuffer;
-    double samplePlayPos  = 0.0;
-    float  pingPongDir    = 1.0f; // +1 = forward, -1 = backward (ping-pong mode)
+    double samplePlayPos = 0.0;
+
+    // Secondary playhead used for crossfade blending (loop seam / ping-pong turnarounds).
+    // Not needed for one-shot or stutter — those modes do their blending inline.
+    double xfadePlayPos  = 0.0;
+    bool   xfadeActive   = false;
+    float  xfadePingDir  = 1.0f; // direction of the mirror head in ping-pong xfade
+
+    float  pingPongDir   = 1.0f; // +1 = forward, -1 = backward (ping-pong mode)
     WaveTable* waveTable  = nullptr;
     double phase = 0.0;
     double currentSampleRate = 44100.0;
     int oversamplingFactor = 1;
     juce::ADSR envelope;
-    juce::Random random; //white noise
+    juce::Random random; // white noise
     float pinkB0 = 0.0f, pinkB1 = 0.0f, pinkB2 = 0.0f;
     float pinkB3 = 0.0f, pinkB4 = 0.0f, pinkB5 = 0.0f, pinkB6 = 0.0f;
-    float polyBlep(float t, float dt)
+    float polyBlep (float t, float dt)
     {
         // t is phase normalized to [0, 1), dt is phase increment normalized to [0, 1)
         if (t < dt) // Near rising discontinuity

@@ -966,8 +966,8 @@ public:
     
         // 2. SPEED & DRIFT 
         float normalizedSpeed = speed * 2.0f - 1.0f; 
-        float playbackSpeed   = normalizedSpeed;      
-    
+        float playbackSpeed   = normalizedSpeed * 2.0f; //so you can speed up or slow down more if you want  
+
         if (drift > 0.001f)
         {
             djfxDriftPhase += 0.003f; 

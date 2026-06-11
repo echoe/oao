@@ -57,7 +57,7 @@ private:
     void updateVoices();
     //effects
     static constexpr int numFxSlots = 3;
-    std::array<SynthEffect, numFxSlots> fxEffects; 
+    std::array<std::array<SynthEffect, 2>, numFxSlots> fxEffects;
     // Parameter pointers for each effects slot
     std::atomic<float>* fxTypeParams[numFxSlots]   { nullptr };
     std::atomic<float>* fxSyncParams[numFxSlots]   { nullptr };

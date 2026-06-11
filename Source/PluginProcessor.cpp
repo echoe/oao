@@ -243,8 +243,11 @@ void FMPluginAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlo
     setOversamplingFactor (1);
     for (int i = 0; i < numFxSlots; ++i)
     {
-        fxEffects[i].prepare (sampleRate);
-        fxEffects[i].reset();
+	for (int ch = 0; ch < 2; ++ch)
+	{
+        	fxEffects[i][ch].prepare (sampleRate);
+        	fxEffects[i][ch].reset();
+	}
     }
 }
 
@@ -392,13 +395,16 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
             float phase  = fxPhaseParams[slot]->load  (std::memory_order_relaxed) + fxPhaseModSum[slot];
             float fold   = fxFoldParams[slot]->load   (std::memory_order_relaxed) + fxFoldModSum[slot];
             float mix    = juce::jlimit (0.0f, 1.0f,
-                           fxMixParams[slot]->load (std::memory_order_relaxed) + fxLevelModSum[slot]);
-	    bool  isSynced   = fxSyncParams[slot]->load   (std::memory_order_relaxed) > 0.5f;
+                                         fxMixParams[slot]->load (std::memory_order_relaxed) + fxLevelModSum[slot]);
+            bool  isSynced   = fxSyncParams[slot]->load   (std::memory_order_relaxed) > 0.5f;
 
-	    if (effectType != lastFxEffectType[slot])
+            for (int ch = 0; ch < 2; ++ch) 
             {
-                fxEffects[slot].reset();
-                lastFxEffectType[slot] = effectType;
+                if (effectType != lastFxEffectType[slot])
+                {
+                    fxEffects[slot][ch].reset(); 
+                    lastFxEffectType[slot] = effectType;
+                }
             }
 
             if (effectType == 0) continue; // None — skip entirely
@@ -423,275 +429,252 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
             float feedbackAmt     = juce::jlimit (-0.95f, 0.95f, (fold * 2.0f) - 1.0f);
             float coupledRes      = dampingAmt * dampingAmt;
 
-            for (int i = 0; i < numSamples; ++i) // process every effect ...
+            for (int i = 0; i < numSamples; ++i)
             {
-                // Mix L+R to mono for processing, then spread back to stereo
-                float inputSample = (leftData[i] + rightData[i]) * 0.5f;
-                float processed   = 0.0f;
-                switch (effectType)
+                float inL = leftData[i];
+                float inR = rightData[i];
+                float outL = inL;
+                float outR = inR;
+                
+                // TRUE STEREO EFFECTS
+                if (effectType == 12) // Chorus
                 {
-                    case 1: // Lowpass
-                    case 2: // Highpass
-                    case 3: // Bandpass
-                    {
-                        fxEffects[slot].setResonance (coupledRes);
-                        float k = fxEffects[slot].getPrecalculatedK();
-                        processed = fxEffects[slot].processSampleAudioRate (inputSample, baseCutoff, k);
-                        break;
-                    }
-                    case 4: // Effect + Drive
-                    {
-                        float cutoff   = normalizedRatio;
-                        float res      = dampingAmt;
-                        float drive    = phase / 360.0f;
-                        float LP_or_HP = juce::jlimit (0.0f, 1.0f, fold);
-                    
-                        processed = fxEffects[slot].processSampleFilterDrive (inputSample, cutoff, res, drive, LP_or_HP, getSampleRate());
-                        processed = std::isfinite (processed) ? processed : 0.0f;
-                        break;
-                    }
-                    case 5: // Comb
-                    {
-                        processed = fxEffects[slot].processSampleComb (inputSample, baseCutoff, feedbackAmt, dampingAmt);
-                        processed = std::isfinite (processed) ? std::tanh (processed) : 0.0f;
-                        break;
-                    }
-                    case 6: // Formant
-                    {
-                        float normalizedRatio  = (ratio - 0.01f) / (16.0f - 0.01f);
-                        float baseVowel        = normalizedRatio * 4.0f;
-                        float modDepth         = phase / 360.0f;
-                        float dynamicVowel     = juce::jlimit (0.0f, 4.0f,
-                                                     baseVowel + (fxPhaseModSum[slot] * modDepth * 4.0f));
-                        float normalizedDetune = (detune + 50.0f) / 100.0f;
-                        float qFactor          = juce::jmap (normalizedDetune, 0.0f, 1.0f, 2.0f, 15.0f);
-                        float drive            = 1.0f + (fold * 4.0f);
-                        float drivenInput      = std::tanh (inputSample * drive);
-                        float output           = fxEffects[slot].processSampleFormant (drivenInput, dynamicVowel, qFactor);
-                        processed              = std::isfinite (output) ? std::tanh (output) : 0.0f;
-                        break;
-                    }
-                    case 7: // Compressor
-                    {
-                        float threshold = normalizedRatio;
-                        float compRatio = dampingAmt;
-                        float attack    = phase / 360.0f;
-                        float release   = juce::jlimit (0.0f, 1.0f, fold);
-                        processed = fxEffects[slot].processSampleCompressor (inputSample, threshold,
-                                                                              compRatio, attack, release,
-                                                                              getSampleRate());
-                        processed = std::isfinite (processed) ? processed : 0.0f;
-                        break;
-                    }
-                    case 8: // Three-Lane EQ
-                    {
-                        float lowGain  = normalizedRatio;
-                        float midGain  = dampingAmt;
-                        float highGain = phase / 360.0f;
-                        float master   = juce::jlimit (0.0f, 1.0f, fold);
-                        
-                        processed = fxEffects[slot].processSampleThreeBandEQ (inputSample, lowGain, midGain, highGain, master, getSampleRate());
-                        processed = std::isfinite (processed) ? processed : 0.0f;
-                        break;
-                    }
-                    case 9: // OTT
-                    {
-                        float depth    = normalizedRatio;
-                        float timeKnob = dampingAmt;
-                        float upward   = phase / 360.0f;
-                        float tone     = juce::jlimit (0.0f, 1.0f, fold);
-                        processed = fxEffects[slot].processSampleOTT (inputSample, depth, timeKnob,
-                                                                       upward, tone, getSampleRate());
-                        processed = std::isfinite (processed) ? processed : 0.0f;
-                        break;
-                    }
-                    case 10: // Lo-Fi Effect
-                    {
-                        float decimate = normalizedRatio;
-                        float bits     = dampingAmt;
-                        float wear     = phase / 360.0f;
-                        float tone     = juce::jlimit (0.0f, 1.0f, fold);
-                    
-                        processed = fxEffects[slot].processSampleLoFi (inputSample, decimate, bits, wear, tone, getSampleRate());
-                        break;
-                    }
-                    case 11: // Tape
-                    {
-                        float wobbleRate = normalizedRatio;
-                        float age        = dampingAmt;
-                        float saturation = phase / 360.0f;
-                        float bias       = juce::jlimit (0.0f, 1.0f, fold);
-                        processed = fxEffects[slot].processSampleTape (inputSample, wobbleRate, age,
-                                                                        saturation, bias, getSampleRate());
-                        processed = std::isfinite (processed) ? processed : 0.0f;
-                        break;
-                    }
-                    case 12: // Chorus
-                    {
-                        float rate   = normalizedRatio;
-                        float depth  = dampingAmt;
-                        float spread = phase / 360.0f;
-                        float voices = juce::jlimit (0.0f, 1.0f, fold);
-                        processed = fxEffects[slot].processSampleChorus (inputSample, rate, depth,
-                                                                          spread, voices, getSampleRate());
-                        processed = std::isfinite (processed) ? processed : 0.0f;
-                        break;
-                    }
-                    case 13: // Old Chorus
-                    {
-                        float rate     = normalizedRatio;
-                        float depth    = dampingAmt;
-                        float modeKnob = phase / 360.0f;
-                        float warmth   = juce::jlimit (0.0f, 1.0f, fold);
-                        processed = fxEffects[slot].processSampleOldChorus (inputSample, rate, depth,
-                                                                             modeKnob, warmth,
-                                                                             getSampleRate());
-                        processed = std::isfinite (processed) ? processed : 0.0f;
-                        break;
-                    }
-                    case 14: // Distortion
-                    {
-                        float drive       = normalizedRatio;
-                        float flavor      = dampingAmt;
-                        float toneKnob    = phase / 360.0f;
-                        float degradation = juce::jlimit (0.0f, 1.0f, fold);
-                        processed = fxEffects[slot].processSampleDistortion (inputSample, drive, flavor,
-                                                                              toneKnob, degradation,
-                                                                              getSampleRate());
-                        processed = std::isfinite (processed) ? processed : 0.0f;
-                        break;
-                    }
-                    case 15: // Bitcrush
-                    {
-                        float bits   = normalizedRatio;
-                        float rate   = dampingAmt;
-                        float jitter = phase / 360.0f;
-                        float noise  = juce::jlimit (0.0f, 1.0f, fold);
-                        processed = fxEffects[slot].processSampleBitcrush (inputSample, bits, rate,
-                                                                           jitter, noise, getSampleRate());
-                        processed = std::isfinite (processed) ? processed : 0.0f;
-                        break;
-                    }
-                    case 16: // Ring Modulator
-                    {
-                        float frequency = 0.1f * std::pow (50000.0f, normalizedRatio);
-                        float shape     = dampingAmt;
-                        float depth     = phase / 360.0f;
-                        float feedback  = juce::jlimit (0.0f, 0.95f, fold);
-                        processed = fxEffects[slot].processSampleRingMod (inputSample, frequency, shape,
-                                                                           depth, feedback, getSampleRate());
-                        processed = std::isfinite (processed) ? processed : 0.0f;
-                        break;
-                    }
-                    case 17: // Allpass Reverb
-                    {
-                        float size      = normalizedRatio;
-                        float decay     = dampingAmt;
-                        float diffusion = phase / 360.0f;
-                        float damping   = juce::jlimit (0.0f, 1.0f, fold);
-                        processed = fxEffects[slot].processSampleAllpassReverb (inputSample, size, decay,
-                                                                                 diffusion, damping, getSampleRate());
-                        processed = std::isfinite (processed) ? std::tanh (processed) : 0.0f;
-                        break;
-                    }
-                    case 18: // Allpass Delay
-                    {
-                        float time      = normalizedRatio;
-                        float feedback  = dampingAmt;
-                        float diffusion = phase / 360.0f;
-                        float damping   = juce::jlimit (0.0f, 1.0f, fold);
-                        processed = fxEffects[slot].processSampleAllpassDelay (inputSample, time, feedback,
-                                                                               diffusion, damping, getSampleRate());
-                        processed = std::isfinite (processed) ? std::tanh (processed) : 0.0f;
-                        break;
-                    }
-                    case 19: // Time Control Delay
-                    {
-                        float delayTime = normalizedRatio;
-                        float feedback  = dampingAmt;
-                        float damping   = phase / 360.0f;
-                        float drive     = juce::jlimit (0.0f, 1.0f, fold);
-                        
-                        processed = fxEffects[slot].processSampleTimeCtrlDelay (inputSample, delayTime, feedback, damping, drive, getSampleRate());
-                        processed = std::isfinite (processed) ? processed : 0.0f;
-                        break;
-                    }
-                    case 20: // Ambient Delay
-                    {
-                        float time       = normalizedRatio;
-                        float feedbk     = dampingAmt;
-                        float shimmerAmt = phase / 360.0f;
-                        float diffusion  = juce::jlimit (0.0f, 1.0f, fold);
-                        processed = fxEffects[slot].processSampleAmbientDelay (inputSample, time, feedbk,
-                                                                                shimmerAmt, diffusion,
-                                                                                getSampleRate());
-                        processed = std::isfinite (processed) ? processed : 0.0f;
-                        break;
-                    }
-                    case 21: // DJFX Delay
-                    {
-                        float bufferAmt = normalizedRatio;
-                        float speed     = dampingAmt;
-                        float on        = phase / 360.0f;
-                        float drift     = juce::jlimit (0.0f, 1.0f, fold);
-                        processed = fxEffects[slot].processSampleDJFXDelay (inputSample, bufferAmt, speed,
-                                                                             on, drift, getSampleRate());
-                        processed = std::isfinite (processed) ? processed : 0.0f;
-                        break;
-                    }
-                    case 22: // Scatter
-                    {
-                        float pattern = normalizedRatio;
-                        float size    = dampingAmt;
-                        float speed   = phase / 360.0f;
-                        float depth   = juce::jlimit (0.0f, 1.0f, fold);
-                        processed = fxEffects[slot].processSampleScatter (inputSample, pattern, size,
-                                                                           speed, depth, getSampleRate());
-                        processed = std::isfinite (processed) ? processed : 0.0f;
-                        break;
-                    }
-
-                    case 23: // Granular                                 
-                    {   
-                        float grainDurationMs = juce::jmap (normalizedRatio, 0.0f, 1.0f, 10.0f, 1000.0f);
-                        float scatterAmt      = juce::jlimit (0.0f, 1.0f, phase / 360.0f);
-                        processed = fxEffects[slot].processSampleGranular (inputSample, baseCutoff, scatterAmt, grainDurationMs, feedbackAmt, dampingAmt);
-                        processed = std::isfinite (processed) ? std::tanh (processed) : 0.0f;
-                        break;
-                    }
-                    case 24: // Color Bass
-                    {
-                        float drive   = juce::jlimit (0.0f, 1.0f, normalizedRatio);
-                        float shimmer = juce::jlimit (0.0f, 1.0f, phase / 360.0f);
-                        float tone    = juce::jlimit (0.0f, 1.0f, dampingAmt);
-                        float decay   = juce::jlimit (0.0f, 1.0f, fold);
-                        processed     = fxEffects[slot].processSampleColorBass (inputSample, drive,
-                                                                                 shimmer, tone,
-                                                                                 decay, getSampleRate());
-                        processed = std::isfinite (processed) ? processed : 0.0f;
-                        break;
-                    }
-                    case 25: // Spectral Freeze
-                    {
-                        float freeze = normalizedRatio;
-                        float blend  = dampingAmt;
-                        float pitch  = phase / 360.0f;
-                        float blur   = juce::jlimit (0.0f, 1.0f, fold);
-                        processed = fxEffects[slot].processSampleSpectralFreeze (inputSample, freeze,
-                                                                                  blend, pitch, blur,
-                                                                                  getSampleRate());
-                        processed = std::isfinite (processed) ? processed : 0.0f;
-                        break;
-                    }
-                    default:
-                        processed = inputSample;
-                        break;
+                    auto out = fxEffects[slot][0].processSampleStereoChorus (inL, inR, fxEffects[slot][1], normalizedRatio, dampingAmt, phase / 360.0f, juce::jlimit (0.0f, 1.0f, fold), getSampleRate());
+                    outL = std::isfinite(out.L) ? out.L : 0.0f;
+                    outR = std::isfinite(out.R) ? out.R : 0.0f;
                 }
-    
-                // Wet/dry mix and write back to stereo
-                float mixed      = processed * mix + inputSample * (1.0f - mix);
-                leftData[i]      = mixed;
-                rightData[i]     = mixed;
+                else if (effectType == 13) // Old Chorus
+                {
+                    auto out = fxEffects[slot][0].processSampleStereoOldChorus (inL, inR, fxEffects[slot][1], normalizedRatio, dampingAmt, phase / 360.0f, juce::jlimit (0.0f, 1.0f, fold), getSampleRate());
+                    outL = std::isfinite(out.L) ? out.L : 0.0f;
+                    outR = std::isfinite(out.R) ? out.R : 0.0f;
+                }
+                else if (effectType == 17) // Allpass Reverb
+                {
+                    auto out = fxEffects[slot][0].processSampleStereoAllpassReverb (inL, inR, fxEffects[slot][1], normalizedRatio, dampingAmt, phase / 360.0f, juce::jlimit (0.0f, 1.0f, fold), getSampleRate());
+                    outL = std::isfinite(out.L) ? std::tanh(out.L) : 0.0f;
+                    outR = std::isfinite(out.R) ? std::tanh(out.R) : 0.0f;
+                }
+                else if (effectType == 18) // Allpass Delay
+                {
+                    auto out = fxEffects[slot][0].processSampleStereoAllpassDelay (inL, inR, fxEffects[slot][1], normalizedRatio, dampingAmt, phase / 360.0f, juce::jlimit (0.0f, 1.0f, fold), getSampleRate());
+                    outL = std::isfinite(out.L) ? std::tanh(out.L) : 0.0f;
+                    outR = std::isfinite(out.R) ? std::tanh(out.R) : 0.0f;
+                }
+                else if (effectType == 20) // Ambient Delay
+                {
+                    auto out = fxEffects[slot][0].processSampleStereoAmbientDelay (inL, inR, fxEffects[slot][1], normalizedRatio, dampingAmt, phase / 360.0f, juce::jlimit (0.0f, 1.0f, fold), getSampleRate());
+                    outL = std::isfinite(out.L) ? out.L : 0.0f;
+                    outR = std::isfinite(out.R) ? out.R : 0.0f;
+                }
+                else 
+                {
+                    // DUAL MONO EFFECTS
+                    float inArr[2] = { inL, inR };
+                    float outArr[2] = { 0.0f, 0.0f };
+                    
+                    for (int ch = 0; ch < 2; ++ch)
+                    {
+                        switch (effectType)
+                        {
+                            case 1: // Lowpass
+                            case 2: // Highpass
+                            case 3: // Bandpass
+                            {
+                                fxEffects[slot][ch].setResonance (coupledRes);
+                                float k = fxEffects[slot][ch].getPrecalculatedK();
+                                outArr[ch] = fxEffects[slot][ch].processSampleAudioRate (inArr[ch], baseCutoff, k);
+                                break;
+                            }
+                            case 4: // Effect + Drive
+                            {
+                                float cutoff   = normalizedRatio;
+                                float res      = dampingAmt;
+                                float drive    = phase / 360.0f;
+                                float LP_or_HP = juce::jlimit (0.0f, 1.0f, fold);
+                
+                                outArr[ch] = fxEffects[slot][ch].processSampleFilterDrive (inArr[ch], cutoff, res, drive, LP_or_HP, getSampleRate());
+                                outArr[ch] = std::isfinite (outArr[ch]) ? outArr[ch] : 0.0f;
+                                break;
+                            }
+                            case 5: // Comb
+                            {
+                                outArr[ch] = fxEffects[slot][ch].processSampleComb (inArr[ch], baseCutoff, feedbackAmt, dampingAmt);
+                                outArr[ch] = std::isfinite (outArr[ch]) ? std::tanh (outArr[ch]) : 0.0f;
+                                break;
+                            }
+                            case 6: // Formant
+                            {
+                                float normalizedRatio2 = (ratio - 0.01f) / (16.0f - 0.01f);
+                                float baseVowel        = normalizedRatio2 * 4.0f;
+                                float modDepth         = phase / 360.0f;
+                                float dynamicVowel     = juce::jlimit (0.0f, 4.0f, baseVowel + (fxPhaseModSum[slot] * modDepth * 4.0f));
+                                float normalizedDetune = (detune + 50.0f) / 100.0f;
+                                float qFactor          = juce::jmap (normalizedDetune, 0.0f, 1.0f, 2.0f, 15.0f);
+                                float drive            = 1.0f + (fold * 4.0f);
+                                float drivenInput      = std::tanh (inArr[ch] * drive);
+                
+                                float output           = fxEffects[slot][ch].processSampleFormant (drivenInput, dynamicVowel, qFactor);
+                                outArr[ch]             = std::isfinite (output) ? std::tanh (output) : 0.0f;
+                                break;
+                            }
+                            case 7: // Compressor
+                            {
+                                float threshold = normalizedRatio;
+                                float compRatio = dampingAmt;
+                                float attack    = phase / 360.0f;
+                                float release   = juce::jlimit (0.0f, 1.0f, fold);
+                                outArr[ch] = fxEffects[slot][ch].processSampleCompressor (inArr[ch], threshold, compRatio, attack, release, getSampleRate());
+                                outArr[ch] = std::isfinite (outArr[ch]) ? outArr[ch] : 0.0f;
+                                break;
+                            }
+                            case 8: // Three-Lane EQ
+                            {
+                                float lowGain  = normalizedRatio;
+                                float midGain  = dampingAmt;
+                                float highGain = phase / 360.0f;
+                                float master   = juce::jlimit (0.0f, 1.0f, fold);
+                
+                                outArr[ch] = fxEffects[slot][ch].processSampleThreeBandEQ (inArr[ch], lowGain, midGain, highGain, master, getSampleRate());
+                                outArr[ch] = std::isfinite (outArr[ch]) ? outArr[ch] : 0.0f;
+                                break;
+                            }
+                            case 9: // OTT
+                            {
+                                float depth    = normalizedRatio;
+                                float timeKnob = dampingAmt;
+                                float upward   = phase / 360.0f;
+                                float tone     = juce::jlimit (0.0f, 1.0f, fold);
+                                outArr[ch] = fxEffects[slot][ch].processSampleOTT (inArr[ch], depth, timeKnob, upward, tone, getSampleRate());
+                                outArr[ch] = std::isfinite (outArr[ch]) ? outArr[ch] : 0.0f;
+                                break;
+                            }
+                            case 10: // Lo-Fi Effect
+                            {
+                                float decimate = normalizedRatio;
+                                float bits     = dampingAmt;
+                                float wear     = phase / 360.0f;
+                                float tone     = juce::jlimit (0.0f, 1.0f, fold);
+                
+                                outArr[ch] = fxEffects[slot][ch].processSampleLoFi (inArr[ch], decimate, bits, wear, tone, getSampleRate());
+                                break;
+                            }
+                            case 11: // Tape
+                            {
+                                float wobbleRate = normalizedRatio;
+                                float age        = dampingAmt;
+                                float saturation = phase / 360.0f;
+                                float bias       = juce::jlimit (0.0f, 1.0f, fold);
+                                outArr[ch] = fxEffects[slot][ch].processSampleTape (inArr[ch], wobbleRate, age, saturation, bias, getSampleRate());
+                                outArr[ch] = std::isfinite (outArr[ch]) ? outArr[ch] : 0.0f;
+                                break;
+                            }
+                            case 14: // Distortion
+                            {
+                                float drive       = normalizedRatio;
+                                float flavor      = dampingAmt;
+                                float toneKnob    = phase / 360.0f;
+                                float degradation = juce::jlimit (0.0f, 1.0f, fold);
+                                outArr[ch] = fxEffects[slot][ch].processSampleDistortion (inArr[ch], drive, flavor, toneKnob, degradation, getSampleRate());
+                                outArr[ch] = std::isfinite (outArr[ch]) ? outArr[ch] : 0.0f;
+                                break;
+                            }
+                            case 15: // Bitcrush
+                            {
+                                float bits   = normalizedRatio;
+                                float rate   = dampingAmt;
+                                float jitter = phase / 360.0f;
+                                float noise  = juce::jlimit (0.0f, 1.0f, fold);
+                                outArr[ch] = fxEffects[slot][ch].processSampleBitcrush (inArr[ch], bits, rate, jitter, noise, getSampleRate());
+                                outArr[ch] = std::isfinite (outArr[ch]) ? outArr[ch] : 0.0f;
+                                break;
+                            }
+                            case 16: // Ring Modulator
+                            {
+                                float frequency = 0.1f * std::pow (50000.0f, normalizedRatio);
+                                float shape     = dampingAmt;
+                                float depth     = phase / 360.0f;
+                                float feedback  = juce::jlimit (0.0f, 0.95f, fold);
+                                outArr[ch] = fxEffects[slot][ch].processSampleRingMod (inArr[ch], frequency, shape, depth, feedback, getSampleRate());
+                                outArr[ch] = std::isfinite (outArr[ch]) ? outArr[ch] : 0.0f;
+                                break;
+                            }
+                            case 19: // Time Control Delay
+                            {
+                                float delayTime = normalizedRatio;
+                                float feedback  = dampingAmt;
+                                float damping   = phase / 360.0f;
+                                float drive     = juce::jlimit (0.0f, 1.0f, fold);
+                
+                                outArr[ch] = fxEffects[slot][ch].processSampleTimeCtrlDelay (inArr[ch], delayTime, feedback, damping, drive, getSampleRate());
+                                outArr[ch] = std::isfinite (outArr[ch]) ? outArr[ch] : 0.0f;
+                                break;
+                            }
+                            case 21: // DJFX Delay
+                            {
+                                float bufferAmt = normalizedRatio;
+                                float speed     = dampingAmt;
+                                float on        = phase / 360.0f;
+                                float drift     = juce::jlimit (0.0f, 1.0f, fold);
+                                outArr[ch] = fxEffects[slot][ch].processSampleDJFXDelay (inArr[ch], bufferAmt, speed, on, drift, getSampleRate());
+                                outArr[ch] = std::isfinite (outArr[ch]) ? outArr[ch] : 0.0f;
+                                break;
+                            }
+                            case 22: // Scatter
+                            {
+                                float pattern = normalizedRatio;
+                                float size    = dampingAmt;
+                                float speed   = phase / 360.0f;
+                                float depth   = juce::jlimit (0.0f, 1.0f, fold);
+                                outArr[ch] = fxEffects[slot][ch].processSampleScatter (inArr[ch], pattern, size, speed, depth, getSampleRate());
+                                outArr[ch] = std::isfinite (outArr[ch]) ? outArr[ch] : 0.0f;
+                                break;
+                            }
+                            case 23: // Granular
+                            {
+                                float grainDurationMs = juce::jmap (normalizedRatio, 0.0f, 1.0f, 10.0f, 1000.0f);
+                                float scatterAmt      = juce::jlimit (0.0f, 1.0f, phase / 360.0f);
+                                outArr[ch] = fxEffects[slot][ch].processSampleGranular (inArr[ch], baseCutoff, scatterAmt, grainDurationMs, feedbackAmt, dampingAmt);
+                                outArr[ch] = std::isfinite (outArr[ch]) ? std::tanh (outArr[ch]) : 0.0f;
+                                break;
+                            }
+                            case 24: // Color Bass
+                            {
+                                float drive   = juce::jlimit (0.0f, 1.0f, normalizedRatio);
+                                float shimmer = juce::jlimit (0.0f, 1.0f, phase / 360.0f);
+                                float tone    = juce::jlimit (0.0f, 1.0f, dampingAmt);
+                                float decay   = juce::jlimit (0.0f, 1.0f, fold);
+                                outArr[ch]    = fxEffects[slot][ch].processSampleColorBass (inArr[ch], drive, shimmer, tone, decay, getSampleRate());
+                                outArr[ch] = std::isfinite (outArr[ch]) ? outArr[ch] : 0.0f;
+                                break;
+                            }
+                            case 25: // Spectral Freeze
+                            {
+                                float freeze   = normalizedRatio;
+                                float blend    = dampingAmt;
+                                float rawPitch = phase / 360.0f; 
+                                // Map 0.0-1.0 phase to +/- 24 semitones ratio for resampling
+                                float pitchRatio = std::pow (2.0f, (rawPitch - 0.5f) * 48.0f / 12.0f);
+                                float blur     = juce::jlimit (0.0f, 1.0f, fold);
+                                
+                                outArr[ch] = fxEffects[slot][ch].processSampleSpectralFreeze (inArr[ch], freeze, blend, pitchRatio, blur, getSampleRate());
+                                outArr[ch] = std::isfinite (outArr[ch]) ? outArr[ch] : 0.0f;
+                                break;
+                            }
+                            default:
+                                outArr[ch] = inArr[ch];
+                                break;
+                        }
+                    }
+                    
+                    // Assign mono outputs back to main stereo channels
+                    outL = outArr[0];
+                    outR = outArr[1];
+                }
+                
+                // Wet/dry mix applied discretely to L and R using the correct scope variables
+                leftData[i]  = outL * mix + inL * (1.0f - mix);
+                rightData[i] = outR * mix + inR * (1.0f - mix);
             }
         }
     }
@@ -893,10 +876,13 @@ void FMPluginAudioProcessor::reset() // This function solves issues if you're lo
                 voice->resetVoiceState();
             }
         }
-    // and clear effect effects
+    // and clear effects
     for (int i = 0; i < numFxSlots; ++i)
     {
-        fxEffects[i].reset();
+	for (int ch = 0; ch < 2; ++ch)
+	{
+        	fxEffects[i][ch].reset();
+	}
     }
 }
 

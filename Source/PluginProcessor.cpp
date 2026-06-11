@@ -505,7 +505,17 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
                         processed = std::isfinite (processed) ? processed : 0.0f;
                         break;
                     }
-                    case 10: // Tape
+                    case 10: // Lo-Fi Effect
+                    {
+                        float decimate = normalizedRatio;
+                        float bits     = dampingAmt;
+                        float wear     = phase / 360.0f;
+                        float tone     = juce::jlimit (0.0f, 1.0f, fold);
+                    
+                        processed = fxFilters[slot].processSampleLoFi (inputSample, decimate, bits, wear, tone, getSampleRate());
+                        break;
+                    }
+                    case 11: // Tape
                     {
                         float wobbleRate = normalizedRatio;
                         float age        = dampingAmt;
@@ -516,7 +526,7 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
                         processed = std::isfinite (processed) ? processed : 0.0f;
                         break;
                     }
-                    case 11: // Chorus
+                    case 12: // Chorus
                     {
                         float rate   = normalizedRatio;
                         float depth  = dampingAmt;
@@ -527,7 +537,7 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
                         processed = std::isfinite (processed) ? processed : 0.0f;
                         break;
                     }
-                    case 12: // Old Chorus
+                    case 13: // Old Chorus
                     {
                         float rate     = normalizedRatio;
                         float depth    = dampingAmt;
@@ -539,7 +549,7 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
                         processed = std::isfinite (processed) ? processed : 0.0f;
                         break;
                     }
-                    case 13: // Distortion
+                    case 14: // Distortion
                     {
                         float drive       = normalizedRatio;
                         float flavor      = dampingAmt;
@@ -551,7 +561,7 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
                         processed = std::isfinite (processed) ? processed : 0.0f;
                         break;
                     }
-                    case 14: // Bitcrush
+                    case 15: // Bitcrush
                     {
                         float bits   = normalizedRatio;
                         float rate   = dampingAmt;
@@ -562,7 +572,7 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
                         processed = std::isfinite (processed) ? processed : 0.0f;
                         break;
                     }
-                    case 15: // Ring Modulator
+                    case 16: // Ring Modulator
                     {
                         float frequency = 0.1f * std::pow (50000.0f, normalizedRatio);
                         float shape     = dampingAmt;
@@ -573,7 +583,7 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
                         processed = std::isfinite (processed) ? processed : 0.0f;
                         break;
                     }
-                    case 16: // Allpass Reverb
+                    case 17: // Allpass Reverb
                     {
                         float size      = normalizedRatio;
                         float decay     = dampingAmt;
@@ -584,7 +594,7 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
                         processed = std::isfinite (processed) ? std::tanh (processed) : 0.0f;
                         break;
                     }
-                    case 17: // Allpass Delay
+                    case 18: // Allpass Delay
                     {
                         float time      = normalizedRatio;
                         float feedback  = dampingAmt;
@@ -595,7 +605,7 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
                         processed = std::isfinite (processed) ? std::tanh (processed) : 0.0f;
                         break;
                     }
-                    case 18: // Time Control Delay
+                    case 19: // Time Control Delay
                     {
                         float delayTime = normalizedRatio;
                         float feedback  = dampingAmt;
@@ -606,7 +616,7 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
                         processed = std::isfinite (processed) ? processed : 0.0f;
                         break;
                     }
-                    case 19: // Ambient Delay
+                    case 20: // Ambient Delay
                     {
                         float time       = normalizedRatio;
                         float feedbk     = dampingAmt;
@@ -618,7 +628,7 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
                         processed = std::isfinite (processed) ? processed : 0.0f;
                         break;
                     }
-                    case 20: // DJFX Delay
+                    case 21: // DJFX Delay
                     {
                         float bufferAmt = normalizedRatio;
                         float speed     = dampingAmt;
@@ -629,7 +639,7 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
                         processed = std::isfinite (processed) ? processed : 0.0f;
                         break;
                     }
-                    case 21: // Scatter
+                    case 22: // Scatter
                     {
                         float pattern = normalizedRatio;
                         float size    = dampingAmt;
@@ -641,7 +651,7 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
                         break;
                     }
 
-                    case 22: // Granular                                 
+                    case 23: // Granular                                 
                     {   
                         float grainDurationMs = juce::jmap (normalizedRatio, 0.0f, 1.0f, 10.0f, 1000.0f);
                         float scatterAmt      = juce::jlimit (0.0f, 1.0f, phase / 360.0f);
@@ -649,7 +659,7 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
                         processed = std::isfinite (processed) ? std::tanh (processed) : 0.0f;
                         break;
                     }
-                    case 23: // Color Bass
+                    case 24: // Color Bass
                     {
                         float drive   = juce::jlimit (0.0f, 1.0f, normalizedRatio);
                         float shimmer = juce::jlimit (0.0f, 1.0f, phase / 360.0f);
@@ -661,7 +671,7 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
                         processed = std::isfinite (processed) ? processed : 0.0f;
                         break;
                     }
-                    case 24: // Spectral Freeze
+                    case 25: // Spectral Freeze
                     {
                         float freeze = normalizedRatio;
                         float blend  = dampingAmt;

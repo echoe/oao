@@ -203,11 +203,11 @@ public:
         freezeOutputBuffer.fill (0.0f);
         freezeWorkBuffer.fill   (0.0f);
         freezeSynthFrame.fill   (0.0f);
-        freezeInputWritePos    = 0;
-        freezeOutputReadPos    = 0;
-        freezeHopCounter       = 0;
-        freezeHasFrozenFrame   = false;
-        freezeMix              = 0.0f;
+        freezeInputWritePos = 0;
+        freezeOutputReadPos = 0;
+        freezeHopCounter = 0;
+        freezeHasFrozenFrame = false;
+        freezeMix = 0.0f;
         // 3-lane eq, filter+drive, music delay
 	fd_s1 = 0.0f; fd_s2 = 0.0f;
         eq_s1_low = 0.0f; eq_s2_low = 0.0f;
@@ -215,6 +215,9 @@ public:
         tcDelayBuffer.fill (0.0f);
         tcWritePtr = 0; tcSmoothedSamples = 0.0f;
 	tcDampingState = 0.0f; tcHighPassState = 0.0f;
+	// lofi
+	lofiDownsampleCounter = 0.0f; lofiHoldSample        = 0.0f;
+        lofiLPState = 0.0f; lofiHPState = 0.0f;
     }
 
     void noteStarted()
@@ -1703,6 +1706,69 @@ public:
         return delayedSample * driveAmt; 
     }
 
+    float processSampleLoFi (float input, float decimateNorm, float bitsNorm, float wearNorm, float filterNorm, double sampleRate)
+    {
+        // 1. DIGITAL DECIMATION (Sample Rate Reduction)
+        // Maps from 1 (no downsampling) to 40 (heavy robotic downsampling)
+        float maxSampleHold = 40.0f;
+        float samplePeriod = 1.0f + (decimateNorm * (maxSampleHold - 1.0f));
+        
+        lofiDownsampleCounter += 1.0f;
+        if (lofiDownsampleCounter >= samplePeriod)
+        {
+            lofiDownsampleCounter -= samplePeriod;
+            lofiHoldSample = input;
+        }
+        float output = lofiHoldSample;
+    
+        // 2. BITCRUSHING (Bit Depth Quantization)
+        if (bitsNorm > 0.0f)
+        {
+            // Smoothly map from 16-bit down to a gritty 2-bit crunch
+            float levels = juce::jmap (1.0f - bitsNorm, 0.0f, 1.0f, 4.0f, 65536.0f);
+            output = std::round (output * levels) / levels;
+        }
+    
+        // 3. ANALOG WEAR (Tape Drive + Vinyl Dust Crackle)
+        // Linear Congruential Generator for ultra-fast, thread-safe noise
+        lofiNoiseSeed = lofiNoiseSeed * 196314165 + 907633515;
+        float noise = static_cast<float> (lofiNoiseSeed) / 4294967295.0f; // 0.0 to 1.0
+        
+        // Generate random vinyl "dust spikes" based on the wear parameter
+        float crackle = 0.0f;
+        if (wearNorm > 0.05f)
+        {
+            float crackleThreshold = 1.0f - (wearNorm * 0.0005f); // Frequency of pops
+            if (noise > crackleThreshold)
+            {
+                // Alternate between positive and negative transient pops
+                crackle = ((noise - crackleThreshold) / (1.0f - crackleThreshold)) * 0.2f;
+                if (lofiNoiseSeed % 2 == 0) crackle *= -1.0f;
+            }
+        }
+        
+        // Inject crackle and apply tape-style saturation drive
+        float driveAmt = 1.0f + (wearNorm * 4.0f);
+        output = std::tanh ((output + crackle) * driveAmt) / std::tanh (driveAmt);
+    
+        // 4. VINYL FILTER (Dynamic Vintage Bandpass Taper)
+        // As filterNorm increases, it narrows the frequency spectrum into a gramophone/phone sound
+        float lpCutoff = juce::jmap (1.0f - filterNorm, 0.0f, 1.0f, 400.0f, 18000.0f);
+        float hpCutoff = juce::jmap (filterNorm, 0.0f, 1.0f, 20.0f, 500.0f);
+        
+        // 1-Pole Lowpass Stage
+        float lpAlpha = 1.0f - std::exp (-2.0f * juce::MathConstants<float>::pi * lpCutoff / static_cast<float> (sampleRate));
+        lofiLPState  += lpAlpha * (output - lofiLPState);
+        output = lofiLPState;
+        
+        // 1-Pole Highpass Stage
+        float hpAlpha = 1.0f - std::exp (-2.0f * juce::MathConstants<float>::pi * hpCutoff / static_cast<float> (sampleRate));
+        lofiHPState  += hpAlpha * (output - lofiHPState);
+        output = output - lofiHPState;
+    
+        return std::isfinite (output) ? output : 0.0f;
+    }
+
     int getCurrentType() const noexcept { return static_cast<int>(currentType); }
 
 protected:
@@ -1937,7 +2003,12 @@ protected:
     std::array<float, tcDelayBufferSize> tcDelayBuffer { 0.0f };
     int tcWritePtr = 0; float tcSmoothedSamples = 0.0f;
     float tcDampingState = 0.0f; float tcHighPassState = 0.0f;
-
+    // Lo-Fi Effect State
+    float lofiDownsampleCounter = 0.0f;
+    float lofiHoldSample        = 0.0f;
+    float lofiLPState           = 0.0f;
+    float lofiHPState           = 0.0f;
+    uint32_t lofiNoiseSeed      = 123456789; // Fast LCG random seed for vinyl dust
     // Parameters Cache
     double sampleRate { 44100.0 };
     float targetCutoff { 1000.0f };

@@ -35,16 +35,18 @@ If you're using randomization you may want to turn the gain down as a precaution
 
 
 ## Operator types
+
 ### Wave: Sine, Triangle, Saw, Square, Pulse, SquarePWM, White Noise, Pink Noise
--- Wave Ratio options: Sync, Frequency, LFO
--- Sy: short for Sync, this tempo syncs to the speec of your DAW.
--- Fq: short for Frequency, this sets the oscillator to a specific hz speed (20-20000). This is mapped logarhythmically to the 0.01-16 spectrum.
+- Wave Ratio options: Standard, Sync, Frequency, LFO
+-- Standard: Normal ratio.
+-- Sync: this tempo syncs to the speed of your DAW.
+-- Frequency: this sets the oscillator to a specific hz speed (10 to 16000 Hz, mapped logarhythmically).
 -- LFO: This sets the oscillator to normal LFO speeds (0.01 to 16hz).
-- Options: Ratio, Detune, Phase, Fold.
-- Ratio: from 0.01 to 16, this controls the pitch of the waveform relative to the note you're playing. You, uh, need this for FM.
-- Detune: You can slightly detune the note if you want, without moving the Ratio by tiny steps.
-- Phase: Changes the phase of the waveform.
-- Fold: Folds the waveform in on itself.
+- Wave Options: Ratio, Detune, Phase, Fold.
+-- Ratio: from 0.01 to 16, this controls the pitch of the waveform relative to the note you're playing. You, uh, need this for FM.
+-- Detune: You can slightly detune the note if you want, without moving the Ratio by tiny steps.
+-- Phase: Changes the phase of the waveform.
+-- Fold: Folds the waveform in on itself.
 
 For SquarePWM and Pulse, instead of Phase there is a PWM option there ... follow your PWM dreams.
 
@@ -71,16 +73,25 @@ Additional Notes:
 #### SVF (Lowpass, Highpass, Bandpass)
 - Options: Cutoff, Resonance, Keytrack, Feedback
 - They're the normal filters of those kinds. The implementation here is JUCE-standard.
+#### Filter + Drive
+- Options: Cutoff, Resonance, Overdrive, Mode
+- Modeled after a popular filter. To the left Mode is lowpass, to the right it's highpass. Gets messy very fast.
 #### Comb
 - Options: Cutoff, Resonance, Keytrack, Feedback
 - This is modeled after the Comb effect on the Korg Opsix as described here: https://www.icemoonprison.com/blog/archives/579
 - As such, you can use this for physical modeling.
-#### Granular
-- Options: Grain size, Damping, Scatter, Feedback
-- Because there aren't enough knobs and I couldn't think of a reason you wouldn't want it keytracked, this filter forces keytracking to 100%.
 #### Formant
 - Options: Vowel, Nasal, Vowel Mod, Drive
 - Note: Vowel Mod changes the amount of modulation coming in from the modulation matrix, if you are modulating it. So to hear it simply, you can self-modulate this operator, and then tweak the Vowel Mod, and it will change the sound then.
+#### Compressor
+- Options: Threshold, Ratio, Attack, Release
+- it's a compressor. Wowee.
+#### 3-Bar EQ
+- Options: lowGain, medGain, highGain, Gain
+- A simple three-bar EQ that can be used as a selective gain addition if/when wanted.
+#### OTT
+- Options: Depth, Time, Upward, Tone
+- Modeled after the famous OTT effect. Make it more in your face!
 #### Tape
 - Options: Wobble, Age, Saturation, Bias
 - Wobble: pitch shifting
@@ -88,23 +99,47 @@ Additional Notes:
 - saturation: saturates the signal
 - bias: biases the saturation. midway is nothing, left is harsh and bright, right is dull and soft.
 - For Bias to be heard saturation must be on at least a little bit, the bias biases the saturation.
+#### Chorus
+- Options: Rate (speed chorus moves), Depth (size of chorus), Spread (in the stereo field), Voices (1-8)
+- This is a modern chorus.
+#### Old Chorus
+- Options: Rate (triangle LFO rate), Depth(1.7-16ms), Mode (Left: 1-voice, right: 2-voice), Warmth (subtle smear from prev sample)
+- This is modeled after a popular old chorus, and can sound more controlled and straightforwards.
+#### Distortion
+- Options: Drive, Flavor, Tone, Degradation
+- Drive: move sound
+- Flavor: morphs between distortion types. 0.0-0.25: Soft clip, 0.25-0.5 Hard clip, 0.5-0.75 Foldback, 0.75-1.0: Digital (sign function / bit mangle).
+- Tone: post-distortion onepole filter
+- Degradation: adds various sample-distruction effects.
 #### Bitcrush
 - Options: Bits (1-16), Rate (of bitcrushing), Jitter (added to output), Noise (added white noise sample in 'cracks' of output)
-#### Allpass Delay
-- Options: Time, Feedback, Diffusion, Damping
-- Time: 0.0 = 10ms, 1.0 = 1000ms
-- Damping: one-pole LP in feedback path
-- Diffusion 0.0 = clean echo, 1.0 = heavily smeared
-- Feedback - adding feedback before return
+#### Ring Mod
+- Options: Frequency (that rings out), Shape (of modulation), Depth (of modulation), Feedback (from modulation)
+- Modulate everything. Ring everything.
 #### Allpass Reverb
 - Options: Size, Decay, Diffusion, Damping
 - Size: 0.0 = small room (20ms), 1.0 = large hall (500ms)
 - Decay — feedback amount controls tail length
 - Diffusion — smear the output for density
 - Damping - one-pole LP in the feedback path
-#### Compressor
-- Options: Threshold, Ratio, Attack, Release
-- it's a compressor
+- A simple reverb built around allpass filters.
+#### Allpass Delay
+- Options: Time, Feedback, Diffusion, Damping
+- Time: 0.0 = 10ms, 1.0 = 1000ms
+- Damping: one-pole LP in feedback path
+- Diffusion 0.0 = clean echo, 1.0 = heavily smeared
+- Feedback - adding feedback before return
+- A delay built around allpass filters.
+#### Time-Control Delay
+- Options: Time, Feedback, Damping, Drive
+- A delay modeled after a famous delay, that quickly feeds back into itself.
+#### Ambient Shimmer
+-Options: Time, Feedback, Shimmer, Diffusion
+- Note: This ambient shimmer delay has a 16 second (!!!) possible time. Shimmer is a one-octave-up duplication of the sound and the knob acts as a mix knob for that.
+#### DJFX Delay
+- Options: Buffer, Speed, Loop On, Drift
+- Modeled after a famous DJ-style delay.
+- Without the loop on this functions as a varispeed that 'catches up' to the audio going through the playhead every Buffer seconds.
 #### Scatter
 - Options: Pattern, Size, Speed, Depth
 - Pattern 0.0-0.25: Stutter (repeats short segments)
@@ -114,48 +149,32 @@ Additional Notes:
 - Size: from 10ms to 500ms, control the size of the sections you're scattering around
 - Speed: from half speed to double speed, change the speed that you're scattering samples
 - Depth: blend scattered with dry
-#### Ring Mod
-- Options: Frequency (that rings out), Shape (of modulation), Depth (of modulation), Feedback (from modulation)
-#### Chorus
-- Options: Rate (speed chorus moves), Depth (size of chorus), Spread (in the stereo field), Voices (1-8)
-- This is a modern chorus! Wow. zzz
-#### Distortion
-- Options: Drive, Flavor, Tone, Degradation
-- Drive: move sound
-- Flavor: morphs between distortion types. 0.0-0.25: Soft clip, 0.25-0.5 Hard clip, 0.5-0.75 Foldback, 0.75-1.0: Digital (sign function / bit mangle).
-- Tone: post-distortion onepole filter
-- Degradation: adds various sample-distruction effects.
-#### DJFX Delay
-- Options: Buffer, Speed, Loop On, Drift
-Note: Without the loop on this functions as a varispeed that 'catches up' to the audio going through the playhead every Buffer seconds! I love this effect, haha, and I hope you do too.
-#### Resonator
-- Options: Root, Stretch, Brightness, Depth
-This goes shoom. Add a delay or reverb on top for extreme shine :D
-#### Ambient Shimmer
--Options: Time, Feedback, Shimmer, Diffusion
-Note: This ambient shimmer delay has a 16 second (!!!) possible time. Shimmer is a one-octave-up duplication of the sound and the knob acts as a mix knob for that.
-#### Old Chorus
--Options: Rate (triangle LFO rate), Depth(1.7-16ms), Mode (Left: 1-voice, right: 2-voice), Warmth (subtle smear from prev sample)
-#### OTT
--Options: Depth, Time, Upward, Tone
-Add some specific compression. Make it more in your face!
+#### Granular
+- Options: Grain size, Damping, Scatter, Feedback
+- Because there aren't enough knobs and I couldn't think of a reason you wouldn't want it keytracked, this filter forces keytracking to 100%.
+#### Color Bass
+- Options: Drive, Shimmer [Shimmer Pitch], Tone, Decay
+- Make your sound go (glittery noises)!
 #### Spectral Freeze
 -Options: Freeze, Blend, Pitch, Blur
 Take the incoming audio. Pause it. Twist it and reverse it.
 
-### More?
+#### More?
 The process to add more effects is very easy:
 -Add necessary state variables to SynthFilter.h's private section, and any variables it needs to reset to the reset() call.
 -Add a processing function to SynthFilter.h that actually takes input and processes the input into the effect result.
 -Update Constants.h to add the effect in the FilterChoices array and in the case settings.
 -In FMOperator.h, process the knobs to be correct given their start positions (which are from the default Wave 'Operators' page, these knobs are just relabeled with every change), and then pass them to the processing function.
--In the processBlock effects loop in PluginProcessor.cpp, so the Effects page can work, add the case there. This is pretty much the same as FMOperator.h but with some differences that are pretty self-evident looking at the 16 (!) current examples.
+-In the processBlock effects loop in PluginProcessor.cpp, so the Effects page can work, add the case there. This is pretty much the same as FMOperator.h but with some differences that are pretty self-evident looking at the 24 (!) current examples.
+-There is also an FX-Specific plugin that now builds, where you can use the effects by themselves.
 
 ### Sample
 - Import an audio file, and modify it with the effects/route it just like everything else. Initially I wanted to pass audio through the plugin but that's a giant pain for multiple reasons and JUCE has this built in so it's very easy to implement!
-- You can import a sample of any size (as long as your RAM can handle it ...). Samples are automatically assumed to be pitched at c4 - midi notes above or below c4 pitch the sample up or down respectfully.
-- Options: Speed [which you can use as a sort of Ratio], Sample Start, Loop (>.5 means yes loop, <.5 means no loop), Fold
-- I recommend placing any files you want to import in your main presets folder if you want to make and load presets with it.
+- You can import a sample of any size (as long as your RAM can handle it ...).
+- Samples are automatically assumed to be pitched at c4 - midi notes above or below c4 pitch the sample up or down respectfully.
+- Sample playback: Oneshot, Loop, Pingpong, Scatter
+- Sample options: Speed, Sample Start, Loop (>.5 means yes loop, <.5 means no loop), Fold
+- Note: When you save a preset, the preset saves a copy of the sample in the xml. Long samples will make very large presets.
 
 ## Modulation Matrix
 - A 6 by 6 matrix letting you modulate any operator with any other operator. On the right of this, there is a 6-slot mod matrix, letting you modulate anything in the synth (including effects, but effects are global only) with one of the six operators.
@@ -168,7 +187,7 @@ The process to add more effects is very easy:
 - The default 'Init' state just has Operator 1 audible. You can check this when you open the synth up by opening up this page and looking on the far right.
 
 ## Effects
-- Use any three of the filters that you want! They always run in serial but you can order them in any way so it doesn't really matter. You can also target them in the extra modulation matrix :)
+- Use any three of the effects that you want at the end of the chain. They always run in serial. You can target them in the extra modulation matrix
 
 ## Settings
 A settings page for two things:

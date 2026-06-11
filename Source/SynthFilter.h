@@ -162,18 +162,12 @@ public:
         resS1.fill (0.0f); resS2.fill (0.0f);
         resB0.fill (0.0f); resB2.fill (0.0f);
         resA1.fill (0.0f); resA2.fill (0.0f);
-        cachedDrive        = -1.0f;
-        cachedTone         = -1.0f;
-        cachedDecay        = -1.0f;
-        cachedDetectedFreq =  0.0f;
-        grainBuf.fill (0.0f);
-        grainWritePos      = 0;
-        pitchPhase         = 0.0f;
-        tiltLowZ           = 0.0f;
-        zcPrev             = 0.0f;
-        zcPeriodSamples    = 0.0f;
-        zcSampleCount      = 0;
-        detectedFreq       = 80.0f;
+        cachedDrive = -1.0f; cachedTone = -1.0f;
+        cachedDecay = -1.0f; cachedDetectedFreq = 0.0f;
+        grainBuf.fill (0.0f); grainWritePos = 0;
+        pitchPhase = 0.0f; tiltLowZ = 0.0f;
+        zcPrev = 0.0f; zcPeriodSamples = 0.0f;
+        zcSampleCount = 0; detectedFreq = 80.0f;
 	// ambient shimmer
         ambientBuffer.fill (0.0f);
         ambientWritePtr   = 0;
@@ -203,6 +197,7 @@ public:
             ottEnvDown[i] = 0.0f;
         }
 	ottToneLast = 0.0f;
+	//spectral freeze
         freezeInputBuffer.fill  (0.0f);
         freezeFrozenFrame.fill  (0.0f);
         freezeOutputBuffer.fill (0.0f);
@@ -213,6 +208,13 @@ public:
         freezeHopCounter       = 0;
         freezeHasFrozenFrame   = false;
         freezeMix              = 0.0f;
+        // 3-lane eq, filter+drive, music delay
+	fd_s1 = 0.0f; fd_s2 = 0.0f;
+        eq_s1_low = 0.0f; eq_s2_low = 0.0f;
+        eq_s1_high = 0.0f; eq_s2_high = 0.0f;
+        tcDelayBuffer.fill (0.0f);
+        tcWritePtr = 0; tcSmoothedSamples = 0.0f;
+	tcDampingState = 0.0f; tcHighPassState = 0.0f;
     }
 
     void noteStarted()
@@ -1608,6 +1610,117 @@ public:
         return std::isfinite (output) ? output : input;
     }
 
+    float processSampleFilterDrive (float input, float cutoffNorm, float resonanceNorm, float driveNorm, float modeNorm, double sampleRate)
+    {
+        // Knob 1: Cutoff Frequency mapped exponentially (20Hz to 16kHz)
+        float cutoffHz = 20.0f + (cutoffNorm * cutoffNorm) * 15980.0f;
+        
+        // Knob 2: Resonance Q factor (0.5 to 7.0)
+        float q = 0.5f + resonanceNorm * 6.5f;
+        float precalcK = 1.0f / q;
+        
+        // Core SVF Coeffs
+        float x = juce::MathConstants<float>::pi * cutoffHz / static_cast<float> (sampleRate);
+        float g_mod = std::tan (x);
+        float h_mod = 1.0f / (1.0f + g_mod * (g_mod + precalcK));
+        
+        // Filter processing
+        float hp = (input - (g_mod + precalcK) * fd_s1 - fd_s2) * h_mod;
+        float bp = g_mod * hp + fd_s1;
+        float lp = g_mod * bp + fd_s2;
+        
+        fd_s1 = 2.0f * bp - fd_s1;
+        fd_s2 = 2.0f * lp - fd_s2;
+        
+        // Latch stable mode selection
+        float filtered = (modeNorm < 0.5f) ? lp : hp;
+        
+        // Knob 3: Overdrive circuit multiplier (1x to 16x)
+        float driveAmt = 1.0f + driveNorm * 15.0f;
+        float driven = filtered * driveAmt;
+        
+        // Nonlinear soft clipping saturation
+        float saturated = std::tanh (driven);
+        
+        // Gain compensation to balance out severe drive amounts
+        float outputGain = 1.0f / std::sqrt (driveAmt);
+        return saturated * outputGain;
+    }
+    
+    float processSampleThreeBandEQ (float input, float lowGainNorm, float midGainNorm, float highGainNorm, float masterGain, double sampleRate)
+    {
+        // Map Knob 1-3 from 0.0-1.0 to professional EQ cuts/boosts (-24 dB to +12 dB)
+        float lowGain  = juce::Decibels::decibelsToGain (juce::jmap (lowGainNorm,  0.0f, 1.0f, -24.0f, 12.0f));
+        float midGain  = juce::Decibels::decibelsToGain (juce::jmap (midGainNorm,  0.0f, 1.0f, -24.0f, 12.0f));
+        float highGain = juce::Decibels::decibelsToGain (juce::jmap (highGainNorm, 0.0f, 1.0f, -24.0f, 12.0f));
+        
+        // Crossover 1: Low-to-Mid Crossover fixed at 240 Hz (Linkwitz-Riley Q layout approximation)
+        float wl = juce::MathConstants<float>::pi * 240.0f / static_cast<float> (sampleRate);
+        float gl = std::tan (wl);
+        float hl = 1.0f / (1.0f + gl * (gl + 1.4142f));
+        
+        float hp_l = (input - (gl + 1.4142f) * eq_s1_low - eq_s2_low) * hl;
+        float bp_l = gl * hp_l + eq_s1_low;
+        float lp_l = gl * bp_l + eq_s2_low;
+        eq_s1_low = 2.0f * bp_l - eq_s1_low;
+        eq_s2_low = 2.0f * lp_l - eq_s2_low;
+        
+        // Crossover 2: Mid-to-High Crossover fixed at 2600 Hz
+        float wh = juce::MathConstants<float>::pi * 2600.0f / static_cast<float> (sampleRate);
+        float gh = std::tan (wh);
+        float hh = 1.0f / (1.0f + gh * (gh + 1.4142f));
+        
+        float hp_h = (input - (gh + 1.4142f) * eq_s1_high - eq_s2_high) * hh;
+        float bp_h = gh * hp_h + eq_s1_high;
+        float lp_h = gh * bp_h + eq_s2_high;
+        eq_s1_high = 2.0f * bp_h - eq_s1_high;
+        eq_s2_high = 2.0f * lp_h - eq_s2_high;
+        
+        // Perfect phase-complementary split execution
+        float lowBand  = lp_l;
+        float highBand = hp_h;
+        float midBand  = input - lowBand - highBand; 
+        
+        // Apply independent lane gains and mix down with Master Volume Trim (Knob 4)
+        float outputMix = (lowBand * lowGain) + (midBand * midGain) + (highBand * highGain);
+        return outputMix * masterGain;
+    }
+
+    float processSampleTimeCtrlDelay (float input, float timeNorm, float feedbackNorm, float dampingNorm, float driveNorm, double sampleRate)
+    {
+        // Target delay tracking (30ms to 1000ms)
+        float targetDelayMs = juce::jmap (timeNorm, 0.0f, 1.0f, 30.0f, 1000.0f);
+        float targetSamples = targetDelayMs / 1000.0f * static_cast<float> (sampleRate);
+        float smoothingCoeff = 0.0005f; 
+        tcSmoothedSamples   += smoothingCoeff * (targetSamples - tcSmoothedSamples);
+        
+        float readPos = static_cast<float> (tcWritePtr) - tcSmoothedSamples;
+        while (readPos < 0.0f) readPos += static_cast<float> (tcDelayBufferSize);
+        float delayedSample = hermiteInterp (tcDelayBuffer.data(), tcDelayBufferSize, readPos);
+        
+        // Filters inside the feedback loop
+        // Lowpass (Damping)
+        float dampCutoff = juce::jmap (1.0f - dampingNorm, 0.0f, 1.0f, 200.0f, 20000.0f);
+        float dampAlpha  = 1.0f - std::exp (-2.0f * juce::MathConstants<float>::pi * dampCutoff / static_cast<float> (sampleRate));
+        tcDampingState  += dampAlpha * (delayedSample - tcDampingState);
+        
+        // Strips out subsonic buildup so self-oscillation stays in the musical mid-range
+        float hpAlpha = 1.0f - std::exp (-2.0f * juce::MathConstants<float>::pi * 80.0f / static_cast<float> (sampleRate));
+        tcHighPassState += hpAlpha * (tcDampingState - tcHighPassState);
+        float filteredSample = tcDampingState - tcHighPassState;
+    
+        // Bounded Tape Saturation
+        // Allow feedback to push slightly past 1.0 (up to 1.2) for true dub self-oscillation
+        float dubFeedback = juce::jlimit (0.0f, 1.2f, feedbackNorm * 1.3f); 
+        float driveAmt = 1.0f + driveNorm * 9.0f; 
+        float tapeInput = input + (filteredSample * dubFeedback);
+        float tapedSignal = std::tanh (tapeInput * driveAmt) / driveAmt;
+        tcDelayBuffer[tcWritePtr] = tapedSignal;
+        tcWritePtr = (tcWritePtr + 1) % tcDelayBufferSize;
+        // Scale the heavily compressed buffer sample back up so it sounds loud
+        return delayedSample * driveAmt; 
+    }
+
     int getCurrentType() const noexcept { return static_cast<int>(currentType); }
 
 protected:
@@ -1813,22 +1926,35 @@ protected:
     static constexpr int freezeFFTOrder = 14; // this is the power of 2 that defines the FFT size. 2^11 = 2048. 2^14 = 16384
     static constexpr int freezeFFTSize  = 1 << freezeFFTOrder; // 2048
     static constexpr int freezeHopSize  = freezeFFTSize / 4;   // 512
-    
     juce::dsp::FFT freezeFFT { freezeFFTOrder };
-    
     std::array<float, freezeFFTSize * 2> freezeInputBuffer  { 0.0f };
     std::array<float, freezeFFTSize * 2> freezeFrozenFrame  { 0.0f };
     std::array<float, freezeFFTSize * 2> freezeOutputBuffer { 0.0f };
     std::array<float, freezeFFTSize>     freezeWindow       { 0.0f };
     std::array<float, freezeFFTSize * 2> freezeWorkBuffer   { 0.0f };
     std::array<float, freezeFFTSize * 2> freezeSynthFrame   { 0.0f }; // moved to member
-    
     int   freezeInputWritePos  = 0;
     int   freezeOutputReadPos  = 0;
     int   freezeHopCounter     = 0;
     bool  freezeHasFrozenFrame = false;
     float freezeMix            = 0.0f;
     juce::Random freezeRandom; // dedicated RNG, not system random
+
+    // Filter + Drive State
+    float fd_s1 = 0.0f;
+    float fd_s2 = 0.0f;
+
+    // 3-Band EQ State
+    float eq_s1_low = 0.0f;
+    float eq_s2_low = 0.0f;
+    float eq_s1_high = 0.0f;
+    float eq_s2_high = 0.0f;
+
+    // Time Control Delay State
+    static constexpr int tcDelayBufferSize = 96000;
+    std::array<float, tcDelayBufferSize> tcDelayBuffer { 0.0f };
+    int tcWritePtr = 0; float tcSmoothedSamples = 0.0f;
+    float tcDampingState = 0.0f; float tcHighPassState = 0.0f;
 
     // Parameters Cache
     double sampleRate { 44100.0 };

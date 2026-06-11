@@ -242,7 +242,17 @@ public:
                 float output           = internalFilter.processSampleAudioRate(audioInputSum, dynamicCutoff, currentK);
                 outputSample           = std::isfinite(output) ? std::tanh(output) : 0.0f;
             }
-            else if (filterType == 4) // Comb
+            else if (filterType == 4) // Filter + Drive                  
+            {
+                float cutoff   = ratio; // 0.0 -> 1.0
+                float res      = juce::jlimit (0.0f, 1.0f, (detune + 50.0f) / 100.0f);
+                float drive    = phaseKnob / 360.0f;
+                float LP_or_HP = juce::jlimit (0.0f, 1.0f, foldKnob); // < 0.5 is LP, >= 0.5 is HP
+                
+                float output = internalFilter.processSampleFilterDrive (audioInputSum, cutoff, res, drive, LP_or_HP, currentSampleRate);
+                outputSample = std::isfinite (output) ? output : 0.0f;
+            }
+            else if (filterType == 5) // Comb
             {
                 // set up keytracking
                 float normalizedRatio = (ratio - 0.01f) / (16.0f - 0.01f);
@@ -259,8 +269,187 @@ public:
                 float output = internalFilter.processSampleComb(audioInputSum, combFreq, feedbackAmt, dampingAmt);
                 outputSample = std::isfinite(output) ? std::tanh(output) : 0.0f;
             }
-            else if (filterType == 5) // Granular
+            else if (filterType == 6) // Formant
             {
+                // Vowel (Ratio knob): Scale 0.01 - 16.0 to 0.0 - 4.0 (A-E-I-O-U)
+                float normalizedRatio = (ratio - 0.01f) / (16.0f - 0.01f);
+                float baseVowel       = normalizedRatio * 4.0f;
+                // Vowel Mod (Phase knob): How much modulation affects the vowel sweep
+                float modDepth = phaseKnob / 360.0f;
+                // Apply modulation (scaled so full modulation can sweep the whole table)
+                float dynamicVowel = baseVowel + (modulationSum * modDepth * 4.0f);
+                dynamicVowel       = juce::jlimit(0.0f, 4.0f, dynamicVowel);
+                // Resonance/Nasality (Detune knob): Map -50.0 - 50.0 to a Q-Factor of 2.0 to 15.0
+                float normalizedDetune = (detune + 50.0f) / 100.0f;
+                float qFactor          = juce::jmap(normalizedDetune, 0.0f, 1.0f, 2.0f, 15.0f);
+                // Drive (Fold knob): Pushes the input into a soft-clipper BEFORE the filter.
+                float drive       = 1.0f + (foldKnob * 4.0f); // 1.0x to 5.0x drive
+                float drivenInput = std::tanh(audioInputSum * drive);
+                // output
+                float output = internalFilter.processSampleFormant(drivenInput, dynamicVowel, qFactor);
+                outputSample = std::isfinite(output) ? std::tanh(output) : 0.0f;
+            }
+            else if (filterType == 7) // Compressor
+            {
+                float threshold = (ratio - 0.01f) / (16.0f - 0.01f);
+                float compRatio = juce::jlimit (0.0f, 1.0f, (detune + 50.0f) / 100.0f);
+                float attack    = phaseKnob / 360.0f;
+                float release   = juce::jlimit (0.0f, 1.0f, foldKnob);
+                float output = internalFilter.processSampleCompressor (audioInputSum, threshold,
+                                                                        compRatio, attack, release,
+                                                                        currentSampleRate);
+                outputSample = std::isfinite (output) ? output : 0.0f;
+            }
+            else if (filterType == 8) // Three-Lane EQ
+            {
+                float lowGain  = ratio;
+                float midGain  = juce::jlimit (0.0f, 1.0f, (detune + 50.0f) / 100.0f);
+                float highGain = phaseKnob / 360.0f;
+                float master   = juce::jlimit (0.0f, 1.0f, foldKnob); // Master Output Ceiling
+            
+                float output = internalFilter.processSampleThreeBandEQ (audioInputSum, lowGain, midGain, highGain, master, currentSampleRate);
+                outputSample = std::isfinite (output) ? output : 0.0f;
+            }
+            else if (filterType == 9) // OTT
+            {
+                float depth   = (ratio - 0.01f) / (16.0f - 0.01f);
+                float timeKnob = juce::jlimit (0.0f, 1.0f, (detune + 50.0f) / 100.0f); 
+                float upward  = phaseKnob / 360.0f;
+                float tone    = juce::jlimit (0.0f, 1.0f, foldKnob);
+          
+                float output = internalFilter.processSampleOTT (audioInputSum, depth, timeKnob,
+                                                                 upward, tone, currentSampleRate);
+                outputSample = std::isfinite (output) ? output : 0.0f;
+            }
+            else if (filterType == 10) // Tape
+            {
+                float wobbleRate = (ratio - 0.01f) / (16.0f - 0.01f);
+                float age        = juce::jlimit (0.0f, 1.0f, (detune + 50.0f) / 100.0f);
+                float saturation = phaseKnob / 360.0f;
+                float bias       = juce::jlimit (0.0f, 1.0f, foldKnob); // 0.5 = optimal
+                float output = internalFilter.processSampleTape (audioInputSum, wobbleRate, age,
+                                                                  saturation, bias, currentSampleRate);
+                outputSample = std::isfinite (output) ? output : 0.0f;
+            }
+            else if (filterType == 11) // Chorus
+            {
+                float rate   = (ratio - 0.01f) / (16.0f - 0.01f);
+                float depth  = juce::jlimit (0.0f, 1.0f, (detune + 50.0f) / 100.0f);
+                float spread = phaseKnob / 360.0f;
+                float voices = juce::jlimit (0.0f, 1.0f, foldKnob);
+                float output = internalFilter.processSampleChorus (audioInputSum, rate, depth,
+                                                                    spread, voices, currentSampleRate);
+                outputSample = std::isfinite (output) ? output : 0.0f;
+            }
+            else if (filterType == 12) // Old Chorus
+            {
+                float rate    = (ratio - 0.01f) / (16.0f - 0.01f);
+                float depth   = juce::jlimit (0.0f, 1.0f, (detune + 50.0f) / 100.0f);
+                float modeKnob = phaseKnob / 360.0f;
+                float warmth  = juce::jlimit (0.0f, 1.0f, foldKnob);
+
+                float output = internalFilter.processSampleOldChorus (audioInputSum, rate, depth,
+                                                                       modeKnob, warmth,
+                                                                       currentSampleRate);
+                outputSample = std::isfinite (output) ? output : 0.0f;
+            }
+            else if (filterType == 13) // Distortion
+            {
+                float drive       = (ratio - 0.01f) / (16.0f - 0.01f);
+                float flavor      = juce::jlimit (0.0f, 1.0f, (detune + 50.0f) / 100.0f);
+                float toneKnob    = phaseKnob / 360.0f;
+                float degradation = juce::jlimit (0.0f, 1.0f, foldKnob);
+                float output = internalFilter.processSampleDistortion (audioInputSum, drive, flavor,
+                                                                        toneKnob, degradation,
+                                                                        currentSampleRate);
+                outputSample = std::isfinite (output) ? output : 0.0f;    
+            }
+            else if (filterType == 14) // Bitcrush
+            {
+                float bits   = (ratio - 0.01f) / (16.0f - 0.01f);
+                float rate   = juce::jlimit (0.0f, 1.0f, (detune + 50.0f) / 100.0f);
+                float jitter = phaseKnob / 360.0f;
+                float noise  = juce::jlimit (0.0f, 1.0f, foldKnob);
+                float output = internalFilter.processSampleBitcrush (audioInputSum, bits, rate,
+                                                                      jitter, noise, currentSampleRate);
+                outputSample = std::isfinite (output) ? output : 0.0f;
+            }
+            else if (filterType == 15) // Ring Modulator
+            {
+                // Frequency: ratio knob maps to 0.1Hz - 5000Hz exponentially
+                float normalizedRatio = (ratio - 0.01f) / (16.0f - 0.01f);
+                float frequency       = 0.1f * std::pow (50000.0f, normalizedRatio);
+                float shape           = juce::jlimit (0.0f, 1.0f, (detune + 50.0f) / 100.0f);
+                float depth           = phaseKnob / 360.0f;
+                float feedback        = juce::jlimit (0.0f, 0.95f, foldKnob);
+                float output = internalFilter.processSampleRingMod (audioInputSum, frequency, shape,
+                                                                     depth, feedback, currentSampleRate);
+                outputSample = std::isfinite (output) ? output : 0.0f;
+            }
+            else if (filterType == 16) // Allpass Reverb
+            {
+                float size      = (ratio - 0.01f) / (16.0f - 0.01f);
+                float decay     = juce::jlimit (0.0f, 0.98f, (detune + 50.0f) / 100.0f);
+                float diffusion = phaseKnob / 360.0f;
+                float damping   = juce::jlimit (0.0f, 1.0f, foldKnob);
+                float output = internalFilter.processSampleAllpassReverb (audioInputSum, size, decay,
+                                                                           diffusion, damping, currentSampleRate);
+                outputSample = std::isfinite (output) ? std::tanh (output) : 0.0f;
+            }
+            else if (filterType == 17) // Allpass Delay
+            {
+                float time      = (ratio - 0.01f) / (16.0f - 0.01f);
+                float feedback  = juce::jlimit (0.0f, 0.95f, (detune + 50.0f) / 100.0f);
+                float diffusion = phaseKnob / 360.0f;
+                float damping   = juce::jlimit (0.0f, 1.0f, foldKnob);
+                float output = internalFilter.processSampleAllpassDelay (audioInputSum, time, feedback,
+                                                                          diffusion, damping, currentSampleRate);
+                outputSample = std::isfinite (output) ? std::tanh (output) : 0.0f;
+            }
+            else if (filterType == 18) // Timeshift Delay
+            {
+                float delayTime = ratio;
+                float feedback  = juce::jlimit (0.0f, 1.0f, (detune + 50.0f) / 100.0f);
+                float damping   = phaseKnob / 360.0f;
+                float drive     = juce::jlimit (0.0f, 1.0f, foldKnob);
+                
+                float output = internalFilter.processSampleTimeCtrlDelay (audioInputSum, delayTime, feedback, damping, drive, currentSampleRate);
+                outputSample = std::isfinite (output) ? output : 0.0f;
+            }
+            else if (filterType == 19) // Ambient Delay
+            {
+                float time      = (ratio - 0.01f) / (16.0f - 0.01f);
+                float feedbk    = juce::jlimit (0.0f, 0.98f, (detune + 50.0f) / 100.0f);
+                float shimmerAmt = phaseKnob / 360.0f;
+                float diffusion  = juce::jlimit (0.0f, 1.0f, foldKnob);
+
+                float output = internalFilter.processSampleAmbientDelay (audioInputSum, time, feedbk,
+                                                                          shimmerAmt, diffusion,
+                                                                          currentSampleRate);
+                outputSample = std::isfinite (output) ? output : 0.0f;
+            }
+            else if (filterType == 20) // DJFX Delay
+            {
+                float bufferAmt = (ratio - 0.01f) / (16.0f - 0.01f);
+                float speed     = juce::jlimit (0.0f, 1.0f, (detune + 50.0f) / 100.0f);
+                float on        = phaseKnob / 360.0f;
+                float drift     = juce::jlimit (0.0f, 1.0f, foldKnob);
+                float output = internalFilter.processSampleDJFXDelay (audioInputSum, bufferAmt, speed,
+                                                                       on, drift, currentSampleRate);
+                outputSample = std::isfinite (output) ? output : 0.0f;
+            }
+            else if (filterType == 21) // Scatter
+            {
+                float pattern = (ratio - 0.01f) / (16.0f - 0.01f);
+                float size    = juce::jlimit (0.0f, 1.0f, (detune + 50.0f) / 100.0f);
+                float speed   = phaseKnob / 360.0f;
+                float depth   = juce::jlimit (0.0f, 1.0f, foldKnob);
+                float output = internalFilter.processSampleScatter (audioInputSum, pattern, size,
+                                                                     speed, depth, currentSampleRate);
+                outputSample = std::isfinite (output) ? output : 0.0f;
+            }
+            else if (filterType == 22) // Granular
+            {                                                              
                 // we assume keytracking so we can track scatter and grain size
                 float granularFreq = baseFrequency + (modulationSum * 200.0f);
                 granularFreq = juce::jlimit(20.0f, static_cast<float>(currentSampleRate) * 0.49f, granularFreq);
@@ -273,131 +462,7 @@ public:
                 float output = internalFilter.processSampleGranular(audioInputSum, granularFreq, scatterAmt, grainDurationMs, feedbackAmt, dampingAmt);
                 outputSample = std::isfinite(output) ? std::tanh(output) : 0.0f;
             }
-            else if (filterType == 6) // Formant
-            {
-                // Vowel (Ratio knob): Scale 0.01 - 16.0 to 0.0 - 4.0 (A-E-I-O-U)
-                float normalizedRatio = (ratio - 0.01f) / (16.0f - 0.01f);
-                float baseVowel       = normalizedRatio * 4.0f;
-                // Vowel Mod (Phase knob): How much modulation affects the vowel sweep
-                float modDepth = phaseKnob / 360.0f;
-                // Apply modulation (scaled so full modulation can sweep the whole table)
-                float dynamicVowel = baseVowel + (modulationSum * modDepth * 4.0f);
-                dynamicVowel       = juce::jlimit(0.0f, 4.0f, dynamicVowel);
-                // Resonance/Nasality (Detune knob): Map -50.0 - 50.0 to a Q-Factor of 2.0 to 15.0
-                float normalizedDetune = (detune + 50.0f) / 100.0f; 
-                float qFactor          = juce::jmap(normalizedDetune, 0.0f, 1.0f, 2.0f, 15.0f);
-                // Drive (Fold knob): Pushes the input into a soft-clipper BEFORE the filter.
-                float drive       = 1.0f + (foldKnob * 4.0f); // 1.0x to 5.0x drive
-                float drivenInput = std::tanh(audioInputSum * drive);
-                // output
-                float output = internalFilter.processSampleFormant(drivenInput, dynamicVowel, qFactor);
-                outputSample = std::isfinite(output) ? std::tanh(output) : 0.0f;
-            }
-            else if (filterType == 7) // Tape
-            {
-                float wobbleRate = (ratio - 0.01f) / (16.0f - 0.01f);
-                float age        = juce::jlimit (0.0f, 1.0f, (detune + 50.0f) / 100.0f);
-                float saturation = phaseKnob / 360.0f;
-                float bias       = juce::jlimit (0.0f, 1.0f, foldKnob); // 0.5 = optimal
-                float output = internalFilter.processSampleTape (audioInputSum, wobbleRate, age,
-                                                                  saturation, bias, currentSampleRate);
-                outputSample = std::isfinite (output) ? output : 0.0f;
-            }
-            else if (filterType == 8) // Bitcrush
-            {
-                float bits   = (ratio - 0.01f) / (16.0f - 0.01f);
-                float rate   = juce::jlimit (0.0f, 1.0f, (detune + 50.0f) / 100.0f);
-                float jitter = phaseKnob / 360.0f;
-                float noise  = juce::jlimit (0.0f, 1.0f, foldKnob);
-                float output = internalFilter.processSampleBitcrush (audioInputSum, bits, rate,
-                                                                      jitter, noise, currentSampleRate);
-                outputSample = std::isfinite (output) ? output : 0.0f;
-            }
-            else if (filterType == 9) // Allpass Delay
-            {
-                float time      = (ratio - 0.01f) / (16.0f - 0.01f);
-                float feedback  = juce::jlimit (0.0f, 0.95f, (detune + 50.0f) / 100.0f);
-                float diffusion = phaseKnob / 360.0f;
-                float damping   = juce::jlimit (0.0f, 1.0f, foldKnob);
-                float output = internalFilter.processSampleAllpassDelay (audioInputSum, time, feedback,
-                                                                          diffusion, damping, currentSampleRate);
-                outputSample = std::isfinite (output) ? std::tanh (output) : 0.0f;
-            }
-            else if (filterType == 10) // Allpass Reverb
-            {
-                float size      = (ratio - 0.01f) / (16.0f - 0.01f);
-                float decay     = juce::jlimit (0.0f, 0.98f, (detune + 50.0f) / 100.0f);
-                float diffusion = phaseKnob / 360.0f;
-                float damping   = juce::jlimit (0.0f, 1.0f, foldKnob);
-                float output = internalFilter.processSampleAllpassReverb (audioInputSum, size, decay,
-                                                                           diffusion, damping, currentSampleRate);
-                outputSample = std::isfinite (output) ? std::tanh (output) : 0.0f;
-            }
-            else if (filterType == 11) // Compressor
-            {
-                float threshold = (ratio - 0.01f) / (16.0f - 0.01f);
-                float compRatio = juce::jlimit (0.0f, 1.0f, (detune + 50.0f) / 100.0f);
-                float attack    = phaseKnob / 360.0f;
-                float release   = juce::jlimit (0.0f, 1.0f, foldKnob);
-                float output = internalFilter.processSampleCompressor (audioInputSum, threshold,
-                                                                        compRatio, attack, release,
-                                                                        currentSampleRate);
-                outputSample = std::isfinite (output) ? output : 0.0f;
-            }
-            else if (filterType == 12) // Scatter
-            {
-                float pattern = (ratio - 0.01f) / (16.0f - 0.01f);
-                float size    = juce::jlimit (0.0f, 1.0f, (detune + 50.0f) / 100.0f);
-                float speed   = phaseKnob / 360.0f;
-                float depth   = juce::jlimit (0.0f, 1.0f, foldKnob);
-                float output = internalFilter.processSampleScatter (audioInputSum, pattern, size,
-                                                                     speed, depth, currentSampleRate);
-                outputSample = std::isfinite (output) ? output : 0.0f;
-            }
-            else if (filterType == 13) // Ring Modulator
-            {
-                // Frequency: ratio knob maps to 0.1Hz - 5000Hz exponentially
-                float normalizedRatio = (ratio - 0.01f) / (16.0f - 0.01f);
-                float frequency       = 0.1f * std::pow (50000.0f, normalizedRatio);
-                float shape           = juce::jlimit (0.0f, 1.0f, (detune + 50.0f) / 100.0f);
-                float depth           = phaseKnob / 360.0f;
-                float feedback        = juce::jlimit (0.0f, 0.95f, foldKnob);
-                float output = internalFilter.processSampleRingMod (audioInputSum, frequency, shape,
-                                                                     depth, feedback, currentSampleRate);
-                outputSample = std::isfinite (output) ? output : 0.0f;
-            }
-            else if (filterType == 14) // Chorus
-            {
-                float rate   = (ratio - 0.01f) / (16.0f - 0.01f);
-                float depth  = juce::jlimit (0.0f, 1.0f, (detune + 50.0f) / 100.0f);
-                float spread = phaseKnob / 360.0f;
-                float voices = juce::jlimit (0.0f, 1.0f, foldKnob);
-                float output = internalFilter.processSampleChorus (audioInputSum, rate, depth,
-                                                                    spread, voices, currentSampleRate);
-                outputSample = std::isfinite (output) ? output : 0.0f;
-            }
-            else if (filterType == 15) // Distortion
-            {
-                float drive       = (ratio - 0.01f) / (16.0f - 0.01f);
-                float flavor      = juce::jlimit (0.0f, 1.0f, (detune + 50.0f) / 100.0f);
-                float toneKnob    = phaseKnob / 360.0f;
-                float degradation = juce::jlimit (0.0f, 1.0f, foldKnob);
-                float output = internalFilter.processSampleDistortion (audioInputSum, drive, flavor,
-                                                                        toneKnob, degradation,
-                                                                        currentSampleRate);
-                outputSample = std::isfinite (output) ? output : 0.0f;
-            }
-	    else if (filterType == 16) // DJFX Delay
-            {
-                float bufferAmt = (ratio - 0.01f) / (16.0f - 0.01f);
-                float speed     = juce::jlimit (0.0f, 1.0f, (detune + 50.0f) / 100.0f);
-                float on        = phaseKnob / 360.0f;
-                float drift     = juce::jlimit (0.0f, 1.0f, foldKnob);
-                float output = internalFilter.processSampleDJFXDelay (audioInputSum, bufferAmt, speed,
-                                                                       on, drift, currentSampleRate);
-                outputSample = std::isfinite (output) ? output : 0.0f;
-            }
-            else if (filterType == 17) // Color Bass
+            else if (filterType == 23) // Color Bass
             {
                 float drive   = juce::jlimit (0.0f, 1.0f, (ratio - 0.01f) / (16.0f - 0.01f));
                 float shimmer = juce::jlimit (0.0f, 1.0f, phaseKnob / 360.0f);
@@ -408,42 +473,7 @@ public:
                                                                         decay, currentSampleRate);
                 outputSample = std::isfinite (output) ? output : 0.0f;
             }
-	    else if (filterType == 18) // Ambient Delay
-            {
-                float time      = (ratio - 0.01f) / (16.0f - 0.01f);
-                float feedbk    = juce::jlimit (0.0f, 0.98f, (detune + 50.0f) / 100.0f);
-                float shimmerAmt = phaseKnob / 360.0f;
-                float diffusion  = juce::jlimit (0.0f, 1.0f, foldKnob);
-            
-                float output = internalFilter.processSampleAmbientDelay (audioInputSum, time, feedbk,
-                                                                          shimmerAmt, diffusion,
-                                                                          currentSampleRate);
-                outputSample = std::isfinite (output) ? output : 0.0f;
-            }
-            else if (filterType == 19) // Old Chorus
-            {
-                float rate    = (ratio - 0.01f) / (16.0f - 0.01f);
-                float depth   = juce::jlimit (0.0f, 1.0f, (detune + 50.0f) / 100.0f);
-                float modeKnob = phaseKnob / 360.0f;
-                float warmth  = juce::jlimit (0.0f, 1.0f, foldKnob);
-            
-                float output = internalFilter.processSampleOldChorus (audioInputSum, rate, depth,
-                                                                       modeKnob, warmth,
-                                                                       currentSampleRate);
-                outputSample = std::isfinite (output) ? output : 0.0f;
-            }
-            else if (filterType == 20) // OTT
-            {
-                float depth   = (ratio - 0.01f) / (16.0f - 0.01f);
-                float timeKnob = juce::jlimit (0.0f, 1.0f, (detune + 50.0f) / 100.0f);
-                float upward  = phaseKnob / 360.0f;
-                float tone    = juce::jlimit (0.0f, 1.0f, foldKnob);
-            
-                float output = internalFilter.processSampleOTT (audioInputSum, depth, timeKnob,
-                                                                 upward, tone, currentSampleRate);
-                outputSample = std::isfinite (output) ? output : 0.0f;
-            }
-            else if (filterType == 21) // Spectral Freeze
+            else if (filterType == 24) // Spectral Freeze
             {
                 float freeze = (ratio - 0.01f) / (16.0f - 0.01f);
                 float blend  = juce::jlimit (0.0f, 1.0f, (detune + 50.0f) / 100.0f);

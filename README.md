@@ -181,15 +181,20 @@ Take the incoming audio. Pause it. Twist it and reverse it.
 ## Modulation Matrix
 - A 6 by 6 matrix letting you modulate any operator with any other operator. On the right of this, there is a 6-slot mod matrix, letting you modulate anything in the synth (including effects, but effects are global only) with one of the six operators.
 - This is a frequency modulation matrix - you are modulating the frequency of anything you target (including targeting an effect) with the wave of whatever you are sending in.
-- NOTE FOR THE 6-SLOT MOD MATRIX: The targets are labeled with the slot they are in (Slot A, Slot B, Slot C, Slot D). This correlates to the knobs left to right - by default, for the Wave operator type, this will affect Ratio, Detune, Phase (or PWM), and Fold. But it will transparently affect that knob, with whatever you have in that slot.
+- The mod targets are labeled with the slot they are in (Slot A, Slot B, Slot C, Slot D). This correlates to the knobs left to right.
 
 ## Audio Matrix
 - A 6 by 6 matrix letting you route audio.
 - You can route audio from one operator into another with this, and you can control which operators are sending out to be heard.
 - The default 'Init' state just has Operator 1 audible. You can check this when you open the synth up by opening up this page and looking on the far right.
 
-## Effects
-- Use any three of the effects that you want at the end of the chain. They always run in serial. You can target them in the extra modulation matrix too!
+## Extra Effects
+- Outside of the general Mod Matrix I wanted end of chain effects, so here we go!
+- Use any three of the effects that you want at the end of the chain. They always run in serial 1 > 2 > 3. You can target them in the extra modulation matrix.
+- These effects run in either dual mono (most effects) or stereo. The stereo effects are:
+-- both choruses
+-- allpass delay and reverb
+-- ambient delay
 
 ## Settings
 - A settings page for two things:
@@ -200,10 +205,15 @@ Take the incoming audio. Pause it. Twist it and reverse it.
 
 
 ## Other Features:
-- You can sync an operator to DAW tempo and use it as an LFO. Do you want more LFOs? Why have LFOs when you can just have more operators??
+- You can sync an operator to DAW tempo and use it as an LFO. Do you want more LFOs? Why have LFOs when you can just have operators??
 - You can pass audio into an operator with the audio routing matrix. Stack that audio!!!
-- You can modulate any operator with any other operator.
+- You can modulate any operator with any other operator. Doot de doot.
 - If you want to use the effects on other things, use the effects plugin :)
+
+## Todo
+- Still troubleshooting the scatter and pingpong settings for sample playback.
+- considering what to do with the fold knob in sample settings. for scatter it can be the window size? will see.
+- Test the stereo effects.
 
 Pictures of the synth in use are provided in the pictures/ folder, and I've switched between themes for each picture so you can get an idea of the theme options. There are also build scripts in the main folder, and built vst3 and standalone builds for all three OS's in the release folder.
 This is mostly AI-coded, but I am actively using the synth myself and have read over all of the code and think I understand it (though how much can one understand code they haven't written themselves?). Your mileage, as always, may vary.

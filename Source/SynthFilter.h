@@ -998,9 +998,7 @@ public:
         int   captureSize = juce::jlimit (1, djfxBufferSize - 1,
                                           static_cast<int> (bufferMs / 1000.0f * sampleRate));
     
-        // ==========================================
         // 4A. STUTTER LOOP MODE
-        // ==========================================
 	if (on >= 0.5f)
         {
             // Latch the loop start position ONLY once when entering the loop
@@ -1028,9 +1026,7 @@ public:
             while (djfxReadPtr >= end) djfxReadPtr -= (float)captureSize;
             while (djfxReadPtr < djfxLoopStart) djfxReadPtr += (float)captureSize;
         }
-        // ==========================================
         // 4B. VARISPEED WITH RHYTHMIC JUMP
-        // ==========================================
         else
         {
             djfxJumpTimer++;
@@ -1062,9 +1058,7 @@ public:
                                    float  decay,
                                    double sampleRate)
     {
-        //------------------------------------------------------------------
-        // 1. PITCH DETECTION  (zero-crossing period estimator)
-        //------------------------------------------------------------------
+        // pitch detection (zero-crossing period estimator)
         ++zcSampleCount;
         if (zcPrev <= 0.0f && input > 0.0f)
         {
@@ -1082,12 +1076,10 @@ public:
     
         float rootFreq = detectedFreq;
     
-        //------------------------------------------------------------------
         // 2. PITCH-SHIFTED EXCITER  (fixed perfect fifth = +7 semitones)
         //    Hardcoded to P5 as the most universally musical shimmer interval.
         //    Change the semitones constant to 4 (M3), 5 (P4), or 12 (Oct)
         //    if you want a different default.
-        //------------------------------------------------------------------
         constexpr float kShimmerSemitones = 7.0f;   // perfect fifth
         constexpr float kPitchRatio       = 1.4983f; // std::pow(2, 7/12) baked out
     
@@ -1111,9 +1103,7 @@ public:
     
         ++grainWritePos;
     
-        //------------------------------------------------------------------
         // 3. RESONATOR COEFFICIENT UPDATE  (only on knob change or pitch drift)
-        //------------------------------------------------------------------
         const float harmonicRatios[7] = { 1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f, 7.0f };
         const int   numHarmonics      = 7;
     
@@ -1201,9 +1191,7 @@ public:
             }
         }
     
-        //------------------------------------------------------------------
         // 4. PROCESS RESONATORS
-        //------------------------------------------------------------------
         float bodyOut    = 0.0f;
         float shimmerOut = 0.0f;
         int   bandIdx    = 0;
@@ -1234,9 +1222,7 @@ public:
             shimmerOut    += bandOut * 0.8f;
         }
     
-        //------------------------------------------------------------------
         // 5. TILT EQ
-        //------------------------------------------------------------------
         float tiltAmt  = (tone - 0.5f) * 2.0f;
         float tiltFreq = 800.0f;
         float tiltCoef = std::exp (-2.0f * juce::MathConstants<float>::pi
@@ -1246,16 +1232,12 @@ public:
         float tiltHigh = bodyOut - tiltLowZ;
         float tiltedBody = bodyOut + tiltAmt * (tiltHigh - tiltLowZ) * 0.5f;
     
-        //------------------------------------------------------------------
         // 6. SATURATION
-        //------------------------------------------------------------------
         float driveGain  = 1.0f + drive * 15.0f;
         float bodyDriven = std::tanh (tiltedBody * driveGain) / std::tanh (driveGain);
         float shimDriven = std::tanh (shimmerOut * driveGain) / std::tanh (driveGain);
     
-        //------------------------------------------------------------------
         // 7. MIX
-        //------------------------------------------------------------------
         float bodyNorm    = bodyDriven / std::sqrt (static_cast<float> (numHarmonics));
         float shimmerNorm = shimDriven / std::sqrt (2.0f);
     

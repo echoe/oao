@@ -14,7 +14,7 @@ namespace ProjectConfig
     // Filters list
     inline juce::StringArray getFilterTypeChoices()
     {
-        return { "None", "Lowpass", "Highpass", "Bandpass", "Drive Filter", "Comb", "Formant", "Compressor", "3-bar EQ", "OTT", "Tape", "Chorus", "Old Chorus", "Distortion", "Bitcrush", "Ring Mod", "AP Reverb", "AP Delay", "Time Delay", "Shimmer Delay", "DJFX Delay", "Scatter", "Granular", "Color Bass", "Spectral Freeze" };
+        return { "None", "Lowpass", "Highpass", "Bandpass", "Drive Filter", "Comb", "Formant", "Compressor", "3-bar EQ", "OTT", "Tape", "Chorus", "Old Chorus", "Distortion", "Bitcrush", "Ring Mod", "AP Reverb", "AP Delay", "Timeshift Delay", "Shimmer Delay", "DJFX Delay", "Scatter", "Granular", "Color Bass", "Spectral Freeze" };
     }
     // Filters knobs list
     inline std::array<const char*, 4> getFilterKnobLabels (int filterTypeIndex)

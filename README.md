@@ -130,9 +130,9 @@ Additional Notes:
 - Diffusion 0.0 = clean echo, 1.0 = heavily smeared
 - Feedback - adding feedback before return
 - A delay built around allpass filters.
-#### Time-Control Delay
+#### Timeshift Delay
 - Options: Time, Feedback, Damping, Drive
-- A delay modeled after a famous delay, that quickly feeds back into itself.
+- A delay modeled after a famous Time Control delay, that quickly feeds back into itself. ... Care with this one, it's easy to get it to self-oscillate!
 #### Ambient Shimmer
 -Options: Time, Feedback, Shimmer, Diffusion
 - Note: This ambient shimmer delay has a 16 second (!!!) possible time. Shimmer is a one-octave-up duplication of the sound and the knob acts as a mix knob for that.

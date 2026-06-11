@@ -107,7 +107,7 @@ struct CompactOperatorGroup : public juce::Component
         // --- TOP STRIP ---
         auto topStrip = area.removeFromTop (h * 0.12f);
         opHeaderLabel.setBounds (topStrip.removeFromLeft (w * 0.25f));
-	freqModeSelector.setBounds (topStrip.removeFromLeft (w * 0.20f).reduced (1));
+	freqModeSelector.setBounds (topStrip.removeFromLeft (w * 0.18f).reduced (1));
 	modeSelector.setBounds  (topStrip.removeFromLeft (w * 0.25f).reduced (1));
     
         if (filterTypeSelector.isVisible())
@@ -223,6 +223,11 @@ struct CompactOperatorGroup : public juce::Component
     // Callback fired when the user picks a file. Receives (opIndex, file).
     std::function<void(int, juce::File)> onLoadSample;
 
+    void setSampleButtonText (const juce::String& name)
+    {
+        loadSampleButton.setButtonText (name.isNotEmpty() ? name : "Load Sample");
+    }
+
 private:
     // Combined logic method avoids layout text fighting
     OAOColors& colors;
@@ -233,58 +238,63 @@ private:
         bool isAdditiveMode = (selectedMode == 2);
         bool isFilterMode  = (selectedMode == 3);
         bool isExtAudioMode = (selectedMode == 4);
-	int freqMode       = freqModeSelector.getSelectedId(); // 1=Std, 2=Sync, 3=Hz, 4=LFO
-        bool isStandard    = (freqMode == 1);
-        bool isSync        = (freqMode == 2);
-        bool isHz          = (freqMode == 3);
-        bool isLFO         = (freqMode == 4);
+	int freqMode        = freqModeSelector.getSelectedId();
+        bool isSync         = (freqMode == 2);
+        bool isHz           = (freqMode == 3);
+        bool isLFO          = (freqMode == 4);
         int selectedFilter = filterTypeSelector.getSelectedId();
         waveShapeSelector.setVisible (isWaveMode);
         filterTypeSelector.setVisible (isFilterMode);
         loadSampleButton.setVisible (isExtAudioMode);
         phaseSlider.setVisible (true);
         phaseLabel.setVisible  (true);
-        // Handle frequencies
+
+        // Swap freqMode selector items depending on whether we're in sample mode or not
         if (isExtAudioMode)
         {
-            // Swap freqMode selector to play-mode choices
-	    int savedId = freqModeSelector.getSelectedId();
-            freqModeSelector.clear (juce::dontSendNotification);
-            freqModeSelector.addItemList ({ "Oneshot", "Loop", "Pingpong", "Stutter" }, 1);
-	    freqModeSelector.setSelectedId (savedId > 0 ? savedId : 1, juce::dontSendNotification);
+            if (freqModeSelector.getItemText (0) != "One-shot")
+            {
+                int savedId = freqModeSelector.getSelectedId();
+                freqModeSelector.clear (juce::dontSendNotification);
+                freqModeSelector.addItemList ({ "One-shot", "Loop", "Ping-pong", "Stutter" }, 1);
+                freqModeSelector.setSelectedId (savedId > 0 ? savedId : 1, juce::dontSendNotification);
+            }
         }
         else
         {
-            // Restore standard freqMode choices when leaving sample mode
-            if (freqModeSelector.getNumItems() != 4 ||
-                freqModeSelector.getItemText (0) != "Std")
+            if (freqModeSelector.getItemText (0) != "Std")
             {
                 int savedId = freqModeSelector.getSelectedId();
                 freqModeSelector.clear (juce::dontSendNotification);
                 freqModeSelector.addItemList ({ "Std", "Sync", "Hz", "LFO" }, 1);
                 freqModeSelector.setSelectedId (savedId > 0 ? savedId : 1, juce::dontSendNotification);
             }
+            // Re-read after any potential restore
+            freqMode   = freqModeSelector.getSelectedId();
+            isSync     = (freqMode == 2);
+            isHz       = (freqMode == 3);
+            isLFO      = (freqMode == 4);
         }
-	// Handle knobs
-	if (isExtAudioMode)
+
+        // Knob labels — one clean chain covering all four modes
+        if (isExtAudioMode)
         {
-            ratioLabel.setText  ("Speed",  juce::dontSendNotification);
+            ratioLabel.setText  ("Speed", juce::dontSendNotification);
+            detuneLabel.setText ("Start", juce::dontSendNotification);
+            phaseLabel.setText  ("End",   juce::dontSendNotification);
+            foldLabel.setText   ("Fold",  juce::dontSendNotification);
             ratioSlider.setTextValueSuffix ("");
-	    detuneLabel.setText ("Start",  juce::dontSendNotification);
-            phaseLabel.setText  ("End",    juce::dontSendNotification);
-            foldLabel.setText   ("Fold",   juce::dontSendNotification);
-	}
-	else if (isAdditiveMode)
+        }
+        else if (isAdditiveMode)
         {
             ratioLabel.setText (isHz ? "Freq" : (isSync ? "Sync Rate" : "Ratio"), juce::dontSendNotification);
             ratioSlider.setTextValueSuffix (isHz ? " Hz" : (isSync ? "x" : ""));
-	    detuneLabel.setText ("Tilt",     juce::dontSendNotification);
+            detuneLabel.setText ("Tilt",     juce::dontSendNotification);
             phaseLabel.setText  ("Stretch",  juce::dontSendNotification);
             foldLabel.setText   ("Odd/Even", juce::dontSendNotification);
         }
         else if (isFilterMode)
         {
-            // Use shared label lookup — filterTypeSelector is 1-indexed, getFilterKnobLabels is 0-indexed
             auto labels = ProjectConfig::getFilterKnobLabels (selectedFilter - 1);
             ratioLabel.setText  (labels[0], juce::dontSendNotification);
             detuneLabel.setText (labels[1], juce::dontSendNotification);
@@ -293,18 +303,17 @@ private:
         }
         else // Wave mode
         {
-            bool isPWM = (modeSelector.getSelectedId() == 1 &&
-                          (waveShapeSelector.getSelectedId() == 5 ||
-                           waveShapeSelector.getSelectedId() == 6)); 
-            if      (isHz)  ratioLabel.setText ("Freq x1000",      juce::dontSendNotification);
-            else if (isLFO) ratioLabel.setText ("LFO Rate",  juce::dontSendNotification);
-            else if (isSync) ratioLabel.setText ("Sync Rate", juce::dontSendNotification);
-            else             ratioLabel.setText ("Ratio",     juce::dontSendNotification);
-    
-            detuneLabel.setText ("Detune",                         juce::dontSendNotification);
-            phaseLabel.setText  (isPWM ? "PWM" : "Phase",          juce::dontSendNotification);
-            foldLabel.setText   ("Fold",                           juce::dontSendNotification);
-    
+            bool isPWM = (waveShapeSelector.getSelectedId() == 5 ||
+                          waveShapeSelector.getSelectedId() == 6);
+            if      (isHz)   ratioLabel.setText ("Freq x1000", juce::dontSendNotification);
+            else if (isLFO)  ratioLabel.setText ("LFO Rate",   juce::dontSendNotification);
+            else if (isSync) ratioLabel.setText ("Sync Rate",  juce::dontSendNotification);
+            else             ratioLabel.setText ("Ratio",      juce::dontSendNotification);
+
+            detuneLabel.setText ("Detune",                juce::dontSendNotification);
+            phaseLabel.setText  (isPWM ? "PWM" : "Phase", juce::dontSendNotification);
+            foldLabel.setText   ("Fold",                  juce::dontSendNotification);
+
             if      (isHz)   ratioSlider.setTextValueSuffix (" Hz");
             else if (isLFO)  ratioSlider.setTextValueSuffix (" Hz");
             else if (isSync) ratioSlider.setTextValueSuffix ("x");
@@ -347,6 +356,13 @@ public:
     // Callback fired when any operator's Load Sample button is used.
     // Receives (opIndex 0-based, file).
     std::function<void(int, juce::File)> onLoadSample;
+
+    // Called after preset load to update the Load button text to the restored sample name.
+    void setSampleButtonText (int opIndex, const juce::String& name)
+    {
+        if (opIndex >= 0 && opIndex < (int) opModules.size())
+            opModules[opIndex]->setSampleButtonText (name);
+    }
 
     OperatorsPage (juce::AudioProcessorValueTreeState& apvts, OAOColors& c) : colors (c)
     {

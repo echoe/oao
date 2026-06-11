@@ -41,8 +41,12 @@ public:
     void setStateInformation (const void* data, int sizeInBytes) override;
     juce::AudioProcessorValueTreeState apvts;
     // Load a WAV/AIFF/etc. file and distribute it to the given operator index on all voices.
-    // Safe to call from the message thread; uses a shared_ptr so the audio thread is not blocked.
     void loadSampleForOperator (int opIndex, const juce::File& file);
+    // Called on the message thread after setStateInformation restores any sample data.
+    // The editor uses this to update Load button text.
+    std::function<void()> onSamplesRestored;
+    // Filename of the loaded sample for each operator (empty if none). Used to update UI after preset load.
+    std::array<juce::String, ProjectConfig::numOperators> loadedSampleNames;
     static constexpr int scopeBufferSize = 512;
     std::array<float, scopeBufferSize> scopeBuffer { 0.0f };
     std::atomic<int> scopeWritePos { 0 };

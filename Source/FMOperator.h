@@ -120,14 +120,18 @@ public:
 
                 float sampleOut = 0.0f;
 
-                if (playMode == 3) // Stutter: repeat a tiny window around current position
+                if (playMode == 3) // Stutter: loop a short window starting at startSample
                 {
-                    // Window size: 1–50ms mapped from phase knob (0..360 → 0..1)
-                    double windowSamples = std::max (64.0, (phaseKnob / 360.0f) * currentSampleRate * 0.05);
+                    // Window size: up to regionLen, controlled by End (phase) knob.
+                    // Small End = tiny stutter grain. Large End = long stutter loop.
+                    double windowSamples = std::max (64.0, regionLen);
                     double playPos       = startSample + std::fmod (samplePlayPos, windowSamples);
 
-                    int   idx0 = static_cast<int> (playPos) % numSamples;
-                    int   idx1 = (idx0 + 1) % numSamples;
+                    // Clamp to buffer bounds
+                    playPos = juce::jlimit (0.0, static_cast<double> (numSamples - 1), playPos);
+
+                    int   idx0 = static_cast<int> (playPos);
+                    int   idx1 = juce::jmin (idx0 + 1, numSamples - 1);
                     float frac = static_cast<float> (playPos - std::floor (playPos));
 
                     if (numChannels >= 2)
@@ -145,16 +149,15 @@ public:
                     if (samplePlayPos >= windowSamples)
                         samplePlayPos -= windowSamples;
                 }
-                else
+
+		else
                 {
-                    // All other modes read from the start→end region
+                    // One-shot / Loop / Ping-pong: all read within [startSample, endSample]
                     double playPos = startSample + samplePlayPos;
+                    playPos = juce::jlimit (startSample, endSample, playPos);
 
-                    // Clamp to valid buffer range
-                    playPos = juce::jlimit (0.0, static_cast<double> (numSamples - 1), playPos);
-
-                    int   idx0 = static_cast<int> (playPos) % numSamples;
-                    int   idx1 = (idx0 + 1) % numSamples;
+                    int   idx0 = static_cast<int> (playPos);
+                    int   idx1 = juce::jmin (idx0 + 1, numSamples - 1);
                     float frac = static_cast<float> (playPos - std::floor (playPos));
 
                     if (numChannels >= 2)
@@ -168,19 +171,19 @@ public:
                         sampleOut = buf->getSample (0, idx0) * (1.0f - frac) + buf->getSample (0, idx1) * frac;
                     }
 
-                    if (playMode == 0) // One-shot: clamp at end
+                    if (playMode == 0) // One-shot: clamp at end, envelope handles fade
                     {
                         samplePlayPos += advance;
                         if (samplePlayPos >= regionLen)
                             samplePlayPos = regionLen - 1.0;
                     }
-                    else if (playMode == 1) // Loop: wrap at end back to start
+                    else if (playMode == 1) // Loop: wrap back to start of region
                     {
                         samplePlayPos += advance;
                         while (samplePlayPos >= regionLen)
                             samplePlayPos -= regionLen;
                     }
-                    else // Ping-pong: bounce direction at each end
+                    else // Ping-pong: bounce at each boundary
                     {
                         samplePlayPos += pingPongDir * advance;
                         if (samplePlayPos >= regionLen)

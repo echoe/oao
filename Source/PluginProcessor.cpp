@@ -5,10 +5,15 @@
 
 FMPluginAudioProcessor::FMPluginAudioProcessor()
     : AudioProcessor (BusesProperties()
-		    .withInput  ("Input",  juce::AudioChannelSet::stereo(), false) // optional input!
-		    .withOutput ("Output", juce::AudioChannelSet::stereo(), true)),
+#ifdef OAO_FX_ONLY
+                      .withInput  ("Input",  juce::AudioChannelSet::stereo(), true)  // required in FX mode
+#else
+                      .withInput  ("Input",  juce::AudioChannelSet::stereo(), false) // optional in synth mode
+#endif
+                      .withOutput ("Output", juce::AudioChannelSet::stereo(), true)),
       apvts (*this, nullptr, "Parameters", createParameterLayout())
 {
+#ifndef OAO_FX_ONLY
     for (int i = 0; i < 8; ++i)
     {
         auto* voice = new FMVoice();
@@ -18,8 +23,8 @@ FMPluginAudioProcessor::FMPluginAudioProcessor()
                 voice->setSampleData (opIdx, loadedSamples[opIdx]);
         synth.addVoice (voice);
     }
-
     synth.addSound (new FMSound());
+#endif
     for (int i = 0; i < numFxSlots; ++i)
     {
         juce::String s = juce::String (i + 1);
@@ -41,14 +46,19 @@ FMPluginAudioProcessor::~FMPluginAudioProcessor() {}
 
 bool FMPluginAudioProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
 {
-    // Output must always be stereo
     if (layouts.getMainOutputChannelSet() != juce::AudioChannelSet::stereo())
         return false;
 
-    // Input can be stereo or disabled (no input)
+#ifdef OAO_FX_ONLY
+    // FX mode requires stereo input
+    if (layouts.getMainInputChannelSet() != juce::AudioChannelSet::stereo())
+        return false;
+#else
+    // Synth mode: input can be stereo or disabled
     if (layouts.getMainInputChannelSet() != juce::AudioChannelSet::stereo() &&
         !layouts.getMainInputChannelSet().isDisabled())
         return false;
+#endif
 
     return true;
 }
@@ -184,21 +194,21 @@ void FMPluginAudioProcessor::setOversamplingFactor (int factor)
         juce::dsp::Oversampling<float>::filterHalfBandPolyphaseIIR);
     oversampling->initProcessing (getBlockSize());
 
-    // Tell all voices about the new oversampling factor so phase increments stay correct
+#ifndef OAO_FX_ONLY
     for (int i = 0; i < synth.getNumVoices(); ++i)
         if (auto* voice = dynamic_cast<FMVoice*> (synth.getVoice (i)))
         {
             voice->setOversamplingFactor (factor);
             voice->prepare (getSampleRate(), getBlockSize(), &waveTable);
         }
+#endif
 }
 
 void FMPluginAudioProcessor::setPolyphony (int numVoices)
 {
-    // Remove all existing voices
+#ifndef OAO_FX_ONLY
     synth.clearVoices();
 
-    // Add the new number of voices
     for (int i = 0; i < numVoices; ++i)
     {
         auto* voice = new FMVoice();
@@ -206,7 +216,6 @@ void FMPluginAudioProcessor::setPolyphony (int numVoices)
         synth.addVoice (voice);
     }
 
-    // Prepare all the new voices
     for (int i = 0; i < synth.getNumVoices(); ++i)
     {
         if (auto* voice = dynamic_cast<FMVoice*> (synth.getVoice (i)))
@@ -216,23 +225,23 @@ void FMPluginAudioProcessor::setPolyphony (int numVoices)
             voice->setOversamplingFactor (currentOversamplingFactor);
         }
     }
+#endif
 }
 
 void FMPluginAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
-    waveTable.prepare(); // Build tables before use
-    // prepare synth voices
+#ifndef OAO_FX_ONLY
+    waveTable.prepare();
     synth.setCurrentPlaybackSampleRate (sampleRate);
     for (int i = 0; i < synth.getNumVoices(); ++i)
-    {
         if (auto* voice = dynamic_cast<FMVoice*> (synth.getVoice (i)))
         {
             voice->setCurrentPlaybackSampleRate (sampleRate);
             voice->prepare (sampleRate, samplesPerBlock, &waveTable);
         }
-    }
-    setOversamplingFactor(1); //prime this setting
-    for (int i = 0; i < numFxSlots; ++i) // prep effects lanes
+#endif
+    setOversamplingFactor (1);
+    for (int i = 0; i < numFxSlots; ++i)
     {
         fxFilters[i].prepare (sampleRate);
         fxFilters[i].reset();
@@ -257,7 +266,16 @@ void FMPluginAudioProcessor::updateVoices()
 void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
 {
     juce::ScopedNoDenormals noDenormals;
-    // Tempo Sync
+    auto totalNumInputChannels  = getTotalNumInputChannels();
+    auto totalNumOutputChannels = getTotalNumOutputChannels();
+
+#ifdef OAO_FX_ONLY
+    // FX mode: input audio passes straight through to the effects chain.
+    // Clear any extra output channels that have no corresponding input.
+    for (int ch = totalNumInputChannels; ch < totalNumOutputChannels; ++ch)
+        buffer.clear (ch, 0, buffer.getNumSamples());
+#else
+    // Synth mode: read tempo, update voices, render synth.
     float activeBPM = 120.0f;
     if (auto* playHead = getPlayHead())
     {
@@ -268,43 +286,34 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
     for (int i = 0; i < synth.getNumVoices(); ++i)
         if (auto* voice = dynamic_cast<FMVoice*> (synth.getVoice (i)))
             voice->setDAWTempo (activeBPM);
-    // clear unused channels, render synth
-    auto totalNumInputChannels  = getTotalNumInputChannels();
-    auto totalNumOutputChannels = getTotalNumOutputChannels();
-    
-    // Capture input audio before clearing so external audio operators can use it
+
+    // Capture input before clearing (external audio ops, if ever re-added, would use this)
     juce::AudioBuffer<float> inputCapture (totalNumInputChannels, buffer.getNumSamples());
     for (int ch = 0; ch < totalNumInputChannels; ++ch)
         inputCapture.copyFrom (ch, 0, buffer, ch, 0, buffer.getNumSamples());
-    
-    // Clear entire buffer so input audio doesn't bleed through to output
+
     buffer.clear();
     DBG ("after clear - inputCh: " + juce::String (totalNumInputChannels) +
-     " outputCh: " + juce::String (totalNumOutputChannels) +
-     " sample0: " + juce::String (buffer.getSample (0, 0)));
-    
-    auto* inputL = totalNumInputChannels > 0 ? inputCapture.getReadPointer (0) : nullptr;
-    auto* inputR = totalNumInputChannels > 1 ? inputCapture.getReadPointer (1) : nullptr;
+         " outputCh: " + juce::String (totalNumOutputChannels) +
+         " sample0: " + juce::String (buffer.getSample (0, 0)));
 
     updateVoices();
-    // Render synth with optional oversampling and external audio possibly being passed in  
+
     if (oversampling != nullptr && currentOversamplingFactor > 1)
     {
         juce::dsp::AudioBlock<float> inputBlock (buffer);
         auto oversampledBlock = oversampling->processSamplesUp (inputBlock);
-    
+
         int oversampledSize = static_cast<int> (oversampledBlock.getNumSamples());
-        juce::AudioBuffer<float> oversampledBuffer (totalNumOutputChannels, oversampledSize);
-        oversampledBuffer.clear();
-    
+
         float* channels[2];
         channels[0] = oversampledBlock.getChannelPointer (0);
         channels[1] = oversampledBlock.getNumChannels() > 1
                           ? oversampledBlock.getChannelPointer (1)
                           : oversampledBlock.getChannelPointer (0);
-    
+
         juce::AudioBuffer<float> oversampledWrap (channels, 2, oversampledSize);
-    
+
         juce::MidiBuffer scaledMidi;
         for (auto meta : midiMessages)
         {
@@ -312,7 +321,7 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
                 meta.samplePosition * currentOversamplingFactor);
             scaledMidi.addEvent (meta.getMessage(), newPos);
         }
-    
+
         synth.renderNextBlock (oversampledWrap, scaledMidi, 0, oversampledSize);
         oversampling->processSamplesDown (inputBlock);
     }
@@ -320,15 +329,16 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
     {
         synth.renderNextBlock (buffer, midiMessages, 0, buffer.getNumSamples());
     }
+#endif // OAO_FX_ONLY
 
-    // EFFECTS PAGE — series processing 1 → 2 → 3
-    // First we get any modulation
+#ifndef OAO_FX_ONLY
+    // Collect per-voice FX modulation (synth mode only — no voices in FX mode)
     std::array<float, 3> fxRatioModSum  { 0.0f, 0.0f, 0.0f };
     std::array<float, 3> fxDetuneModSum { 0.0f, 0.0f, 0.0f };
     std::array<float, 3> fxPhaseModSum  { 0.0f, 0.0f, 0.0f };
     std::array<float, 3> fxFoldModSum   { 0.0f, 0.0f, 0.0f };
     std::array<float, 3> fxLevelModSum  { 0.0f, 0.0f, 0.0f };
-    
+
     for (int v = 0; v < synth.getNumVoices(); ++v)
     {
         if (auto* voice = dynamic_cast<FMVoice*> (synth.getVoice (v)))
@@ -342,7 +352,7 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
                     fxPhaseModSum[i]  += voice->fxPhaseMods[i].load  (std::memory_order_relaxed);
                     fxFoldModSum[i]   += voice->fxFoldMods[i].load   (std::memory_order_relaxed);
                     fxLevelModSum[i]  += voice->fxLevelMods[i].load  (std::memory_order_relaxed);
-    
+
                     voice->fxRatioMods[i].store  (0.0f, std::memory_order_relaxed);
                     voice->fxDetuneMods[i].store (0.0f, std::memory_order_relaxed);
                     voice->fxPhaseMods[i].store  (0.0f, std::memory_order_relaxed);
@@ -352,6 +362,22 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
             }
         }
     }
+#else
+    // No voice modulation in FX mode — zero everything
+    std::array<float, 3> fxRatioModSum  { 0.0f, 0.0f, 0.0f };
+    std::array<float, 3> fxDetuneModSum { 0.0f, 0.0f, 0.0f };
+    std::array<float, 3> fxPhaseModSum  { 0.0f, 0.0f, 0.0f };
+    std::array<float, 3> fxFoldModSum   { 0.0f, 0.0f, 0.0f };
+    std::array<float, 3> fxLevelModSum  { 0.0f, 0.0f, 0.0f };
+    // Also need activeBPM for tempo-sync in the FX loop
+    float activeBPM = 120.0f;
+    if (auto* playHead = getPlayHead())
+    {
+        auto positionInfo = playHead->getPosition();
+        if (positionInfo.hasValue())
+            activeBPM = static_cast<float> (positionInfo->getBpm().orFallback (120.0));
+    }
+#endif
     // Now we start the effects loop
     {
         auto* leftData  = buffer.getWritePointer (0);
@@ -680,7 +706,8 @@ void FMPluginAudioProcessor::loadSampleForOperator (int opIndex, const juce::Fil
     if (peak > 0.0001f)
         newBuffer->applyGain (1.0f / peak);
 
-    loadedSamples[opIndex] = newBuffer;
+    loadedSamples[opIndex]      = newBuffer;
+    loadedSampleNames[opIndex]  = file.getFileNameWithoutExtension();
 
     for (int i = 0; i < synth.getNumVoices(); ++i)
         if (auto* voice = dynamic_cast<FMVoice*> (synth.getVoice (i)))
@@ -700,14 +727,114 @@ void FMPluginAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
 {
     auto state = apvts.copyState();
     std::unique_ptr<juce::XmlElement> xml (state.createXml());
+
+    // Embed any loaded samples as base64-encoded WAV data so presets are self-contained.
+    auto* samplesNode = xml->createNewChildElement ("SampleData");
+    juce::AudioFormatManager formatManager;
+    formatManager.registerBasicFormats();
+
+    for (int opIdx = 0; opIdx < ProjectConfig::numOperators; ++opIdx)
+    {
+        auto& buf = loadedSamples[opIdx];
+        if (buf == nullptr || buf->getNumSamples() == 0)
+            continue;
+
+        // Encode to WAV in memory
+        juce::MemoryBlock wavBlock;
+        {
+            // 1. Create a unique_ptr to an OutputStream (the new API requires this specific base type)
+            std::unique_ptr<juce::OutputStream> mos (new juce::MemoryOutputStream (wavBlock, false));
+        
+            std::unique_ptr<juce::AudioFormat> wavFormat (new juce::WavAudioFormat());
+        
+            // 2. Bundle the arguments using the builder pattern
+            auto options = juce::AudioFormatWriterOptions()
+                               .withSampleRate (44100.0)
+                               .withNumChannels (static_cast<int> (buf->getNumChannels()))
+                               .withBitsPerSample (16);
+        
+            // 3. Pass the stream reference and the options struct
+            std::unique_ptr<juce::AudioFormatWriter> writer = wavFormat->createWriterFor (mos, options);
+        
+            if (writer != nullptr)
+            {
+                writer->writeFromAudioSampleBuffer (*buf, 0, buf->getNumSamples());
+            }
+        
+            // No manual delete needed! If createWriterFor succeeds, it adopts 'mos' (setting it to nullptr).
+            // If it fails, 'mos' simply goes out of scope and deletes itself safely.
+        }
+
+        // Store as base64 under an <Op> element
+        auto* opNode = samplesNode->createNewChildElement ("Op");
+        opNode->setAttribute ("index",    opIdx);
+        opNode->setAttribute ("filename", loadedSampleNames[opIdx]);
+        opNode->setAttribute ("data",     wavBlock.toBase64Encoding());
+    }
+
     copyXmlToBinary (*xml, destData);
 }
 
 void FMPluginAudioProcessor::setStateInformation (const void* data, int sizeInBytes)
 {
     std::unique_ptr<juce::XmlElement> xmlState (getXmlFromBinary (data, sizeInBytes));
-    if (xmlState != nullptr && xmlState->hasTagName (apvts.state.getType()))
-        apvts.replaceState (juce::ValueTree::fromXml (*xmlState));
+    if (xmlState == nullptr || ! xmlState->hasTagName (apvts.state.getType()))
+        return;
+
+    // Restore any embedded samples before replacing state so voices are ready immediately
+    if (auto* samplesNode = xmlState->getChildByName ("SampleData"))
+    {
+        juce::AudioFormatManager formatManager;
+        formatManager.registerBasicFormats();
+
+        for (auto* opNode : samplesNode->getChildIterator())
+        {
+            int opIdx = opNode->getIntAttribute ("index", -1);
+            if (opIdx < 0 || opIdx >= ProjectConfig::numOperators)
+                continue;
+
+            juce::MemoryBlock wavBlock;
+            wavBlock.fromBase64Encoding (opNode->getStringAttribute ("data"));
+            if (wavBlock.isEmpty())
+                continue;
+
+            juce::MemoryInputStream mis (wavBlock.getData(), wavBlock.getSize(), false);
+            std::unique_ptr<juce::AudioFormatReader> reader (formatManager.createReaderFor (
+                std::make_unique<juce::MemoryInputStream> (wavBlock.getData(), wavBlock.getSize(), false)));
+
+            if (reader == nullptr)
+                continue;
+
+            auto newBuffer = std::make_shared<juce::AudioBuffer<float>> (
+                static_cast<int> (reader->numChannels),
+                static_cast<int> (reader->lengthInSamples));
+            reader->read (newBuffer.get(), 0, newBuffer->getNumSamples(), 0, true, true);
+
+            float peak = newBuffer->getMagnitude (0, newBuffer->getNumSamples());
+            if (peak > 0.0001f)
+                newBuffer->applyGain (1.0f / peak);
+
+            loadedSamples[opIdx]     = newBuffer;
+            loadedSampleNames[opIdx] = opNode->getStringAttribute ("filename", "Sample");
+            for (int i = 0; i < synth.getNumVoices(); ++i)
+                if (auto* voice = dynamic_cast<FMVoice*> (synth.getVoice (i)))
+                    voice->setSampleData (opIdx, newBuffer);
+        }
+    }
+
+    // Remove the SampleData node safely before restoring APVTS state
+    if (auto* samplesNode = xmlState->getChildByName ("SampleData"))
+    {
+        xmlState->removeChildElement (samplesNode, true);
+    }
+    
+    apvts.replaceState (juce::ValueTree::fromXml (*xmlState));
+
+    // Notify the editor so it can update Load button labels
+    juce::MessageManager::callAsync ([this] {
+        if (onSamplesRestored)
+            onSamplesRestored();
+    });
 }
 
 void FMPluginAudioProcessor::reset() // This function solves issues if you're looping a bar in a VST.

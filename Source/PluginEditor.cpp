@@ -20,28 +20,40 @@ FMPluginAudioProcessorEditor::FMPluginAudioProcessorEditor (FMPluginAudioProcess
     effectsPage.lookAndFeelChanged();
     settingsPage.refreshAll(); //update settingsPage boxes
 
-    // Settings page
+// Settings page callbacks
     settingsPage.onColorsChanged = [this]
     {
         oaoLookAndFeel.applyColors();
+#ifndef OAO_FX_ONLY
         opsPage.lookAndFeelChanged();
         matrixPage.lookAndFeelChanged();
         audioMatrixPage.lookAndFeelChanged();
+#endif
         effectsPage.lookAndFeelChanged();
         this->lookAndFeelChanged();
         repaint();
     };
 
+#ifndef OAO_FX_ONLY
     // Wire the sample-load callback from the operators page to the processor
     opsPage.onLoadSample = [&p] (int opIndex, juce::File file)
     {
         p.loadSampleForOperator (opIndex, file);
     };
 
-    addAndMakeVisible (presetBar);
+    // After preset load, update the Load button text on each operator to the restored sample name
+    p.onSamplesRestored = [this, &p]
+    {
+        for (int i = 0; i < ProjectConfig::numOperators; ++i)
+            opsPage.setSampleButtonText (i, p.loadedSampleNames[i]);
+    };
+
     addAndMakeVisible (opsPage);
     addAndMakeVisible (matrixPage);
     addAndMakeVisible (audioMatrixPage);
+#endif
+    
+    addAndMakeVisible (presetBar);
     addAndMakeVisible (effectsPage);
     addAndMakeVisible (settingsPage);
 
@@ -57,14 +69,17 @@ FMPluginAudioProcessorEditor::FMPluginAudioProcessorEditor (FMPluginAudioProcess
         // Then refresh everything else ...
         sendLookAndFeelChange();
         presetBar.refreshScale();
+#ifndef OAO_FX_ONLY
         opsPage.repaintAll();
         matrixPage.refreshColors();
         audioMatrixPage.refreshColors();
+#endif
         oaoColors.saveToFile();
         repaint();
     };
 
     // Navigation Buttons Configuration
+#ifndef OAO_FX_ONLY
     addAndMakeVisible (opsPageButton);
     opsPageButton.setButtonText ("Operators");
     opsPageButton.onClick = [this] { setPage (PageView::Operators); };
@@ -76,6 +91,7 @@ FMPluginAudioProcessorEditor::FMPluginAudioProcessorEditor (FMPluginAudioProcess
     addAndMakeVisible (audioMatrixPageButton);
     audioMatrixPageButton.setButtonText ("Audio Matrix");
     audioMatrixPageButton.onClick = [this] { setPage (PageView::AudioMatrix); };
+#endif
 
     addAndMakeVisible (effectsPageButton);
     effectsPageButton.setButtonText ("Effects");
@@ -106,7 +122,11 @@ FMPluginAudioProcessorEditor::FMPluginAudioProcessorEditor (FMPluginAudioProcess
     addAndMakeVisible (*oscilloscope);
 
     // set initial defaults
+#ifdef OAO_FX_ONLY
+    setPage (PageView::Effects);
+#else
     setPage (PageView::Operators);
+#endif
     setSize (ProjectConfig::pluginSizeX, ProjectConfig::pluginSizeY);
 }
 
@@ -118,16 +138,22 @@ setLookAndFeel (nullptr); // To make sure plugin doesn't crash DAW when closed
 void FMPluginAudioProcessorEditor::setPage (PageView pageToDisplay)
 {
     currentPage = pageToDisplay;
+    
+#ifndef OAO_FX_ONLY
     // Toggle visibility based on the active page enum state
     opsPage.setVisible (currentPage == PageView::Operators);
     matrixPage.setVisible (currentPage == PageView::Matrix);
     audioMatrixPage.setVisible (currentPage == PageView::AudioMatrix);
-    effectsPage.setVisible (currentPage == PageView::Effects);
-    settingsPage.setVisible (currentPage == PageView::Settings);
+    
     // Ensure the top button highlight states visually match the current selection
     opsPageButton.setToggleState (currentPage == PageView::Operators, juce::dontSendNotification);
     matrixPageButton.setToggleState (currentPage == PageView::Matrix, juce::dontSendNotification);
     audioMatrixPageButton.setToggleState (currentPage == PageView::AudioMatrix, juce::dontSendNotification);
+#endif
+
+    effectsPage.setVisible (currentPage == PageView::Effects);
+    settingsPage.setVisible (currentPage == PageView::Settings);
+    
     effectsPageButton.setToggleState (currentPage == PageView::Effects, juce::dontSendNotification);
     settingsPageButton.setToggleState (currentPage == PageView::Settings, juce::dontSendNotification);
 }
@@ -165,19 +191,26 @@ void FMPluginAudioProcessorEditor::resized()
     // Title in remaining space in middle-ish
     titleLabel.setBounds (topBarArea.reduced (2));
 
-    // Nav buttons
+// Nav buttons
     auto navArea   = area.removeFromTop (navBarHeight);
+    
+#ifdef OAO_FX_ONLY
+    int buttonWidth = getWidth() / 2;
+#else
     int buttonWidth = getWidth() / 5;
+    
     opsPageButton.setBounds          (navArea.removeFromLeft (buttonWidth).reduced (4));
     matrixPageButton.setBounds       (navArea.removeFromLeft (buttonWidth).reduced (4));
     audioMatrixPageButton.setBounds  (navArea.removeFromLeft (buttonWidth).reduced (4));
-    effectsPageButton.setBounds      (navArea.removeFromLeft (buttonWidth).reduced (4));
-    settingsPageButton.setBounds     (navArea.reduced (4));
-
-    // Pages occupy remaining space
+    
     opsPage.setBounds (area);
     matrixPage.setBounds (area);
     audioMatrixPage.setBounds (area);
+#endif
+
+    effectsPageButton.setBounds      (navArea.removeFromLeft (buttonWidth).reduced (4));
+    settingsPageButton.setBounds     (navArea.reduced (4));
+    
     effectsPage.setBounds (area);
     settingsPage.setBounds (area);
 }

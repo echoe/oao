@@ -165,11 +165,17 @@ private:
             return;
 
         auto file = presetFiles[currentPresetIndex];
-        if (file.existsAsFile())
+        if (! file.existsAsFile())
+            return;
+
+        // Parse the XML, re-wrap as binary, then call setStateInformation
+        // so sample data embedded in the file is also restored.
+        std::unique_ptr<juce::XmlElement> xml (juce::XmlDocument::parse (file));
+        if (xml != nullptr)
         {
-            std::unique_ptr<juce::XmlElement> xml (juce::XmlDocument::parse (file));
-            if (xml != nullptr && xml->hasTagName (audioProcessor.apvts.state.getType()))
-                audioProcessor.apvts.replaceState (juce::ValueTree::fromXml (*xml));
+            juce::MemoryBlock stateData;
+            audioProcessor.copyXmlToBinary (*xml, stateData);
+            audioProcessor.setStateInformation (stateData.getData(), (int) stateData.getSize());
         }
         updateNameLabel();
     }
@@ -535,7 +541,6 @@ private:
 
     void triggerSave()
     {
-        // Default filename: the current preset name (if any), else "New Preset"
         juce::String defaultName = (currentPresetIndex >= 0 && ! presetFiles.isEmpty())
                                    ? presetFiles[currentPresetIndex].getFileNameWithoutExtension()
                                    : "New Preset";
@@ -555,20 +560,21 @@ private:
                 if (file == juce::File())
                     return;
 
-                // Ensure .xml extension
                 if (file.getFileExtension().toLowerCase() != ".xml")
                     file = file.withFileExtension ("xml");
 
-                auto state = audioProcessor.apvts.copyState();
-                std::unique_ptr<juce::XmlElement> xml (state.createXml());
-                xml->writeTo (file);
+                // Use getStateInformation so sample audio is embedded in the file
+                juce::MemoryBlock stateData;
+                audioProcessor.getStateInformation (stateData);
 
-                // Update the preset folder to wherever the user saved,
-                // then refresh the list and point to the newly saved file.
+                // getStateInformation gives us binary-wrapped XML; unwrap it to write readable XML
+                std::unique_ptr<juce::XmlElement> xml (audioProcessor.getXmlFromBinary (
+                    stateData.getData(), (int) stateData.getSize()));
+                if (xml != nullptr)
+                    xml->writeTo (file);
+
                 presetFolder = file.getParentDirectory();
                 refreshPresetList();
-
-                // Find the saved file in the refreshed list
                 currentPresetIndex = presetFiles.indexOf (file);
                 updateNameLabel();
             });
@@ -592,11 +598,13 @@ private:
                     return;
 
                 std::unique_ptr<juce::XmlElement> xml (juce::XmlDocument::parse (file));
-                if (xml != nullptr && xml->hasTagName (audioProcessor.apvts.state.getType()))
-                    audioProcessor.apvts.replaceState (juce::ValueTree::fromXml (*xml));
+                if (xml != nullptr)
+                {
+                    juce::MemoryBlock stateData;
+                    audioProcessor.copyXmlToBinary (*xml, stateData);
+                    audioProcessor.setStateInformation (stateData.getData(), (int) stateData.getSize());
+                }
 
-                // Switch the active folder to wherever this file lives,
-                // refresh the list, and point the index at this file.
                 presetFolder = file.getParentDirectory();
                 refreshPresetList();
                 currentPresetIndex = presetFiles.indexOf (file);

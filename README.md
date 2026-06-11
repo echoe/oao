@@ -89,6 +89,7 @@ Additional Notes:
 #### 3-Bar EQ
 - Options: lowGain, medGain, highGain, Gain
 - A simple three-bar EQ that can be used as a selective gain addition if/when wanted.
+- lowGain: <240hz medGain: 240 > < 2600 highGain: >2600
 #### OTT
 - Options: Depth, Time, Upward, Tone
 - Modeled after the famous OTT effect. Make it more in your face!

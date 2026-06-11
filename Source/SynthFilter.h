@@ -197,7 +197,7 @@ public:
             ottEnvDown[i] = 0.0f;
         }
 	ottToneLast = 0.0f;
-	//spectral freeze
+	// spectral freeze
         freezeInputBuffer.fill  (0.0f);
         freezeFrozenFrame.fill  (0.0f);
         freezeOutputBuffer.fill (0.0f);
@@ -208,16 +208,18 @@ public:
         freezeHopCounter = 0;
         freezeHasFrozenFrame = false;
         freezeMix = 0.0f;
-        // 3-lane eq, filter+drive, music delay
+        // filter + drive
 	fd_s1 = 0.0f; fd_s2 = 0.0f;
+	// 3-lane eq
         eq_s1_low = 0.0f; eq_s2_low = 0.0f;
         eq_s1_high = 0.0f; eq_s2_high = 0.0f;
+	// timeshift delay
         tcDelayBuffer.fill (0.0f);
-        tcWritePtr = 0; tcSmoothedSamples = 0.0f;
+        tcWritePtr = 0; tcSmoothedSamples = 0.3f; //safer baseline
 	tcDampingState = 0.0f; tcHighPassState = 0.0f;
 	// lofi
-	lofiDownsampleCounter = 0.0f; lofiHoldSample        = 0.0f;
-        lofiLPState = 0.0f; lofiHPState = 0.0f;
+	lofiDownsampleCounter = 0.0f; lofiHoldSample = 0.0f;
+        lofiLPState = 0.0f; lofiHPState = 0.0f; lofiNoiseSeed = 123456789 //mono
     }
 
     void noteStarted()

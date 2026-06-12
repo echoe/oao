@@ -123,10 +123,10 @@ public:
     MatrixPage (juce::AudioProcessorValueTreeState& apvts,
                 const juce::String& prefix,
                 const juce::String& title,
-                OAOColors& c) // <--- Added here
+                OAOColors& c)
         : paramPrefix (prefix), matrixTitle (title), colors (c)
     {
-        // NxN FM grid — param IDs must be "FM_src_dest" (or whatever prefix+"src_dest")
+        // NxN grid — param IDs must be "MATRIX_src_dest" (or whatever prefix+"src_dest")
         for (int src = 0; src < ProjectConfig::numOperators; ++src)
         {
             for (int dest = 0; dest < ProjectConfig::numOperators; ++dest)
@@ -136,14 +136,14 @@ public:
                 s->setTextBoxStyle (juce::Slider::TextBoxBelow, false, 45, 13);
                 addAndMakeVisible (s);
 
-                // e.g. "FM_0_1" or "MOD_0_1" depending on which page this is
+                // e.g. "AUDIO_ROUTE_0_1" or "MOD_0_1" depending on which page this is
                 juce::String id = paramPrefix + juce::String (src) + "_" + juce::String (dest);
                 matrixAttachments.add (
                     std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (apvts, id, *s));
             }
         }
 
-        // Sidebar: mod slots (MOD_ page) or output levels (FM_ page)
+        // Sidebar: mod slots (MOD_ page) or output levels (AUDIO_ROUTE_ page)
         if (paramPrefix == "MOD_")
         {
             for (int i = 0; i < 6; ++i)

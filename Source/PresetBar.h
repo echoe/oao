@@ -24,7 +24,7 @@ public:
         setupButton (initButton,    "Init");
         setupButton (saveButton,    "Save");
         setupButton (loadButton,    "Load");
-        setupButton (smartRandButton,   "Rand");
+        setupButton (smartRandButton,   "S");
 	setupButton (drumRandButton,   "D");
 	setupButton (effectsRandButton,   "E");
 
@@ -88,6 +88,68 @@ public:
             int numVoices  = polyphonySelector.getItemText (selectedId - 1).getIntValue();
             audioProcessor.setPolyphony (numVoices);
         };
+
+	// Algorithm Macro Selector
+        algorithmLabel.setText ("Algo:", juce::dontSendNotification);
+        algorithmLabel.setJustificationType (juce::Justification::centredRight);
+        addAndMakeVisible (algorithmLabel);
+
+        algorithmSelector.addItem ("None", 1); // Option to leave matrix manual
+        for (int i = 1; i <= 32; ++i)
+            algorithmSelector.addItem ("DX " + juce::String(i), i + 1);
+        
+        algorithmSelector.setSelectedId (1, juce::dontSendNotification);
+        addAndMakeVisible (algorithmSelector);
+
+        algorithmSelector.onChange = [this]
+        {
+            int selectedId = algorithmSelector.getSelectedId();
+            if (selectedId == 1) return; // "None" selected, do nothing
+
+            int dxAlgoIndex = selectedId - 2; // Offset for 0-based vector index
+            auto algorithms = getClassicAlgorithms();
+            
+            if (dxAlgoIndex < 0 || dxAlgoIndex >= algorithms.size()) return;
+
+            const auto& selectedAlgo = algorithms[dxAlgoIndex];
+            auto& parameters = audioProcessor.apvts.processor.getParameters();
+
+            // 1. Clear out the entire modulation and routing matrix
+            for (auto* param : parameters)
+            {
+                if (auto* p = dynamic_cast<juce::RangedAudioParameter*> (param))
+                {
+                    juce::String id = p->getParameterID();
+                    if (id.startsWith ("MOD_") || id.startsWith ("AUDIO_ROUTE_"))
+                        p->setValueNotifyingHost (0.0f);
+                }
+            }
+
+            // 2. Wire up the new connections using your setReal helper
+            for (const auto& conn : selectedAlgo.connections)
+            {
+                int sourceOp = conn.first;
+                int destOp   = conn.second;
+
+                if (destOp == 0) 
+                {
+                    // It's a carrier. Route to audio output. 
+                    // (Assuming 1-indexed names like "AUDIO_ROUTE_1")
+                    juce::String routeID = "AUDIO_ROUTE_" + juce::String (sourceOp);
+                    setReal (routeID, 1.0f); // Max volume for active carriers
+                } 
+                else 
+                {
+                    // It's a modulator. Convert human 1-index to your 0-indexed parameter grid.
+                    int srcParamIdx  = sourceOp - 1;
+                    int destParamIdx = destOp - 1;
+                    juce::String modID = "MOD_" + juce::String (srcParamIdx) + "_" + juce::String (destParamIdx);
+
+                    // Set a solid default modulation depth (scaled out of your 10.0f max)
+                    setReal (modID, 5.0f); 
+                }
+            }
+        };
     }
 
     void paint (juce::Graphics& g) override
@@ -100,12 +162,12 @@ public:
         auto area = getLocalBounds().reduced (2);
         const int totalWidth = area.getWidth();
 	const int dropdownWidth = totalWidth * 0.10f;
-        const int smallBtnWidth   = totalWidth * 0.04f;
+        const int smallBtnWidth   = totalWidth * 0.03f;
 	const int smallLblWidth = totalWidth * 0.06f;
-        const int medBtnWidth = totalWidth * 0.08f;  // Init, Save, Load, R-* buttons
+        const int medBtnWidth = totalWidth * 0.07f;  // Init, Save, Load
 
         // Preset buttons
-        initButton.setBounds      (area.removeFromLeft (medBtnWidth).reduced (1));
+        initButton.setBounds      (area.removeFromLeft (smallLblWidth).reduced (1));
         saveButton.setBounds      (area.removeFromLeft (medBtnWidth).reduced (1));
         loadButton.setBounds      (area.removeFromLeft (medBtnWidth).reduced (1));
         // Centre area: < [... presetName] >
@@ -114,10 +176,12 @@ public:
         presetNameLabel.setBounds (area.removeFromLeft (dropdownWidth).reduced (1));
         nextButton.setBounds   (area.removeFromLeft (smallBtnWidth).reduced (1));
 	// random buttons
-        smartRandButton.setBounds   (area.removeFromLeft (medBtnWidth).reduced (1));
+        smartRandButton.setBounds   (area.removeFromLeft (smallBtnWidth).reduced (1));
         drumRandButton.setBounds   (area.removeFromLeft (smallBtnWidth).reduced (1));
         effectsRandButton.setBounds   (area.removeFromLeft (smallBtnWidth).reduced (1));
-        // oversampling and poly
+        // algo, oversampling and poly dropdowns
+        algorithmLabel.setBounds       (area.removeFromLeft (smallLblWidth).reduced (1));
+        algorithmSelector.setBounds    (area.removeFromLeft (dropdownWidth).reduced (1));
         oversamplingLabel.setBounds    (area.removeFromLeft (smallLblWidth).reduced (1));
         oversamplingSelector.setBounds (area.removeFromLeft (dropdownWidth).reduced (1));
         polyphonyLabel.setBounds       (area.removeFromLeft (smallLblWidth).reduced (1));
@@ -352,6 +416,55 @@ private:
         setReal ("RELEASE_" + s, wobbleReal (op.release, prng, op.release * 0.10f, 0.01f,  5.0f));
     }
 
+struct FMAlgorithm 
+    {
+        int id;
+        std::vector<std::pair<int, int>> connections; 
+    };
+
+    // An algorithm is:
+    // A number at the beginning
+    // An arbitrary number of [from], [to] paired parameters, where [from] is an operator 1-6,
+    // and [to] is either an operator 1-6 or audio out [0].
+    // I've hand-written these from https://www.righto.com/2021/12/yamaha-dx7-chip-reverse-engineering.html
+    static const std::vector<FMAlgorithm> getClassicAlgorithms()
+    {
+        return {
+            { 1, { {6,6}, {6,5}, {5,4}, {4,3}, {3,0}, {2,1}, {1,0} } },
+            { 2, { {6,5}, {5,4}, {4,3}, {3,0}, {2,2}, {2,1}, {1,0} } },
+            { 3, { {6,6}, {6,5}, {5,4}, {4,0}, {3,2}, {2,1}, {1,0} } },
+            { 4, { {6,5}, {5,4}, {4,6}, {4,0}, {3,2}, {2,1}, {1,0} } },
+            { 5, { {6,6}, {6,5}, {5,0}, {4,3}, {3,0}, {2,1}, {1,0} } },
+            { 6, { {6,5}, {5,6}, {5,0}, {4,3}, {3,0}, {2,1}, {1,0} } },
+            { 7, { {6,6}, {6,5}, {5,3}, {4,3}, {3,0}, {2,1}, {1,0} } },
+            { 8, { {6,5}, {5,3}, {3,0}, {4,4}, {4,3}, {2,1}, {1,0} } },
+            { 9, { {6,5}, {5,3}, {3,0}, {4,3}, {2,1}, {1,0}, {2,2} } },
+            { 10, { {6,4}, {5,4}, {4,0}, {3,3}, {3,2}, {2,1}, {1,0} } },
+            { 11, { {6,6}, {6,4}, {5,4}, {4,0}, {3,2}, {2,1}, {1,0} } },
+            { 12, { {6,3}, {5,3}, {4,3}, {3,0}, {2,2}, {2,1}, {1,0} } },
+            { 13, { {6,6}, {6,3}, {5,3}, {4,3}, {3,0}, {2,1}, {1,0} } },
+            { 14, { {6,6}, {6,4}, {4,3}, {3,0}, {5,4}, {2,1}, {1,0} } },
+            { 15, { {6,4}, {5,4}, {4,3}, {3,0}, {2,2}, {2,1}, {1,0} } },
+            { 16, { {6,6}, {6,5}, {5,1}, {4,3}, {3,1}, {2,1}, {1,0} } },
+            { 17, { {6,5}, {5,1}, {4,3}, {3,1}, {2,2}, {2,1}, {1,0} } },
+            { 18, { {6,5}, {5,4}, {4,1}, {3,3}, {3,1}, {2,1}, {1,0} } },
+            { 19, { {6,6}, {6,5}, {6,4}, {5,0}, {4,0}, {3,2}, {2,1}, {1,0} } },
+            { 20, { {6,4}, {4,0}, {5,4}, {2,0}, {3,3}, {3,1}, {1,0} } },
+            { 21, { {6,5}, {5,0}, {6,4}, {4,0}, {3,3}, {3,2}, {2,0}, {3,1}, {1,0} } },
+            { 22, { {6,6}, {6,5}, {5,0}, {6,4}, {4,0}, {6,3}, {3,0}, {2,1}, {1,0} } },
+            { 23, { {6,6}, {6,5}, {6,4}, {5,0}, {4,0}, {3,2}, {2,0}, {1,0} } },
+            { 24, { {6,6}, {6,5}, {6,4}, {5,0}, {4,0}, {3,0}, {2,0}, {1,0} } },
+            { 25, { {6,6}, {6,5}, {5,0}, {4,0}, {3,0}, {2,0}, {1,0} } },
+            { 26, { {6,6}, {6,4}, {5,4}, {4,0}, {3,2}, {2,0}, {1,0} } },
+            { 27, { {6,4}, {5,4}, {4,0}, {3,3}, {3,2}, {2,0}, {1,0} } },
+            { 28, { {6,0}, {5,5}, {5,4}, {4,3}, {3,0}, {2,1}, {1,0} } },
+            { 29, { {6,6}, {6,5}, {5,0}, {4,3}, {3,0}, {2,0}, {1,0} } },
+            { 30, { {6,0}, {5,5}, {5,4}, {4,3}, {3,0}, {2,0}, {1,0} } },
+            { 31, { {6,6}, {6,5}, {5,0}, {4,0}, {3,0}, {2,0}, {1,0} } },
+            { 32, { {6,6}, {6,0}, {5,0}, {4,0}, {3,0}, {2,0}, {1,0} } }
+        };
+    }
+
     // Randomize all 3 FX slots with type-first, label-aware knob logic.
     // drumMode adjusts mix levels and biases toward transient-safe effect types.
     void randomizeFXKnob (juce::RangedAudioParameter* p,
@@ -459,9 +572,7 @@ private:
         }
     }
 
-    // ============================================================
     //  SMART (SYNTH) RANDOMIZER
-    // ============================================================
     void triggerSmartRandomizer()
     {
         auto& prng       = juce::Random::getSystemRandom();
@@ -563,30 +674,50 @@ private:
         for (int i = 0; i < ProjectConfig::numOperators; ++i)
             applyOpRecipe (i, recipe.ops[i], prng);
 
-        // Modulation matrix, routing, and leftovers
+        // Clear out the entire modulation and routing matrix
         for (auto* param : parameters)
         {
             if (auto* p = dynamic_cast<juce::RangedAudioParameter*> (param))
             {
                 juce::String id = p->getParameterID();
-
-                if (id.startsWith ("MOD_"))
+                if (id.startsWith ("MOD_") || id.startsWith ("AUDIO_ROUTE_"))
+                    p->setValueNotifyingHost (0.0f);
+            }
+        }
+    
+        // Select a structured baseline algorithm
+        auto algorithms = getClassicAlgorithms();
+        const auto& selectedAlgo = algorithms[prng.nextInt (static_cast<int> (algorithms.size()))];
+    
+        // Inject random values strictly into the active algorithmic pathways
+        for (const auto& conn : selectedAlgo.connections)
+        {
+            int sourceOp = conn.first;
+            int destOp   = conn.second;
+    
+            if (destOp == 0)
+            {
+                // It's a carrier. Route to audio output.
+                // (Assuming AUDIO_ROUTE_ matches your 1-indexed operator UI format, e.g., "AUDIO_ROUTE_1")
+                juce::String routeID = "AUDIO_ROUTE_" + juce::String (sourceOp);
+    
+                // Give carriers a solid output level between 0.75 and 1.0
+                setReal (routeID, 0.75f + prng.nextFloat() * 0.25f);
+            }
+            else
+            {
+                // It's a modulator. Map human 1-index back down to your 0-indexed parameter grid.
+                int srcParamIdx  = sourceOp - 1;
+                int destParamIdx = destOp - 1;
+                juce::String modID = "MOD_" + juce::String (srcParamIdx) + "_" + juce::String (destParamIdx);
+    
+                // Determine if this connection fires based on the recipe's density
+                if (prng.nextFloat() < recipe.modDensity)
                 {
-                    float v = prng.nextFloat() < recipe.modDensity
-                            ? 0.15f + prng.nextFloat() * 0.60f
-                            : 0.0f;
-                    p->setValueNotifyingHost (v);
+                    // Scaled out of 10.0f using setReal to automatically handle normalization
+                    float randomDepth = 1.0f + prng.nextFloat() * 5.0f; // Generates index between 1.0 and 6.0
+                    setReal (modID, randomDepth);
                 }
-                else if (id.startsWith ("AUDIO_ROUTE_"))
-                {
-                    p->setValueNotifyingHost (
-                        prng.nextFloat() < recipe.routeDensity ? prng.nextFloat() : 0.0f);
-                }
-                else if (id.startsWith ("TEMPO_SYNC"))
-                {
-                    p->setValueNotifyingHost (prng.nextFloat() < 0.70f ? 0.0f : 1.0f);
-                }
-                // All operator params already set by applyOpRecipe; skip them here
             }
         }
 
@@ -596,9 +727,7 @@ private:
         updateNameLabel();
     }
 
-    // ============================================================
     //  DRUM RANDOMIZER
-    // ============================================================
     void triggerDrumRandomizer()
     {
         auto& prng       = juce::Random::getSystemRandom();
@@ -751,9 +880,7 @@ private:
         updateNameLabel();
     }
 
-    // ============================================================
     //  EFFECTS RANDOMIZER
-    // ============================================================
     void triggerEffectsRandomizer()
     {
         auto& prng = juce::Random::getSystemRandom();
@@ -843,10 +970,8 @@ private:
     juce::Label      presetNameLabel;
     std::unique_ptr<juce::FileChooser> fileChooser;
 
-    juce::ComboBox oversamplingSelector;
-    juce::Label    oversamplingLabel;
-    juce::ComboBox polyphonySelector;
-    juce::Label    polyphonyLabel;
+    juce::ComboBox oversamplingSelector, polyphonySelector, algorithmSelector;
+    juce::Label    oversamplingLabel, polyphonyLabel, algorithmLabel;
 
     // Preset folder state
     juce::File              presetFolder;

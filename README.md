@@ -20,9 +20,13 @@ There are six buttons to handle presets.
 ### Randomization
 There are three randomization buttons. These are after the preset buttons.
 You can also go through and manually click on knobs to reset them to the default!
-- Rand: This changes all synth variables. It's set to hopefully not go too wild too often. YMMV.
+- S: This changes all variables to try and make a synth patch with one of the 32 original FM algos.
 - D: This attempts to make drums for you (no sustain, etc).
 - E: This randomizes the effects page only.
+
+### Algorithm
+This lets you select from one of the original 32 algorithms. It will fill the matrix out for you. ... After attempting to make patches by hand quickly, and make a working randomizer ... I now understand why FM synths do this.
+If you really want you can add your own algos too, the code's very legible and I've noted how it works in PresetBar.h!
 
 ### OS
 This oversamples the main audio path to provide increased fidelity. Select between 1,2,4, and 8x.

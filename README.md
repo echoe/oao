@@ -154,6 +154,7 @@ Additional Notes:
 - Options: Buffer, Speed, Loop On, Drift
 - Modeled after a famous DJ-style delay.
 - Without the loop on this functions as a varispeed that 'catches up' to the audio going through the playhead every Buffer seconds.
+- Speed is set to go from roughly -2x to +2x so if you want it to be at 1x, set it to around 25 or -25!
 #### Scatter
 - Options: Pattern, Size, Speed, Depth
 - Pattern 0.0-0.25: Stutter (repeats short segments)

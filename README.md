@@ -71,8 +71,8 @@ Additional Notes:
 - You can import a sample of any size (as long as your RAM can handle it ...).
 - Samples are automatically assumed to be pitched at c4 - midi notes above or below c4 pitch the sample up or down respectfully.
 - Sample playback: Oneshot, Loop, Pingpong, Scatter
-- Sample options: Speed, Sample Start, Loop (>.5 means yes loop, <.5 means no loop), Fold
-- For the Scatter mode, the 'Fold' option sets the window size of the scatter!
+- Sample options: Speed, Sample Start, Loop (>.5 means yes loop, <.5 means no loop), Boundary
+- Boundary changes fadeout length for the oneshot, crossfade length for loop, and grain window size for scatter.
 - Note: When you save a preset, the preset saves a copy of the sample in the xml. Long samples will make very large presets.
 
 ### Effect:

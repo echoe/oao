@@ -20,6 +20,8 @@ static constexpr Vowel VOWEL_TABLE[5] = {
     { 300.0f,  870.0f, 2240.0f }  // 4.0 -> U
 };
 
+struct StereoOutput { float L; float R; };
+
 class SynthEffect
 {
 public:
@@ -546,8 +548,6 @@ public:
     {
         // cascade allpass effects
 	// Array of mutually prime numbers for smooth diffusion
-        static constexpr std::array<int, 4> primeDelays = { 211, 347, 523, 701 };
-    
         float diffCoeff = diffusion * 0.7f;
         float diffused  = input;
     
@@ -618,7 +618,6 @@ public:
         apRevWritePtr = (apRevWritePtr + 1) % apRevBufferSize;
     
         // post-diffusion
-        static constexpr std::array<int, 4> revPrimeDelays = { 883, 1031, 1153, 1301 }; 
         float output = tankOut;
         
         for (int i = numRevStages / 2; i < numRevStages; ++i)
@@ -1258,8 +1257,6 @@ public:
     {
         // diffuse through allpass stages
         // Array of mutually prime numbers for smooth diffusion
-        static constexpr std::array<int, 4> primeDelays = { 211, 347, 523, 701 };
-
         float diffCoeff = diffusion * 0.7f;
         float diffused  = input;
 
@@ -1311,7 +1308,6 @@ public:
         ambientWritePtr = (ambientWritePtr + 1) % ambientBufferSize;
     
         //  smear the output into a wash
-        static constexpr std::array<int, 4> ambientPrimeDelays = { 1511, 1699, 1861, 2029 };
         float output = delayed; // Avoid redefining 'output' if in the same scope
         
         for (int i = numAmbientStages / 2; i < numAmbientStages; ++i)
@@ -1771,6 +1767,199 @@ public:
         return std::isfinite (output) ? output : 0.0f;
     }
 
+    // TRUE STEREO EFFECTS
+
+    StereoOutput processSampleStereoAllpassReverb (float inL, float inR, SynthEffect& rightCh, 
+                                                   float size, float decay, float diffusion, float damping, double sr)
+    {
+        // 1. Pre-diffusion
+        float diffCoeff = diffusion * 0.7f;
+        float diffL = inL;
+        float diffR = inR;
+
+        for (int i = 0; i < numApStages; ++i)
+        {
+            diffL = processAllpass (diffL, diffCoeff, apStageBuffers[i], apStageWritePtrs[i], primeDelays[i]);
+            diffR = rightCh.processAllpass (diffR, diffCoeff, rightCh.apStageBuffers[i], rightCh.apStageWritePtrs[i], primeDelays[i]);
+        }
+
+        // 2. Tank Read
+        float sizeMs = juce::jmap (size, 0.0f, 1.0f, 20.0f, 500.0f);
+        int tankSamples = juce::jlimit (1, apRevBufferSize - 1, static_cast<int> (sizeMs / 1000.0f * sr));
+
+        int readPtrL = (apRevWritePtr - tankSamples + apRevBufferSize) % apRevBufferSize;
+        int readPtrR = (rightCh.apRevWritePtr - tankSamples + apRevBufferSize) % apRevBufferSize;
+
+        float tankOutL = apRevBuffer[readPtrL];
+        float tankOutR = rightCh.apRevBuffer[readPtrR];
+
+        // 3. Damping LP Filters
+        float dampCutoff = juce::jmap (1.0f - damping, 0.0f, 1.0f, 20.0f, 20000.0f);
+        float dampAlpha  = 1.0f - std::exp (-2.0f * juce::MathConstants<float>::pi * dampCutoff / static_cast<float> (sr));
+        
+        apRevLastSample += dampAlpha * (tankOutL - apRevLastSample);
+        rightCh.apRevLastSample += dampAlpha * (tankOutR - rightCh.apRevLastSample);
+
+        // 4. CROSS-TALK FEEDBACK
+        // Blend 70% of the channel's own feedback with 30% of the opposite channel's feedback
+        float crossL = apRevLastSample * 0.7f + rightCh.apRevLastSample * 0.3f;
+        float crossR = rightCh.apRevLastSample * 0.7f + apRevLastSample * 0.3f;
+
+        float decayAmt = juce::jlimit (0.0f, 0.93f, decay);
+        apRevBuffer[apRevWritePtr] = diffL + crossL * decayAmt;
+        rightCh.apRevBuffer[rightCh.apRevWritePtr] = diffR + crossR * decayAmt;
+
+        apRevWritePtr = (apRevWritePtr + 1) % apRevBufferSize;
+        rightCh.apRevWritePtr = (rightCh.apRevWritePtr + 1) % apRevBufferSize;
+
+        // 5. Post-diffusion
+        float outL = tankOutL;
+        float outR = tankOutR;
+        for (int i = numRevStages / 2; i < numRevStages; ++i)
+        {
+            int pIdx = i - (numRevStages / 2);
+            outL = processAllpass (outL, diffCoeff, apRevStageBuffers[i], apRevStageWritePtrs[i], revPrimeDelays[pIdx]);
+            outR = rightCh.processAllpass (outR, diffCoeff, rightCh.apRevStageBuffers[i], rightCh.apRevStageWritePtrs[i], revPrimeDelays[pIdx]);
+        }
+
+        return { outL + inL * 0.1f, outR + inR * 0.1f };
+    }
+
+    StereoOutput processSampleStereoAmbientDelay (float inL, float inR, SynthEffect& rightCh, 
+                                                  float time, float feedback, float shimmer, float diffusion, double sr)
+    {
+        float diffCoeff = diffusion * 0.7f;
+        float diffL = inL; float diffR = inR;
+
+        for (int i = 0; i < numApStages; ++i)
+        {
+            diffL = processAllpass (diffL, diffCoeff, apStageBuffers[i], apStageWritePtrs[i], primeDelays[i]);
+            diffR = rightCh.processAllpass (diffR, diffCoeff, rightCh.apStageBuffers[i], rightCh.apStageWritePtrs[i], primeDelays[i]);
+        }
+    
+        float delayMs = juce::jmap (time, 0.0f, 1.0f, 100.0f, 16000.0f);
+        int delaySamples = juce::jlimit (1, ambientBufferSize - 1, static_cast<int> (delayMs / 1000.0f * sr));
+    
+        int readPtrL = (ambientWritePtr - delaySamples + ambientBufferSize) % ambientBufferSize;
+        int readPtrR = (rightCh.ambientWritePtr - delaySamples + ambientBufferSize) % ambientBufferSize;
+        
+        float delayedL = ambientBuffer[readPtrL];
+        float delayedR = rightCh.ambientBuffer[readPtrR];
+    
+        // Calculate Shimmer (Independent per channel to widen the pitch variance)
+        float shimmeredL = 0.0f; float shimmeredR = 0.0f;
+        if (shimmer > 0.001f)
+        {
+            // Left Shimmer
+            shimmerBuffer[shimmerWritePtr] = delayedL;
+            shimmerWritePtr = (shimmerWritePtr + 1) % shimmerBufferSize;
+            shimmerReadPtr += 2.0f;
+            if (shimmerReadPtr >= static_cast<float>(shimmerBufferSize)) shimmerReadPtr -= static_cast<float>(shimmerBufferSize);
+            shimmeredL = hermiteInterp (shimmerBuffer.data(), shimmerBufferSize, shimmerReadPtr);
+            shimmerPhase += 2.0f / static_cast<float> (shimmerBufferSize);
+            if (shimmerPhase >= 1.0f) shimmerPhase -= 1.0f;
+            shimmeredL *= 0.5f * (1.0f - std::cos (shimmerPhase * juce::MathConstants<float>::twoPi));
+
+            // Right Shimmer
+            rightCh.shimmerBuffer[rightCh.shimmerWritePtr] = delayedR;
+            rightCh.shimmerWritePtr = (rightCh.shimmerWritePtr + 1) % shimmerBufferSize;
+            rightCh.shimmerReadPtr += 2.0f;
+            if (rightCh.shimmerReadPtr >= static_cast<float>(shimmerBufferSize)) rightCh.shimmerReadPtr -= static_cast<float>(shimmerBufferSize);
+            shimmeredR = hermiteInterp (rightCh.shimmerBuffer.data(), shimmerBufferSize, rightCh.shimmerReadPtr);
+            rightCh.shimmerPhase += 2.0f / static_cast<float> (shimmerBufferSize);
+            if (rightCh.shimmerPhase >= 1.0f) rightCh.shimmerPhase -= 1.0f;
+            shimmeredR *= 0.5f * (1.0f - std::cos (rightCh.shimmerPhase * juce::MathConstants<float>::twoPi));
+        }
+    
+        // PING-PONG CROSS-TALK: Feed Right delay into Left input, and Left into Right
+        float feedbackAmt = juce::jlimit (0.0f, 0.98f, feedback);
+        float feedL = std::tanh(delayedR + shimmeredR * shimmer);
+        float feedR = std::tanh(delayedL + shimmeredL * shimmer);
+    
+        ambientBuffer[ambientWritePtr] = diffL + feedL * feedbackAmt;
+        rightCh.ambientBuffer[rightCh.ambientWritePtr] = diffR + feedR * feedbackAmt;
+        
+        ambientWritePtr = (ambientWritePtr + 1) % ambientBufferSize;
+        rightCh.ambientWritePtr = (rightCh.ambientWritePtr + 1) % ambientBufferSize;
+    
+        float outL = delayedL; float outR = delayedR;
+        for (int i = numAmbientStages / 2; i < numAmbientStages; ++i)
+        {
+            int pIdx = i - (numAmbientStages / 2);
+            outL = processAllpass (outL, diffCoeff, ambientStageBuffers[i], ambientStageWritePtrs[i], ambientPrimeDelays[pIdx]);
+            outR = rightCh.processAllpass (outR, diffCoeff, rightCh.ambientStageBuffers[i], rightCh.ambientStageWritePtrs[i], ambientPrimeDelays[pIdx]);
+        }
+        
+        return { std::isfinite(outL) ? outL + inL * 0.3f : inL, 
+                 std::isfinite(outR) ? outR + inR * 0.3f : inR };
+    }
+
+    StereoOutput processSampleStereoAllpassDelay (float inL, float inR, SynthEffect& rightCh, 
+                                                  float time, float feedback, float diffusion, float damping, double sr)
+    {
+        // Diffuse
+        float diffCoeff = diffusion * 0.7f;
+        float diffL = inL; float diffR = inR;
+        for (int i = 0; i < numApStages; ++i)
+        {
+            diffL = processAllpass (diffL, diffCoeff, apStageBuffers[i], apStageWritePtrs[i], primeDelays[i]);
+            diffR = rightCh.processAllpass (diffR, diffCoeff, rightCh.apStageBuffers[i], rightCh.apStageWritePtrs[i], primeDelays[i]);
+        }
+
+        // Delay lines
+        float delayMs = juce::jmap (time, 0.0f, 1.0f, 10.0f, 1000.0f);
+        int delaySamples = juce::jlimit (1, apDelayBufferSize - 1, static_cast<int> (delayMs / 1000.0f * sr));
+        
+        int readPtrL = (apDelayWritePtr - delaySamples + apDelayBufferSize) % apDelayBufferSize;
+        int readPtrR = (rightCh.apDelayWritePtr - delaySamples + apDelayBufferSize) % apDelayBufferSize;
+        
+        float delayedL = apDelayBuffer[readPtrL];
+        float delayedR = rightCh.apDelayBuffer[readPtrR];
+
+        // Damping
+        float dampCutoff = juce::jmap (1.0f - damping, 0.0f, 1.0f, 20.0f, 20000.0f);
+        float dampAlpha  = 1.0f - std::exp (-2.0f * juce::MathConstants<float>::pi * dampCutoff / static_cast<float> (sr));
+        apDelayLastSample += dampAlpha * (delayedL - apDelayLastSample);
+        rightCh.apDelayLastSample += dampAlpha * (delayedR - rightCh.apDelayLastSample);
+
+        // PING PONG FEEDBACK
+        float feedbackAmt = juce::jlimit (0.0f, 0.95f, feedback);
+        apDelayBuffer[apDelayWritePtr] = diffL + rightCh.apDelayLastSample * feedbackAmt;
+        rightCh.apDelayBuffer[rightCh.apDelayWritePtr] = diffR + apDelayLastSample * feedbackAmt;
+        
+        apDelayWritePtr = (apDelayWritePtr + 1) % apDelayBufferSize;
+        rightCh.apDelayWritePtr = (rightCh.apDelayWritePtr + 1) % apDelayBufferSize;
+
+        return { delayedL + inL, delayedR + inR };
+    }
+
+    StereoOutput processSampleStereoChorus (float inL, float inR, SynthEffect& rightCh, 
+                                            float rate, float depth, float spread, float voices, double sr)
+    {
+        // Force right channel's LFOs to be offset by 90 degrees per voice to create stereo width
+        for (int v = 0; v < numChorusVoices; ++v) {
+            rightCh.chorusLFOPhases[v] = chorusLFOPhases[v] + (juce::MathConstants<float>::pi * 0.5f);
+            if (rightCh.chorusLFOPhases[v] >= juce::MathConstants<float>::twoPi) 
+                rightCh.chorusLFOPhases[v] -= juce::MathConstants<float>::twoPi;
+        }
+
+        // Call the underlying mono processes now that phases are offset
+        return { this->processSampleChorus (inL, rate, depth, spread, voices, sr),
+                 rightCh.processSampleChorus (inR, rate, depth, spread, voices, sr) };
+    }
+
+    StereoOutput processSampleStereoOldChorus (float inL, float inR, SynthEffect& rightCh, 
+                                               float rate, float depth, float mode, float warmth, double sr)
+    {
+        // Juno style: Invert the right channel LFO exactly 180 degrees (Pi)
+        rightCh.oldChorusLFOPhase = oldChorusLFOPhase + juce::MathConstants<float>::pi;
+        if (rightCh.oldChorusLFOPhase >= juce::MathConstants<float>::twoPi) 
+            rightCh.oldChorusLFOPhase -= juce::MathConstants<float>::twoPi;
+
+        return { this->processSampleOldChorus (inL, rate, depth, mode, warmth, sr),
+                 rightCh.processSampleOldChorus (inR, rate, depth, mode, warmth, sr) };
+    }
+
     int getCurrentType() const noexcept { return static_cast<int>(currentType); }
 
 protected:
@@ -2011,6 +2200,10 @@ protected:
     float lofiLPState           = 0.0f;
     float lofiHPState           = 0.0f;
     uint32_t lofiNoiseSeed      = 123456789; // Fast LCG random seed for vinyl dust
+    // primes for delays
+    static constexpr std::array<int, 4> primeDelays        = { 211, 347, 523, 701 };
+    static constexpr std::array<int, 4> revPrimeDelays     = { 883, 1031, 1153, 1301 };
+    static constexpr std::array<int, 4> ambientPrimeDelays = { 1511, 1699, 1861, 2029 };
     // Parameters Cache
     double sampleRate { 44100.0 };
     float targetCutoff { 1000.0f };

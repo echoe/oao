@@ -183,6 +183,8 @@ void FMPluginAudioProcessorEditor::resized()
     auto gainArea = topBarArea.removeFromRight (static_cast<int> (220 * scale));
     gainLabel.setBounds (gainArea.removeFromLeft (static_cast<int> (45 * scale)));
     gainSlider.setBounds (gainArea.reduced (2));
+    gainSlider.setTextBoxStyle (juce::Slider::TextBoxLeft, false,
+        static_cast<int> (45 * scale), static_cast<int> (topBarHeight * 0.6f));
 
     // Oscilloscope, also on right
     if (oscilloscope != nullptr)

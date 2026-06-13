@@ -21,7 +21,7 @@ public:
         addAndMakeVisible (syncButton);
         // Mix knob
         mixSlider.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
-        mixSlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 50, 15);
+        mixSlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 0, 0);
         addAndMakeVisible (mixSlider);
         mixLabel.setText ("Mix", juce::dontSendNotification);
         mixLabel.setJustificationType (juce::Justification::centred);
@@ -30,7 +30,7 @@ public:
         for (int i = 0; i < 4; ++i)
         {
             knobs[i].setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
-            knobs[i].setTextBoxStyle (juce::Slider::TextBoxBelow, false, 50, 15);
+            knobs[i].setTextBoxStyle (juce::Slider::TextBoxBelow, false, 0, 0);
             addAndMakeVisible (knobs[i]);
             addAndMakeVisible (knobLabels[i]);
             knobLabels[i].setJustificationType (juce::Justification::centred);
@@ -106,18 +106,18 @@ public:
     
         // Top row: slot label, effect selector, sync button
         auto topRow = area.removeFromTop (getHeight() * 0.18f);
-        slotLabel.setBounds      (topRow.removeFromLeft (topRow.getWidth() * 0.08f));
-        syncButton.setBounds     (topRow.removeFromRight (topRow.getWidth() * 0.12f).reduced (2));
+        slotLabel.setBounds      (topRow.removeFromLeft (topRow.getWidth() * 0.10f));
+        syncButton.setBounds     (topRow.removeFromRight (topRow.getWidth() * 0.10f).reduced (2));
         effectSelector.setBounds (topRow.reduced (2));
-        area.removeFromTop (getHeight() * 0.02f);
+        area.removeFromTop (getHeight() * 0.005f);
     
         // Shared textbox sizing
-        int textBoxH = (int)(getHeight() * 0.08f);
+        int textBoxH = (int)(getHeight() * 0.12f); //knob label
         int textBoxW = (int)(getWidth()  * 0.1f);
     
         // Mix knob on the left
         auto mixArea = area.removeFromLeft (area.getWidth() * 0.12f);
-        mixLabel.setBounds (mixArea.removeFromBottom (getHeight() * 0.1f));
+        mixLabel.setBounds (mixArea.removeFromBottom (getHeight() * 0.22f));
         mixSlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, textBoxW, textBoxH);
         mixSlider.setBounds (mixArea);
         area.removeFromLeft (area.getWidth() * 0.01f);
@@ -127,7 +127,7 @@ public:
         for (int i = 0; i < 4; ++i)
         {
             auto knobArea = area.removeFromLeft (knobW);
-            knobLabels[i].setBounds (knobArea.removeFromBottom (getHeight() * 0.1f));
+            knobLabels[i].setBounds (knobArea.removeFromBottom (getHeight() * 0.15f));
             knobs[i].setTextBoxStyle (juce::Slider::TextBoxBelow, false, textBoxW, textBoxH);
             knobs[i].setBounds (knobArea);
         }
@@ -175,7 +175,7 @@ public:
     {
         // Draw flow arrows between slots
         g.setColour (colors.text.withAlpha (0.3f));
-        g.setFont (18.0f);
+        g.setFont (getHeight() * 0.03f);
         int slotH = getHeight() / 3;
         for (int i = 0; i < 2; ++i)
         {
@@ -199,13 +199,16 @@ public:
 
     void resized() override
     {
-        auto area = getLocalBounds().reduced (8);
-        int slotH = (area.getHeight() - 20) / 3; // 20px for arrows
-
+        float h = getHeight();
+        float w = getWidth();
+        auto area = getLocalBounds().reduced (w * 0.01f, h * 0.01f);
+        float arrowH = h * 0.03f;
+        int slotH = (area.getHeight() - 2 * arrowH) / 3;
+    
         for (int i = 0; i < 3; ++i)
         {
-            slots[i]->setBounds (area.removeFromTop (slotH).reduced (0, 4));
-            if (i < 2) area.removeFromTop (10); // space for arrows
+            slots[i]->setBounds (area.removeFromTop (slotH).reduced (0, h * 0.005f));
+            if (i < 2) area.removeFromTop (arrowH);
         }
     }
 

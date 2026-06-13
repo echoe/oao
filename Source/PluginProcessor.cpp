@@ -623,9 +623,9 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
                             case 22: // Scatter
                             {
                                 float pattern = normalizedRatio;
-                                float size    = dampingAmt;
-                                float speed   = phase / 360.0f;
-                                float depth   = juce::jlimit (0.0f, 1.0f, fold);
+                                float size = juce::jlimit(0.0f, 1.0f, (detune + 50.0f) / 100.0f);
+                                float speed = phase / 360.0f;
+                                float depth = juce::jlimit (0.0f, 1.0f, fold);
                                 outArr[ch] = fxEffects[slot][ch].processSampleScatter (inArr[ch], pattern, size, speed, depth, getSampleRate());
                                 outArr[ch] = std::isfinite (outArr[ch]) ? outArr[ch] : 0.0f;
                                 break;

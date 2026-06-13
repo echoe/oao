@@ -26,11 +26,22 @@ public:
     {
         return juce::FontOptions (juce::jlimit (8.0f, 14.0f, label.getHeight() * 0.7f) * currentScale);
     }
-    
+
     juce::Font getTextButtonFont (juce::TextButton& button, int buttonHeight) override
     {
-        float baseSize = juce::jmin (14.0f * currentScale, buttonHeight * 0.6f);
-        return juce::FontOptions (juce::jlimit (9.0f, 18.0f, baseSize));
+        float fromHeight = buttonHeight * 0.6f;
+    
+        // Scale down if the text would be too wide for the button
+        juce::Font f { juce::FontOptions (fromHeight) };
+	juce::GlyphArrangement ga;
+        ga.addLineOfText (f, button.getButtonText(), 0.0f, 0.0f);
+        float textWidth = ga.getBoundingBox (0, -1, true).getWidth();
+	float availableWidth = (float) button.getWidth() - 4.0f; // small padding
+    
+        if (textWidth > availableWidth)
+            fromHeight *= (availableWidth / textWidth);
+    
+        return juce::FontOptions (juce::jmax (9.0f, fromHeight));
     }
 
     void applyColors()
@@ -169,7 +180,7 @@ public:
     {
         bool isOn = button.getToggleState();
         g.setColour (isOn ? colors.primary : colors.text);
-        g.setFont (juce::Font (juce::FontOptions (15.0f)));
+        g.setFont (getTextButtonFont (button, button.getHeight()));
         g.drawText (button.getButtonText(), button.getLocalBounds(),
                     juce::Justification::centred);
     }

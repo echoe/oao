@@ -33,6 +33,7 @@ public:
         pingPongDir    = 1.0f;
         xfadePingDir   = 1.0f;
         xfadeActive    = false;
+	scatterWindowOffset = 0.0f;
         internalEffect.reset();
     }
 
@@ -52,6 +53,7 @@ public:
         pingPongDir   = 1.0f;
         xfadePingDir  = 1.0f;
         xfadeActive   = false;
+	scatterWindowOffset = 0.0f;
         internalEffect.reset();
     }
 
@@ -150,22 +152,33 @@ public:
                     return buf->getSample (0, idx0) * (1.0f - frac) + buf->getSample (0, idx1) * frac;
                 };
 
-                if (playMode == 3) // Stutter: loop a grain window whose size is boundaryKnob
+                if (playMode == 3)
                 {
-                    // Map 0..1 → ~2048 samples (46ms) to 50% of the region, in samples
-                    double minWindow    = 2048.0;
-                    double maxWindow    = regionLen * 0.5;
-                    maxWindow           = std::max (maxWindow, minWindow + 1.0); // ensure range is valid
+                    double minWindow     = std::min(2048.0, regionLen * 0.25);
+                    double maxWindow     = regionLen * 0.5;
+                    maxWindow            = std::max(maxWindow, minWindow + 1.0);
                     double windowSamples = minWindow + (boundaryKnob * (maxWindow - minWindow));
-
-                    double playPos = startSample + std::fmod (samplePlayPos, windowSamples);
-                    sampleOut = readSample (playPos);
-
-                    samplePlayPos += advance;
-                    while (samplePlayPos >= windowSamples)
+                    windowSamples        = std::min(windowSamples, regionLen);
+                
+                    // When the grain window completes, jump to a new start position
+                    if (samplePlayPos >= windowSamples)
+                    {
                         samplePlayPos -= windowSamples;
+                
+                        // Scatter: pick a new random offset within the region
+                        // boundaryKnob == 0 → always restarts at startSample (no scatter)
+                        // boundaryKnob == 1 → jumps anywhere in the region
+                        double scatterRange  = boundaryKnob * (regionLen - windowSamples);
+                        scatterWindowOffset  = (regionLen > windowSamples)
+                                               ? (std::rand() / (double)RAND_MAX) * scatterRange
+                                               : 0.0;
+                    }
+                
+                    double playPos = startSample + scatterWindowOffset + samplePlayPos;
+                    sampleOut      = readSample(playPos);
+                    samplePlayPos += advance;
                 }
-                else if (playMode == 0) // One-shot with fade-out
+		else if (playMode == 0) // One-shot with fade-out
                 {
                     double playPos = startSample + samplePlayPos;
                     sampleOut = readSample (playPos);
@@ -247,18 +260,19 @@ public:
                     }
 
                     samplePlayPos += pingPongDir * advance;
-
-                    // Reflect off end — clamp with jlimit to guard against large overshoots.
                     if (samplePlayPos >= regionLen)
                     {
-                        samplePlayPos = juce::jlimit (0.0, regionLen, (2.0 * regionLen) - samplePlayPos);
-                        pingPongDir   = -1.0f;
+                        samplePlayPos = (2.0 * regionLen) - samplePlayPos; // reflect, no clamp
+                        if (samplePlayPos < 0.0) samplePlayPos = 0.0;      // guard extreme overshoot only
+                        pingPongDir = -1.0f;
                     }
                     else if (samplePlayPos <= 0.0)
                     {
-                        samplePlayPos = juce::jlimit (0.0, regionLen, -samplePlayPos);
-                        pingPongDir   = 1.0f;
+                        samplePlayPos = -samplePlayPos; // reflect, no clamp
+                        if (samplePlayPos > regionLen) samplePlayPos = regionLen; // guard extreme overshoot
+                        pingPongDir = 1.0f;
                     }
+
                 }
 
                 outputSample = std::isfinite (sampleOut)
@@ -717,7 +731,7 @@ private:
     double xfadePlayPos  = 0.0;
     bool   xfadeActive   = false;
     float  xfadePingDir  = 1.0f; // direction of the mirror head in ping-pong xfade
-
+    float scatterWindowOffset = 0.0f; //offset that the scatter function uses to figure out how scattered it is from the front of the sample
     float  pingPongDir   = 1.0f; // +1 = forward, -1 = backward (ping-pong mode)
     WaveTable* waveTable  = nullptr;
     double phase = 0.0;

@@ -3,6 +3,24 @@
 #include "OAOColors.h"
 #include "OAOLookAndFeel.h"
 
+struct ColorPreviewButton : public juce::Component
+{
+    std::function<void()> onClick;
+    juce::Colour color;
+
+    void paint (juce::Graphics& g) override
+    {
+        g.fillAll (color);
+        g.setColour (juce::Colours::white.withAlpha (0.2f));
+        g.drawRect (getLocalBounds(), 1);
+    }
+
+    void mouseUp (const juce::MouseEvent&) override
+    {
+        if (onClick) onClick();
+    }
+};
+
 class SettingsPage : public juce::Component, public juce::ChangeListener
 {
 public:
@@ -73,12 +91,12 @@ public:
     {
         g.fillAll (colors.background);
         g.setColour (colors.text);
-        g.setFont (juce::FontOptions().withHeight(18.0f));
-        g.drawText ("Settings", getLocalBounds().removeFromTop (40),
+        g.setFont (juce::FontOptions().withHeight(getHeight()*0.05f)); //Settings title height
+        g.drawText ("Settings", getLocalBounds().removeFromTop (getHeight() * 0.05f),
                     juce::Justification::centred);
 
         g.setColour (colors.primary.withAlpha (0.3f));
-        g.drawHorizontalLine (40, 8.0f, static_cast<float> (getWidth()) - 8.0f);
+        g.drawHorizontalLine (getHeight()*0.06f, 8.0f, static_cast<float> (getWidth()) - 8.0f); // line under settings title
     }
 
     void resized() override
@@ -87,7 +105,7 @@ public:
         area.removeFromTop (getHeight() * 0.08f); // title area
     
         // UI Scale
-        auto scaleRow = area.removeFromTop (getHeight() * 0.07f);
+        auto scaleRow = area.removeFromTop (getHeight() * 0.05f);
         scaleLabel.setBounds    (scaleRow.removeFromLeft (scaleRow.getWidth() * 0.15f));
         scaleSelector.setBounds (scaleRow.removeFromLeft (scaleRow.getWidth() * 0.25f).reduced (2));
     
@@ -123,13 +141,13 @@ public:
         layoutSection (textSection,       colorRow);
     }
 
-    void refreshAll()
+    void refreshAll() //refreshes colors
     {
-        backgroundSection.previewBox.setColour (juce::Label::backgroundColourId, colors.background);
-        primarySection.previewBox.setColour    (juce::Label::backgroundColourId, colors.primary);
-        secondarySection.previewBox.setColour  (juce::Label::backgroundColourId, colors.secondary);
-        surfaceSection.previewBox.setColour    (juce::Label::backgroundColourId, colors.surface);
-        textSection.previewBox.setColour       (juce::Label::backgroundColourId, colors.text);
+        backgroundSection.previewBox.color = colors.background;
+        primarySection.previewBox.color    = colors.primary;
+        secondarySection.previewBox.color  = colors.secondary;
+        surfaceSection.previewBox.color    = colors.surface;
+        textSection.previewBox.color       = colors.text;
 
         scaleLabel.setColour (juce::Label::textColourId, colors.text);
         backgroundSection.nameLabel.setColour (juce::Label::textColourId, colors.text);
@@ -155,11 +173,10 @@ private:
     struct ColorSection
     {
         juce::Label      nameLabel;
-        juce::Label      previewBox;
-        juce::TextButton editButton; 
+        ColorPreviewButton previewBox;
         juce::Colour* targetColor = nullptr;
     };
-    
+
     void setupColorSection (ColorSection& section, const juce::String& name,
                             juce::Colour& targetColor)
     {
@@ -169,13 +186,8 @@ private:
         section.nameLabel.setJustificationType (juce::Justification::centred); // Center text
         addAndMakeVisible (section.nameLabel);
     
-        addAndMakeVisible (section.previewBox);
-        section.previewBox.setColour (juce::Label::backgroundColourId, targetColor);
-    
-        section.editButton.setButtonText ("Edit");
-        addAndMakeVisible (section.editButton);
-    
-        section.editButton.onClick = [this, &section]()
+        section.previewBox.setColour (juce::TextButton::buttonColourId, targetColor);
+        section.previewBox.onClick = [this, &section]()
         {
             auto* colorSelector = new juce::ColourSelector();
             colorSelector->setName (section.nameLabel.getText());
@@ -185,24 +197,21 @@ private:
             colorSelector->addChangeListener (this);
     
             juce::CallOutBox::launchAsynchronously (std::unique_ptr<juce::Component>(colorSelector),
-                                                    section.editButton.getScreenBounds(),
+                                                    section.previewBox.getScreenBounds(),
                                                     nullptr);
         };
+        addAndMakeVisible (section.previewBox);
     }
 
-    // ✅ Redesigned to stack elements vertically within the horizontal column
-    void layoutSection (ColorSection& section, juce::Rectangle<int> area)
+    void layoutSection (ColorSection& section, juce::Rectangle<int> area) // Organizes the colors
     {
         area.reduce (4, 0);
-        int labelH = area.getHeight() * 0.2f;
-        int previewH = area.getHeight() * 0.5f;
-        int buttonH = area.getHeight() * 0.2f;
+        int labelH = area.getHeight() * 0.1f; // labels
+        int previewH = area.getHeight() * 0.5f; //colors
     
         section.nameLabel.setBounds (area.removeFromTop (labelH));
         area.removeFromTop (4);
         section.previewBox.setBounds (area.removeFromTop (previewH));
-        area.removeFromTop (8);
-        section.editButton.setBounds (area.removeFromTop (buttonH));
     }
 
     void changeListenerCallback (juce::ChangeBroadcaster* source) override

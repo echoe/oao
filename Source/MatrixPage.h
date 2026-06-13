@@ -69,11 +69,11 @@ struct ModMatrixSlot : public juce::Component
 
     void resized() override
     {
-        auto area = getLocalBounds().reduced (2, 3);
+        auto area = getLocalBounds().reduced (2, getHeight() * 0.15f);
         int w = area.getWidth();
-        rowLabel.setBounds       (area.removeFromLeft (w * 0.06f));
+        rowLabel.setBounds       (area.removeFromLeft (w * 0.08f));
         sourceSelector.setBounds (area.removeFromLeft (w * 0.25f).reduced (2, 0));
-        targetSelector.setBounds (area.removeFromLeft (w * 0.25f).reduced (2, 0));
+        targetSelector.setBounds (area.removeFromLeft (w * 0.35f).reduced (2, 0));
         amountSlider.setBounds   (area.reduced (2, 0));
     }
 

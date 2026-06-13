@@ -900,43 +900,86 @@ struct FMAlgorithm
 
     void triggerSave()
     {
-        juce::String defaultName = (currentPresetIndex >= 0 && ! presetFiles.isEmpty())
+        juce::String defaultName = (currentPresetIndex >= 0 && !presetFiles.isEmpty())
                                    ? presetFiles[currentPresetIndex].getFileNameWithoutExtension()
                                    : "New Preset";
-
+    
         juce::File startDir = (presetFolder != juce::File() && presetFolder.isDirectory())
                               ? presetFolder
-                              : juce::File::getSpecialLocation (juce::File::userDocumentsDirectory);
-
-        fileChooser = std::make_unique<juce::FileChooser> (
-            "Save Synth Preset", startDir.getChildFile (defaultName), "*.xml");
-
-        fileChooser->launchAsync (
+                              : juce::File::getSpecialLocation(juce::File::userDocumentsDirectory);
+    
+        fileChooser = std::make_unique<juce::FileChooser>(
+            "Save Synth Preset", startDir.getChildFile(defaultName), "*.xml");
+    
+        fileChooser->launchAsync(
             juce::FileBrowserComponent::saveMode | juce::FileBrowserComponent::canSelectFiles,
-            [this] (const juce::FileChooser& chooser)
+            [this](const juce::FileChooser& chooser)
             {
                 auto file = chooser.getResult();
-                if (file == juce::File())
-                    return;
-
+                if (file == juce::File()) return;
+    
                 if (file.getFileExtension().toLowerCase() != ".xml")
-                    file = file.withFileExtension ("xml");
-
-                // Use getStateInformation so sample audio is embedded in the file
+                    file = file.withFileExtension("xml");
+    
                 juce::MemoryBlock stateData;
-                audioProcessor.getStateInformation (stateData);
-
-                // getStateInformation gives us binary-wrapped XML; unwrap it to write readable XML
-                std::unique_ptr<juce::XmlElement> xml (audioProcessor.getXmlFromBinary (
-                    stateData.getData(), (int) stateData.getSize()));
+                audioProcessor.getStateInformation(stateData);
+    
+                std::unique_ptr<juce::XmlElement> xml(audioProcessor.getXmlFromBinary(
+                    stateData.getData(), (int)stateData.getSize()));
+    
                 if (xml != nullptr)
-                    xml->writeTo (file);
-
+                {
+                    stripUnusedSamples(*xml);
+                    xml->writeTo(file);
+                }
+    
                 presetFolder = file.getParentDirectory();
                 refreshPresetList();
-                currentPresetIndex = presetFiles.indexOf (file);
+                currentPresetIndex = presetFiles.indexOf(file);
                 updateNameLabel();
             });
+    }
+    
+    // Removes per-operator sample data from the XML for any operator
+    // not currently in Sample mode (mode == 2).
+    void stripUnusedSamples(juce::XmlElement& xml)
+    {
+        // Collect 0-based indices of operators in sample mode
+        juce::Array<int> sampleModeOps;
+        for (int op = 1; op <= ProjectConfig::numOperators; ++op)
+        {
+            juce::String modeId = "MODE_" + juce::String(op);
+            if (auto* p = dynamic_cast<juce::RangedAudioParameter*>(
+                    audioProcessor.apvts.getParameter(modeId)))
+            {
+                float realVal = p->getNormalisableRange().convertFrom0to1(p->getValue());
+                if (juce::roundToInt(realVal) == 2)
+                    sampleModeOps.add(op - 1); // store as 0-based to match XML
+            }
+        }
+        // Walk the <SampleData> child element and strip entries for unused operators.
+        // If NO operators are in sample mode, remove the whole element (or leave it empty).
+        if (auto* sampleData = xml.getChildByName("SampleData"))
+        {
+            if (sampleModeOps.isEmpty())
+            {
+                // No operators use samples — remove the element entirely
+                xml.removeChildElement(sampleData, true);
+            }
+            else
+            {
+                // Remove child entries whose operator index is not in sampleModeOps.
+                juce::Array<juce::XmlElement*> toRemove;
+                for (auto* entry : sampleData->getChildIterator())
+                {
+		    int opIndex = entry->getIntAttribute("index", -1);
+                    if (!sampleModeOps.contains(opIndex))
+                        toRemove.add(entry);
+                }
+                for (auto* entry : toRemove)
+                    sampleData->removeChildElement(entry, true);
+            }
+        }
     }
 
     void triggerLoad()

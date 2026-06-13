@@ -69,7 +69,7 @@ struct ModMatrixSlot : public juce::Component
 
     void resized() override
     {
-        auto area = getLocalBounds().reduced (2, getHeight() * 0.15f);
+        auto area = getLocalBounds().reduced (2, getHeight() * 0.25f);
         int w = area.getWidth();
         rowLabel.setBounds       (area.removeFromLeft (w * 0.08f));
         sourceSelector.setBounds (area.removeFromLeft (w * 0.25f).reduced (2, 0));
@@ -272,7 +272,13 @@ public:
             for (int i = 0; i < ProjectConfig::numOperators; ++i)
             {
                 auto cell = sidebarArea.removeFromTop (rowH).reduced (0, cachedH * 0.005f);
-                if (auto* lb = outputLabels[i])  lb->setBounds (cell.removeFromLeft (labelW));
+                if (auto* lb = outputLabels[i])
+                {
+                    auto labelCell = cell.removeFromLeft (labelW);
+                    int  labelH    = juce::jlimit (14, static_cast<int> (rowH * 0.6f),
+                                                   static_cast<int> (rowH * 0.45f));
+                    lb->setBounds (labelCell.withSizeKeepingCentre (labelCell.getWidth(), labelH));
+                }
                 if (auto* sl = outputSliders[i])
                 {
                     sl->setTextBoxStyle (juce::Slider::TextBoxBelow, false,

@@ -111,12 +111,6 @@ FMPluginAudioProcessorEditor::FMPluginAudioProcessorEditor (FMPluginAudioProcess
     gainAttach = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
         p.apvts, "GAIN_CEIL", gainSlider);
 
-    // synth title. may need to move
-    titleLabel.setText ("OAO", juce::dontSendNotification);
-    titleLabel.setJustificationType (juce::Justification::centred);
-    titleLabel.setFont (juce::Font (juce::FontOptions().withHeight (18.0f).withStyle ("Bold")));
-    addAndMakeVisible (titleLabel);
-    
     //oscilloscope
     oscilloscope = std::make_unique<Oscilloscope> (audioProcessor, oaoColors);
     addAndMakeVisible (*oscilloscope);
@@ -169,29 +163,26 @@ void FMPluginAudioProcessorEditor::resized()
     float scale = oaoLookAndFeel.currentScale;
 
     // Scale fixed heights with current scale
-    int topBarHeight = static_cast<int> (40 * scale);
-    int navBarHeight = static_cast<int> (40 * scale);
+    int topBarHeight = juce::roundToInt(getHeight() * 0.05);
+    int navBarHeight = juce::roundToInt(getHeight() * 0.05);
 
     // Top bar
     auto topBarArea = area.removeFromTop (topBarHeight);
 
     // Preset bar takes the left chunk — scale its width too
-    auto presetArea = topBarArea.removeFromLeft (static_cast<int> (600 * scale));
+    auto presetArea = topBarArea.removeFromLeft (static_cast<int> (getWidth() * 0.70f));
     presetBar.setBounds (presetArea.reduced (2));
 
     // Gain slider on the right
-    auto gainArea = topBarArea.removeFromRight (static_cast<int> (220 * scale));
-    gainLabel.setBounds (gainArea.removeFromLeft (static_cast<int> (45 * scale)));
+    auto gainArea = topBarArea.removeFromRight (static_cast<int> (getWidth() * 0.16f));
+    gainLabel.setBounds (gainArea.removeFromLeft (static_cast<int> (getWidth() * 0.04f)));
     gainSlider.setBounds (gainArea.reduced (2));
     gainSlider.setTextBoxStyle (juce::Slider::TextBoxLeft, false,
         static_cast<int> (45 * scale), static_cast<int> (topBarHeight * 0.6f));
 
     // Oscilloscope, also on right
     if (oscilloscope != nullptr)
-        oscilloscope->setBounds (topBarArea.removeFromRight (static_cast<int> (100 * scale)));
-
-    // Title in remaining space in middle-ish
-    titleLabel.setBounds (topBarArea.reduced (2));
+        oscilloscope->setBounds (topBarArea.removeFromRight (static_cast<int> (getWidth() * 0.10f)));
 
 // Nav buttons
     auto navArea   = area.removeFromTop (navBarHeight);

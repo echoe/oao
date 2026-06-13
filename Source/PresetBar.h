@@ -159,32 +159,33 @@ public:
         g.drawHorizontalLine (getHeight() - 1, 0.0f, static_cast<float> (getWidth()));
     }
 
-    void resized() override
+    void resized() override // we have like 70% of the bar or so.
     {
         auto area = getLocalBounds().reduced (2);
         const int totalWidth = area.getWidth();
-	const int dropdownWidth = totalWidth * 0.10f;
-        const int smallBtnWidth   = totalWidth * 0.03f;
-	const int smallLblWidth = totalWidth * 0.06f;
-        const int medBtnWidth = totalWidth * 0.07f;  // Init, Save, Load
+	const int dropdownWidth = totalWidth * 0.09f;
+        const int largedropWidth = totalWidth * 0.15f;
+        const int smallBtnWidth   = totalWidth * 0.03f; //randomizers, preset mini buttons
+	const int smallLblWidth = totalWidth * 0.07f;
+        const int medBtnWidth = totalWidth * 0.06f;  // Init, Save, Load
 
-        // Preset buttons
-        initButton.setBounds      (area.removeFromLeft (smallLblWidth).reduced (1));
+        // Preset buttons, 0.18f
+        initButton.setBounds      (area.removeFromLeft (medBtnWidth).reduced (1));
         saveButton.setBounds      (area.removeFromLeft (medBtnWidth).reduced (1));
         loadButton.setBounds      (area.removeFromLeft (medBtnWidth).reduced (1));
-        // Centre area: < [... presetName] >
+        // Centre area: < [... presetName] >, 0.24f
         prevButton.setBounds   (area.removeFromLeft  (smallBtnWidth).reduced (1));
         folderButton.setBounds (area.removeFromLeft  (smallBtnWidth).reduced (1));
-        presetNameLabel.setBounds (area.removeFromLeft (dropdownWidth).reduced (1));
+        presetNameLabel.setBounds (area.removeFromLeft (largedropWidth).reduced (1));
         nextButton.setBounds   (area.removeFromLeft (smallBtnWidth).reduced (1));
-	// random buttons
+	// random buttons, 0.09f
         smartRandButton.setBounds   (area.removeFromLeft (smallBtnWidth).reduced (1));
         drumRandButton.setBounds   (area.removeFromLeft (smallBtnWidth).reduced (1));
         effectsRandButton.setBounds   (area.removeFromLeft (smallBtnWidth).reduced (1));
-        // algo, oversampling and poly dropdowns
+        // algo, oversampling and poly dropdowns. 0.45f
         algorithmLabel.setBounds       (area.removeFromLeft (smallLblWidth).reduced (1));
         algorithmSelector.setBounds    (area.removeFromLeft (dropdownWidth).reduced (1));
-        oversamplingLabel.setBounds    (area.removeFromLeft (smallLblWidth).reduced (1));
+        oversamplingLabel.setBounds    (area.removeFromLeft (totalWidth * 0.04).reduced (1));
         oversamplingSelector.setBounds (area.removeFromLeft (dropdownWidth).reduced (1));
         polyphonyLabel.setBounds       (area.removeFromLeft (smallLblWidth).reduced (1));
         polyphonySelector.setBounds    (area.removeFromLeft (dropdownWidth).reduced (1));

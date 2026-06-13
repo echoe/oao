@@ -79,6 +79,29 @@ public:
                 onScaleChanged (scale);
         };
 
+        fontLabel.setText ("Font:", juce::dontSendNotification);
+        fontLabel.setJustificationType (juce::Justification::centredRight);
+        addAndMakeVisible (fontLabel);
+
+        fontSelector.addItem ("Default", 1);
+        juce::StringArray systemFonts = juce::Font::findAllTypefaceNames();
+        
+        int fontId = 2;
+        for (const auto& fontName : systemFonts)
+            fontSelector.addItem (fontName, fontId++);
+            
+        fontSelector.setSelectedId (1, juce::dontSendNotification);
+        addAndMakeVisible (fontSelector);
+
+        fontSelector.onChange = [this]
+        {
+            lookAndFeel.currentFontName = fontSelector.getText();
+            refreshAll(); 
+            // Note: Since this changes fonts globally, you might also need 
+            // to trigger a repaint on your parent editor component if 
+            // refreshAll() doesn't catch components outside the settings page.
+        };
+
         // HSB sliders for each color
         setupColorSection (backgroundSection, "Background",  colors.background);
         setupColorSection (primarySection,    "Primary",     colors.primary);
@@ -104,11 +127,12 @@ public:
         auto area = getLocalBounds().reduced (getWidth() * 0.02f);
         area.removeFromTop (getHeight() * 0.08f); // title area
     
-        // UI Scale
+        // UI Scale and Font Selection
         auto scaleRow = area.removeFromTop (getHeight() * 0.05f);
         scaleLabel.setBounds    (scaleRow.removeFromLeft (scaleRow.getWidth() * 0.15f));
         scaleSelector.setBounds (scaleRow.removeFromLeft (scaleRow.getWidth() * 0.25f).reduced (2));
-    
+        fontLabel.setBounds    (scaleRow.removeFromLeft (scaleRow.getWidth() * 0.2f));
+        fontSelector.setBounds (scaleRow.reduced (2));
         area.removeFromTop (getHeight() * 0.03f); // gap
     
         // Buttons
@@ -149,17 +173,23 @@ public:
         surfaceSection.previewBox.color    = colors.surface;
         textSection.previewBox.color       = colors.text;
 
-        scaleLabel.setColour (juce::Label::textColourId, colors.text);
         backgroundSection.nameLabel.setColour (juce::Label::textColourId, colors.text);
         primarySection.nameLabel.setColour    (juce::Label::textColourId, colors.text);
         secondarySection.nameLabel.setColour  (juce::Label::textColourId, colors.text);
         surfaceSection.nameLabel.setColour    (juce::Label::textColourId, colors.text);
         textSection.nameLabel.setColour       (juce::Label::textColourId, colors.text);
 
+        scaleLabel.setColour (juce::Label::textColourId, colors.text);
         scaleSelector.setColour (juce::ComboBox::backgroundColourId, colors.surface);
         scaleSelector.setColour (juce::ComboBox::textColourId, colors.text);
         scaleSelector.setColour (juce::ComboBox::arrowColourId, colors.text);
         scaleSelector.sendLookAndFeelChange();
+
+        fontLabel.setColour (juce::Label::textColourId, colors.text);
+        fontSelector.setColour (juce::ComboBox::backgroundColourId, colors.surface);
+        fontSelector.setColour (juce::ComboBox::textColourId, colors.text);
+        fontSelector.setColour (juce::ComboBox::arrowColourId, colors.text);
+        fontSelector.sendLookAndFeelChange();
 
 	// general refreshes
         lookAndFeel.applyColors();
@@ -234,8 +264,8 @@ private:
     OAOColors&        colors;
     OAOLookAndFeel&   lookAndFeel;
 
-    juce::ComboBox    scaleSelector, oversamplingSelector, polyphonySelector;
-    juce::Label       scaleLabel, oversamplingLabel, polyphonyLabel;
+    juce::ComboBox    scaleSelector, fontSelector, oversamplingSelector, polyphonySelector;
+    juce::Label       scaleLabel, fontLabel, oversamplingLabel, polyphonyLabel;
 
     juce::TextButton  synthwaveBtn, industrialBtn, minimalBtn, warmBtn, mintBtn, peachBtn, lavenderBtn, nordicBtn;
 

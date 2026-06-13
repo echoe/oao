@@ -6,39 +6,49 @@ class OAOLookAndFeel : public juce::LookAndFeel_V4
 {
 public:
     float currentScale = 1.0f;
+    juce::String currentFontName = "Default"; // <-- This must be declared right here!
+
     OAOLookAndFeel (OAOColors& c) : colors (c)
     {
         applyColors();
     }
 
-    // Text scaling handling. first the default
+    // Helper method returning a full juce::Font
+    juce::Font getCustomFont (float height)
+    {
+        juce::FontOptions opts (height);
+        if (currentFontName != "Default")
+            opts = opts.withName (currentFontName); // <-- Fixed method name
+            
+        return juce::Font (opts);
+    }
+
     juce::Font getComboBoxFont (juce::ComboBox& box) override
     {
         float fromHeight = box.getHeight() * 0.45f;
     
-        juce::Font f { juce::FontOptions (fromHeight) };
+        juce::Font f = getCustomFont (fromHeight); 
         juce::GlyphArrangement ga;
         ga.addLineOfText (f, box.getText(), 0.0f, 0.0f);
         float textWidth = ga.getBoundingBox (0, -1, true).getWidth();
-        float availableWidth = (float) box.getWidth() - 20.0f; // extra padding for the dropdown arrow
+        float availableWidth = (float) box.getWidth() - 20.0f; 
     
         if (textWidth > availableWidth)
             fromHeight *= (availableWidth / textWidth);
     
-        return juce::FontOptions (juce::jmax (8.0f, fromHeight));
+        return getCustomFont (juce::jmax (8.0f, fromHeight));
     }
-
 
     juce::Font getPopupMenuFont() override
     {
-        return juce::FontOptions (13.0f * currentScale); // popups stay fixed, just scale
+        return getCustomFont (13.0f * currentScale); 
     }
     
     juce::Font getLabelFont (juce::Label& label) override
     {
         float fromHeight = label.getHeight() * 0.7f;
     
-        juce::Font f { juce::FontOptions (fromHeight) };
+        juce::Font f = getCustomFont (fromHeight);
         juce::GlyphArrangement ga;
         ga.addLineOfText (f, label.getText(), 0.0f, 0.0f);
         float textWidth = ga.getBoundingBox (0, -1, true).getWidth();
@@ -47,24 +57,23 @@ public:
         if (textWidth > availableWidth)
             fromHeight *= (availableWidth / textWidth);
     
-        return juce::FontOptions (juce::jmax (8.0f, fromHeight));
+        return getCustomFont (juce::jmax (8.0f, fromHeight));
     }
 
     juce::Font getTextButtonFont (juce::TextButton& button, int buttonHeight) override
     {
         float fromHeight = buttonHeight * 0.6f;
     
-        // Scale down if the text would be too wide for the button
-        juce::Font f { juce::FontOptions (fromHeight) };
-	juce::GlyphArrangement ga;
+        juce::Font f = getCustomFont (fromHeight); 
+        juce::GlyphArrangement ga;
         ga.addLineOfText (f, button.getButtonText(), 0.0f, 0.0f);
         float textWidth = ga.getBoundingBox (0, -1, true).getWidth();
-	float availableWidth = (float) button.getWidth() - 4.0f; // small padding
+        float availableWidth = (float) button.getWidth() - 4.0f; 
     
         if (textWidth > availableWidth)
             fromHeight *= (availableWidth / textWidth);
     
-        return juce::FontOptions (juce::jmax (9.0f, fromHeight));
+        return getCustomFont (juce::jmax (9.0f, fromHeight));
     }
 
     void applyColors()

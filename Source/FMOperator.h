@@ -152,7 +152,7 @@ public:
                     return buf->getSample (0, idx0) * (1.0f - frac) + buf->getSample (0, idx1) * frac;
                 };
 
-                if (playMode == 3)
+                if (playMode == 3) // if scatter ...
                 {
                     double minWindow     = std::min(2048.0, regionLen * 0.25);
                     double maxWindow     = regionLen * 0.5;
@@ -575,8 +575,7 @@ public:
             
                 case 2: // Hz — absolute frequency
                 {
-                    float normalized    = (ratio - 0.01f) / (16.0f - 0.01f);
-                    nodeTargetFrequency = 16.0f * std::pow (1000.0f, normalized);
+                    nodeTargetFrequency = ratio * 1000.0f;
                     break;
                 }
             

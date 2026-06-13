@@ -217,11 +217,6 @@ Take the incoming audio. Pause it. Twist it and reverse it.
 - You can modulate any operator with any other operator. Doot de doot.
 - If you want to use the effects on other things, use the effects plugin :)
 
-## Todo
-- Still troubleshooting the scatter and pingpong settings for sample playback.
-- considering what to do with the fold knob in sample settings. for scatter it can be the window size? will see.
-- Test the stereo effects.
-
 Pictures of the synth in use are provided in the pictures/ folder, and I've switched between themes for each picture so you can get an idea of the theme options. There are also build scripts in the main folder, and built vst3 and standalone builds for all three OS's in the release folder.
 This is mostly AI-coded, but I am actively using the synth myself and have read over all of the code and think I understand it (though how much can one understand code they haven't written themselves?). Your mileage, as always, may vary.
 

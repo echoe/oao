@@ -239,6 +239,7 @@ private:
         bool isSampleMode = (selectedMode == 3);
 	bool isEffectMode  = (selectedMode == 4);
 	int freqMode        = freqModeSelector.getSelectedId();
+        bool isStd          = (freqMode == 1);
         bool isSync         = (freqMode == 2);
         bool isHz           = (freqMode == 3);
         bool isLFO          = (freqMode == 4);
@@ -271,12 +272,13 @@ private:
             }
             // Re-read after any potential restore
             freqMode   = freqModeSelector.getSelectedId();
+            isStd      = (freqMode == 1);
             isSync     = (freqMode == 2);
             isHz       = (freqMode == 3);
             isLFO      = (freqMode == 4);
         }
 
-        // Knob labels — one clean chain covering all four modes
+        // Knob labels covering all four modes
         if (isSampleMode)
         {
             ratioLabel.setText  ("Speed", juce::dontSendNotification);

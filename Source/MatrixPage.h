@@ -2,6 +2,7 @@
 #include <JuceHeader.h>
 #include "Constants.h"
 #include "OAOColors.h"
+#include "OAOLookAndFeel.h"
 
 // Shared choice lists for modulation — keep these in sync with PluginProcessor.cpp
 namespace ModChoices
@@ -195,14 +196,25 @@ public:
     void paint (juce::Graphics& g) override
     {
         recalcGeometry();
+        
+        // Safely grab our custom LookAndFeel to use the selected font
+        auto* oaoLnf = dynamic_cast<OAOLookAndFeel*> (&getLookAndFeel());
+        
+        // Quick helper to apply the font if the LookAndFeel exists
+        auto applyFont = [&](float height) {
+            if (oaoLnf != nullptr) g.setFont (oaoLnf->getCustomFont (height));
+            else                   g.setFont (juce::FontOptions (height));
+        };
+
         // Title
-	g.setColour (colors.text);
-        g.setFont (juce::jmax (8.0f, cellSize * 0.20f));
-	g.drawText (matrixTitle, getLocalBounds().removeFromTop (getHeight() * 0.05f), juce::Justification::centred);
+        g.setColour (colors.text);
+        applyFont (juce::jmax (8.0f, cellSize * 0.20f)); // <-- Updated
+        g.drawText (matrixTitle, getLocalBounds().removeFromTop (getHeight() * 0.05f), juce::Justification::centred);
 
         // Row/column labels for the NxN grid
         float labelH = cellSize * 0.20f;
-        g.setFont (juce::jmax (8.0f, cellSize * 0.15f));
+        applyFont (juce::jmax (8.0f, cellSize * 0.15f)); // <-- Updated
+        
         for (int i = 0; i < ProjectConfig::numOperators; ++i)
         {
             // Row labels (left side — "Op N")
@@ -219,18 +231,20 @@ public:
                 cellSize, (int)labelH,
                 juce::Justification::centred);
         }
+        
         // Sidebar divider
         float splitX = getWidth() * splitRatio;
 
         // Sidebar header
-        g.setFont (juce::jmax (8.0f, cellSize * 0.15f));
+        applyFont (juce::jmax (8.0f, cellSize * 0.15f)); // <-- Updated
         juce::String sideTitle = (paramPrefix == "MOD_") ? "MOD ROUTING" : "CARRIER OUTPUTS";
         g.drawText (sideTitle,
             static_cast<int> (splitX) + 8, (int)(getHeight() * 0.01f),
             getWidth() - static_cast<int> (splitX) - 16, (int)(getHeight() * 0.04f),
             juce::Justification::centred);
-	// change color to draw line
-	g.setColour (colors.primary.withAlpha (0.3f));
+            
+        // draw line
+        g.setColour (colors.primary.withAlpha (0.3f));
         g.drawVerticalLine (static_cast<int> (splitX), getHeight() * 0.05f, getHeight() - 10.0f);
     }
 

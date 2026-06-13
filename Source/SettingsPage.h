@@ -114,7 +114,7 @@ public:
     {
         g.fillAll (colors.background);
         g.setColour (colors.text);
-        g.setFont (juce::FontOptions().withHeight(getHeight()*0.05f)); //Settings title height
+        g.setFont (lookAndFeel.getCustomFont (getHeight() * 0.05f));
         g.drawText ("Settings", getLocalBounds().removeFromTop (getHeight() * 0.05f),
                     juce::Justification::centred);
 

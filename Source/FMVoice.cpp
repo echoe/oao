@@ -167,8 +167,7 @@ void FMVoice::renderNextBlock (juce::AudioBuffer<float>& outputBuffer, int start
 
     // Cache parameters for all operators.
     std::array<float, ProjectConfig::numOperators> cachedRatios, cachedDetunes, cachedPhases, cachedFolds, cachedOuts;
-    std::array<int, ProjectConfig::numOperators> cachedModes, cachedShapes, cachedEffectTypes;
-    std::array<bool, ProjectConfig::numOperators> cachedFreqModes;
+    std::array<int, ProjectConfig::numOperators> cachedModes, cachedShapes, cachedEffectTypes, cachedFreqModes;
     std::array<float, ProjectConfig::numOperators> cachedAttacks, cachedDecays, cachedSustains, cachedReleases;
 
     for (int i = 0; i < ProjectConfig::numOperators; ++i)

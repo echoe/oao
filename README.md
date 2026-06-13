@@ -202,9 +202,11 @@ Take the incoming audio. Pause it. Twist it and reverse it.
 -- ambient delay
 
 ## Settings
-- A settings page for two things:
+- A settings page for a few things.
 ### Size
-- Set the size of the plugin window from 50% to 200%. This doesn't work perfectly but it's something!
+- Set the size of the plugin window from 50% to 200%.
+### Font
+- This is the only plugin where you can set the font to comic sans. this claim is probably wrong, but it *feels* true, okay
 ### Theme
 - Select your color theme from one of eight preset choices, or make your own with fice color presets! All pages will pick up the new colors and refresh.
 

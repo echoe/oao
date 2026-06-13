@@ -73,7 +73,7 @@ struct ModMatrixSlot : public juce::Component
         int w = area.getWidth();
         rowLabel.setBounds       (area.removeFromLeft (w * 0.06f));
         sourceSelector.setBounds (area.removeFromLeft (w * 0.25f).reduced (2, 0));
-        targetSelector.setBounds (area.removeFromLeft (w * 0.35f).reduced (2, 0));
+        targetSelector.setBounds (area.removeFromLeft (w * 0.25f).reduced (2, 0));
         amountSlider.setBounds   (area.reduced (2, 0));
     }
 
@@ -160,7 +160,7 @@ public:
                 auto* sl = outputSliders.add (new juce::Slider());
                 sl->setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
                 sl->setTextBoxStyle (juce::Slider::TextBoxBelow, false,
-                    (int)(cellSize * 0.85f), (int)(cellSize * 0.22f));
+                    (int)(cellSize * 0.45f), (int)(cellSize * 0.22f));
 		addAndMakeVisible (sl);
 
                 auto* lb = outputLabels.add (new juce::Label());
@@ -175,8 +175,26 @@ public:
         }
     }
 
+    void recalcGeometry()
+    {
+        cachedW = static_cast<float> (getWidth());
+        cachedH = static_cast<float> (getHeight());
+    
+        int labelLeft = static_cast<int> (cachedW * 0.04f);
+        int labelTop  = static_cast<int> (cachedH * 0.03f);
+    
+        int gridAreaW  = static_cast<int> (cachedW * splitRatio);
+        int availableW = gridAreaW - labelLeft;
+        int availableH = static_cast<int> (cachedH * 0.95f) - labelTop;
+    
+        cellSize = std::min (availableW, availableH) / ProjectConfig::numOperators;
+        gridX    = labelLeft;
+        gridY    = static_cast<int> (cachedH * 0.05f) + labelTop;
+    }
+
     void paint (juce::Graphics& g) override
     {
+        recalcGeometry();
         // Title
 	g.setColour (colors.text);
         g.setFont (juce::jmax (8.0f, cellSize * 0.20f));
@@ -218,30 +236,17 @@ public:
 
     void resized() override
     {
-        auto area  = getLocalBounds();
-        float w    = static_cast<float> (area.getWidth());
-        float h    = static_cast<float> (area.getHeight());
-    
-        area.removeFromTop (h * 0.05f);
+        recalcGeometry();
+        auto area        = getLocalBounds();
+        area.removeFromTop (cachedH * 0.05f);
     
         int totalW       = area.getWidth();
         auto gridArea    = area.removeFromLeft (static_cast<int> (totalW * splitRatio));
-        auto sidebarArea = area.reduced (w * 0.01f, h * 0.01f);
-    
-        // Reserve label margins as percentages
-        int labelLeft = static_cast<int> (w * 0.04f);
-        int labelTop  = static_cast<int> (h * 0.03f);
-    
-        int availableW = gridArea.getWidth()  - labelLeft;
-        int availableH = gridArea.getHeight() - labelTop;
-    
-        cellSize = std::min (availableW, availableH) / ProjectConfig::numOperators;
-        gridX    = gridArea.getX() + labelLeft;
-        gridY    = gridArea.getY() + labelTop;
-    
+        auto sidebarArea = area.reduced (cachedW * 0.01f, cachedH * 0.01f);
+
         // Textbox sizing — legible relative to cell size
         int textBoxW = static_cast<int> (cellSize * 0.85f);
-        int textBoxH = juce::jlimit (12, 22, static_cast<int> (cellSize * 0.22f));
+        int textBoxH = juce::jlimit (12, 70, static_cast<int> (cellSize * 0.22f));
     
         int idx = 0;
         for (int src = 0; src < ProjectConfig::numOperators; ++src)
@@ -266,7 +271,7 @@ public:
             int labelW  = static_cast<int> (sidebarArea.getWidth() * 0.35f);
             for (int i = 0; i < ProjectConfig::numOperators; ++i)
             {
-                auto cell = sidebarArea.removeFromTop (rowH).reduced (0, h * 0.005f);
+                auto cell = sidebarArea.removeFromTop (rowH).reduced (0, cachedH * 0.005f);
                 if (auto* lb = outputLabels[i])  lb->setBounds (cell.removeFromLeft (labelW));
                 if (auto* sl = outputSliders[i])
                 {
@@ -346,7 +351,9 @@ private:
     int gridX     = 45;
     int gridY     = 70;
     int cellSize  = 90;
-    static constexpr float splitRatio = 0.65f;
+    float cachedW = 0.0f;
+    float cachedH = 0.0f;
+    static constexpr float splitRatio = 0.60f;
     juce::OwnedArray<juce::Slider>     matrixSliders;
     juce::OwnedArray<juce::AudioProcessorValueTreeState::SliderAttachment> matrixAttachments;
     std::vector<std::unique_ptr<ModMatrixSlot>> modSlots;

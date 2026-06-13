@@ -14,9 +14,21 @@ public:
     // Text scaling handling. first the default
     juce::Font getComboBoxFont (juce::ComboBox& box) override
     {
-        return juce::FontOptions (juce::jlimit (9.0f, 16.0f, box.getHeight() * 0.45f) * currentScale);
-    }
+        float fromHeight = box.getHeight() * 0.45f;
     
+        juce::Font f { juce::FontOptions (fromHeight) };
+        juce::GlyphArrangement ga;
+        ga.addLineOfText (f, box.getText(), 0.0f, 0.0f);
+        float textWidth = ga.getBoundingBox (0, -1, true).getWidth();
+        float availableWidth = (float) box.getWidth() - 20.0f; // extra padding for the dropdown arrow
+    
+        if (textWidth > availableWidth)
+            fromHeight *= (availableWidth / textWidth);
+    
+        return juce::FontOptions (juce::jmax (8.0f, fromHeight));
+    }
+
+
     juce::Font getPopupMenuFont() override
     {
         return juce::FontOptions (13.0f * currentScale); // popups stay fixed, just scale
@@ -24,7 +36,18 @@ public:
     
     juce::Font getLabelFont (juce::Label& label) override
     {
-        return juce::FontOptions (juce::jlimit (8.0f, 14.0f, label.getHeight() * 0.7f) * currentScale);
+        float fromHeight = label.getHeight() * 0.7f;
+    
+        juce::Font f { juce::FontOptions (fromHeight) };
+        juce::GlyphArrangement ga;
+        ga.addLineOfText (f, label.getText(), 0.0f, 0.0f);
+        float textWidth = ga.getBoundingBox (0, -1, true).getWidth();
+        float availableWidth = (float) label.getWidth() - 4.0f;
+    
+        if (textWidth > availableWidth)
+            fromHeight *= (availableWidth / textWidth);
+    
+        return juce::FontOptions (juce::jmax (8.0f, fromHeight));
     }
 
     juce::Font getTextButtonFont (juce::TextButton& button, int buttonHeight) override

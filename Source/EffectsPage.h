@@ -37,7 +37,7 @@ public:
         }
         // Slot label
         slotLabel.setText ("FX " + s, juce::dontSendNotification);
-        slotLabel.setFont (juce::Font (juce::FontOptions (14.0f)));
+        //slotLabel.setFont (juce::Font (juce::FontOptions (14.0f)));
         slotLabel.setJustificationType (juce::Justification::centred);
         addAndMakeVisible (slotLabel);
         // Attachments
@@ -103,23 +103,32 @@ public:
     void resized() override
     {
         auto area = getLocalBounds().reduced (getWidth() * 0.02f);
+    
         // Top row: slot label, effect selector, sync button
         auto topRow = area.removeFromTop (getHeight() * 0.18f);
         slotLabel.setBounds      (topRow.removeFromLeft (topRow.getWidth() * 0.08f));
         syncButton.setBounds     (topRow.removeFromRight (topRow.getWidth() * 0.12f).reduced (2));
         effectSelector.setBounds (topRow.reduced (2));
         area.removeFromTop (getHeight() * 0.02f);
+    
+        // Shared textbox sizing
+        int textBoxH = (int)(getHeight() * 0.08f);
+        int textBoxW = (int)(getWidth()  * 0.1f);
+    
         // Mix knob on the left
         auto mixArea = area.removeFromLeft (area.getWidth() * 0.12f);
-        mixLabel.setBounds  (mixArea.removeFromBottom (getHeight() * 0.1f));
+        mixLabel.setBounds (mixArea.removeFromBottom (getHeight() * 0.1f));
+        mixSlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, textBoxW, textBoxH);
         mixSlider.setBounds (mixArea);
         area.removeFromLeft (area.getWidth() * 0.01f);
+    
         // Four knobs share remaining space
         int knobW = area.getWidth() / 4;
         for (int i = 0; i < 4; ++i)
         {
             auto knobArea = area.removeFromLeft (knobW);
             knobLabels[i].setBounds (knobArea.removeFromBottom (getHeight() * 0.1f));
+            knobs[i].setTextBoxStyle (juce::Slider::TextBoxBelow, false, textBoxW, textBoxH);
             knobs[i].setBounds (knobArea);
         }
     }

@@ -73,7 +73,7 @@ public:
     {
         g.fillAll (colors.background);
         g.setColour (colors.text);
-        g.setFont (juce::FontOptions().withHeight(18.0f)); // Updated to JUCE 8 spec
+        g.setFont (juce::FontOptions().withHeight(18.0f));
         g.drawText ("Settings", getLocalBounds().removeFromTop (40),
                     juce::Justification::centred);
 
@@ -193,14 +193,16 @@ private:
     // ✅ Redesigned to stack elements vertically within the horizontal column
     void layoutSection (ColorSection& section, juce::Rectangle<int> area)
     {
-        area.reduce (4, 0); // Side padding
-        
-        // Stack top-to-bottom
-        section.nameLabel.setBounds (area.removeFromTop (24));
-        area.removeFromTop (4); // Gap
-        section.previewBox.setBounds (area.removeFromTop (60));
-        area.removeFromTop (8); // Gap
-        section.editButton.setBounds (area.removeFromTop (24));
+        area.reduce (4, 0);
+        int labelH = area.getHeight() * 0.2f;
+        int previewH = area.getHeight() * 0.5f;
+        int buttonH = area.getHeight() * 0.2f;
+    
+        section.nameLabel.setBounds (area.removeFromTop (labelH));
+        area.removeFromTop (4);
+        section.previewBox.setBounds (area.removeFromTop (previewH));
+        area.removeFromTop (8);
+        section.editButton.setBounds (area.removeFromTop (buttonH));
     }
 
     void changeListenerCallback (juce::ChangeBroadcaster* source) override

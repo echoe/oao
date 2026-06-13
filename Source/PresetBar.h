@@ -97,6 +97,8 @@ public:
         algorithmSelector.addItem ("None", 1); // Option to leave matrix manual
         for (int i = 1; i <= 32; ++i)
             algorithmSelector.addItem ("DX " + juce::String(i), i + 1);
+	for (int i = 33; i <= 40; ++i)
+	    algorithmSelector.addItem ("DN " + juce::String(i - 32), i + 1);
         
         algorithmSelector.setSelectedId (1, juce::dontSendNotification);
         addAndMakeVisible (algorithmSelector);
@@ -423,10 +425,9 @@ struct FMAlgorithm
     };
 
     // An algorithm is:
-    // A number at the beginning
-    // An arbitrary number of [from], [to] paired parameters, where [from] is an operator 1-6,
-    // and [to] is either an operator 1-6 or audio out [0].
-    // I've hand-written these from https://www.righto.com/2021/12/yamaha-dx7-chip-reverse-engineering.html
+    // {[number]. { {[from],[to]}, {[from],[to]} } }, where [from] is 1-6 and [to] is 1-6 or 0[audio out].
+    // DX Algos from https://www.righto.com/2021/12/yamaha-dx7-chip-reverse-engineering.html
+    // DN Algos from https://support.elektron.se/support/solutions/articles/43000566579-algorithms
     static const std::vector<FMAlgorithm> getClassicAlgorithms()
     {
         return {
@@ -461,7 +462,15 @@ struct FMAlgorithm
             { 29, { {6,6}, {6,5}, {5,0}, {4,3}, {3,0}, {2,0}, {1,0} } },
             { 30, { {6,0}, {5,5}, {5,4}, {4,3}, {3,0}, {2,0}, {1,0} } },
             { 31, { {6,6}, {6,5}, {5,0}, {4,0}, {3,0}, {2,0}, {1,0} } },
-            { 32, { {6,6}, {6,0}, {5,0}, {4,0}, {3,0}, {2,0}, {1,0} } }
+            { 32, { {6,6}, {6,0}, {5,0}, {4,0}, {3,0}, {2,0}, {1,0} } }, // The end of the DX algos!
+	    { 33, { {1,1}, {1,2}, {2,0}, {4,3}, {3,2}, {3,0} } }, //DN 4-osc algos start here ...
+	    { 34, { {1,2}, {2,0}, {4,4}, {4,3}, {3,0} } },
+	    { 35, { {1,1}, {1,2}, {1,3}, {1,4}, {2,0}, {3,0}, {4,0} } },
+	    { 36, { {4,4}, {4,3}, {3,1}, {1,0}, {1,2}, {2,0} } },
+	    { 37, { {3,3}, {3,4}, {4,1}, {3,1}, {1,2}, {2,0}, {1,0} } },
+	    { 38, { {1,1}, {1,2}, {1,3}, {4,2}, {4,3}, {2,0}, {3,0} } },
+	    { 39, { {1,1}, {1,2}, {2,0}, {4,3}, {3,0}, {1,0}, {4,0} } },
+	    { 40, { {1,2}, {2,0}, {4,0}, {3,3}, {3,0} } }, // And end here
         };
     }
 
@@ -670,11 +679,11 @@ struct FMAlgorithm
         }
         const SynthRecipe& recipe = synthRecipes[synthChosen];
 
-        // Apply per-operator recipe
+        // Apply per-operator recipe for operator settings.
         for (int i = 0; i < ProjectConfig::numOperators; ++i)
             applyOpRecipe (i, recipe.ops[i], prng);
 
-        // Clear out the entire modulation and routing matrix
+        // Clear out the entire modulation and routing matrix to prep for algo
         for (auto* param : parameters)
         {
             if (auto* p = dynamic_cast<juce::RangedAudioParameter*> (param))
@@ -684,8 +693,7 @@ struct FMAlgorithm
                     p->setValueNotifyingHost (0.0f);
             }
         }
-    
-        // Select a structured baseline algorithm
+        // Select a structured baseline algorithm at random.
         auto algorithms = getClassicAlgorithms();
         const auto& selectedAlgo = algorithms[prng.nextInt (static_cast<int> (algorithms.size()))];
     

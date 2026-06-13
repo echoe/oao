@@ -49,13 +49,13 @@ struct ModMatrixSlot : public juce::Component
         amountSlider.setSliderStyle (juce::Slider::LinearVertical);
         amountSlider.setRange (-1.0, 1.0, 0.001);
         amountSlider.setValue (0.0, juce::dontSendNotification);
-        amountSlider.setTextBoxStyle (juce::Slider::TextBoxRight, false, 44, 15);
-        addAndMakeVisible (amountSlider);
+        amountSlider.setTextBoxStyle (juce::Slider::TextBoxRight, false,
+                              (int)(getWidth() * 0.15f), (int)(getHeight() * 0.4f));
+	addAndMakeVisible (amountSlider);
 
         // Row label
         rowLabel.setText ("S" + s, juce::dontSendNotification);
         rowLabel.setJustificationType (juce::Justification::centred);
-        rowLabel.setFont (juce::Font (juce::FontOptions (11.0f)));
 	addAndMakeVisible (rowLabel);
 
         // Attach to APVTS — param IDs must match PluginProcessor exactly
@@ -133,8 +133,9 @@ public:
             {
                 auto* s = matrixSliders.add (new juce::Slider());
                 s->setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
-                s->setTextBoxStyle (juce::Slider::TextBoxBelow, false, 45, 13);
-                addAndMakeVisible (s);
+                s->setTextBoxStyle (juce::Slider::TextBoxBelow, false,
+                    (int)(cellSize * 0.85f), (int)(cellSize * 0.22f));
+		addAndMakeVisible (s);
 
                 // e.g. "AUDIO_ROUTE_0_1" or "MOD_0_1" depending on which page this is
                 juce::String id = paramPrefix + juce::String (src) + "_" + juce::String (dest);
@@ -146,7 +147,7 @@ public:
         // Sidebar: mod slots (MOD_ page) or output levels (AUDIO_ROUTE_ page)
         if (paramPrefix == "MOD_")
         {
-            for (int i = 0; i < 6; ++i)
+            for (int i = 0; i < ProjectConfig::numOperators; ++i)
             {
                 modSlots.push_back (std::make_unique<ModMatrixSlot> (apvts, i, colors));
                 addAndMakeVisible (*modSlots.back());
@@ -158,8 +159,9 @@ public:
             {
                 auto* sl = outputSliders.add (new juce::Slider());
                 sl->setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
-                sl->setTextBoxStyle (juce::Slider::TextBoxBelow, false, 40, 12);
-                addAndMakeVisible (sl);
+                sl->setTextBoxStyle (juce::Slider::TextBoxBelow, false,
+                    (int)(cellSize * 0.85f), (int)(cellSize * 0.22f));
+		addAndMakeVisible (sl);
 
                 auto* lb = outputLabels.add (new juce::Label());
                 lb->setText ("Out " + juce::String (i + 1), juce::dontSendNotification);
@@ -177,41 +179,41 @@ public:
     {
         // Title
 	g.setColour (colors.text);
-        g.setFont (juce::jlimit (8.0f, 18.0f, cellSize * 0.20f));
-        g.drawText (matrixTitle, getLocalBounds().removeFromTop (30), juce::Justification::centred);
+        g.setFont (juce::jmax (8.0f, cellSize * 0.20f));
+	g.drawText (matrixTitle, getLocalBounds().removeFromTop (getHeight() * 0.05f), juce::Justification::centred);
 
         // Row/column labels for the NxN grid
-        g.setFont (juce::jlimit (8.0f, 18.0f, cellSize * 0.15f));
-
+        float labelH = cellSize * 0.20f;
+        g.setFont (juce::jmax (8.0f, cellSize * 0.15f));
         for (int i = 0; i < ProjectConfig::numOperators; ++i)
         {
-            // Row labels (left side — "From Op N")
-            int y = gridY + i * cellSize + cellSize / 2 - 8;
+            // Row labels (left side — "Op N")
+            int y = gridY + i * cellSize;
             g.drawText ("Op " + juce::String (i + 1),
-                        gridX - 38, y, 36, 16,
-                        juce::Justification::centredRight);
-
+                0, y,
+                gridX - 2, cellSize,
+                juce::Justification::centredRight);
+        
             // Column labels (top — "To Op N")
             int x = gridX + i * cellSize;
             g.drawText ("To Op " + juce::String (i + 1),
-                        x, gridY - 18, cellSize, 16,
-                        juce::Justification::centred);
+                x, gridY - (int)labelH,
+                cellSize, (int)labelH,
+                juce::Justification::centred);
         }
-
         // Sidebar divider
         float splitX = getWidth() * splitRatio;
 
         // Sidebar header
-        g.setFont (juce::jlimit (8.0f, 18.0f, cellSize * 0.15f));
+        g.setFont (juce::jmax (8.0f, cellSize * 0.15f));
         juce::String sideTitle = (paramPrefix == "MOD_") ? "MOD ROUTING" : "CARRIER OUTPUTS";
         g.drawText (sideTitle,
-                    static_cast<int> (splitX) + 8, 10,
-                    getWidth() - static_cast<int> (splitX) -16, 18,
-                    juce::Justification::centred);
-        // change color to draw line
+            static_cast<int> (splitX) + 8, (int)(getHeight() * 0.01f),
+            getWidth() - static_cast<int> (splitX) - 16, (int)(getHeight() * 0.04f),
+            juce::Justification::centred);
+	// change color to draw line
 	g.setColour (colors.primary.withAlpha (0.3f));
-        g.drawVerticalLine (static_cast<int> (splitX), 45.0f, getHeight() - 10.0f);
-
+        g.drawVerticalLine (static_cast<int> (splitX), getHeight() * 0.05f, getHeight() - 10.0f);
     }
 
     void resized() override
@@ -254,7 +256,7 @@ public:
     
         if (paramPrefix == "MOD_")
         {
-            int slotH = sidebarArea.getHeight() / 6;
+            int slotH = sidebarArea.getHeight() / ProjectConfig::numOperators;
             for (auto& slot : modSlots)
                 slot->setBounds (sidebarArea.removeFromTop (slotH));
         }

@@ -174,15 +174,15 @@ void FMPluginAudioProcessorEditor::resized()
     presetBar.setBounds (presetArea.reduced (2));
 
     // Gain slider on the right
-    auto gainArea = topBarArea.removeFromRight (static_cast<int> (getWidth() * 0.16f));
-    gainLabel.setBounds (gainArea.removeFromLeft (static_cast<int> (getWidth() * 0.04f)));
+    auto gainArea = topBarArea.removeFromRight (static_cast<int> (getWidth() * 0.22f));
+    gainLabel.setBounds (gainArea.removeFromLeft (static_cast<int> (getWidth() * 0.04f))); //this is taken from the gainArea
     gainSlider.setBounds (gainArea.reduced (2));
     gainSlider.setTextBoxStyle (juce::Slider::TextBoxLeft, false,
         static_cast<int> (45 * scale), static_cast<int> (topBarHeight * 0.6f));
 
     // Oscilloscope, also on right
     if (oscilloscope != nullptr)
-        oscilloscope->setBounds (topBarArea.removeFromRight (static_cast<int> (getWidth() * 0.10f)));
+        oscilloscope->setBounds (topBarArea.removeFromRight (static_cast<int> (getWidth() * 0.08f)));
 
 // Nav buttons
     auto navArea   = area.removeFromTop (navBarHeight);

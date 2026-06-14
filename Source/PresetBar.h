@@ -942,10 +942,12 @@ struct FMAlgorithm
     
     // Removes per-operator sample data from the XML for any operator
     // not currently in Sample mode (mode == 2).
+    // The <SampleData> element uses 1-based operator indices ("op1", "op2", etc.)
     void stripUnusedSamples(juce::XmlElement& xml)
     {
-        // Collect 0-based indices of operators in sample mode
-        juce::Array<int> sampleModeOps;
+        // Collect which operators are actively in sample mode
+        juce::Array<int> sampleModeOps; // 1-based operator indices
+    
         for (int op = 1; op <= ProjectConfig::numOperators; ++op)
         {
             juce::String modeId = "MODE_" + juce::String(op);
@@ -953,10 +955,11 @@ struct FMAlgorithm
                     audioProcessor.apvts.getParameter(modeId)))
             {
                 float realVal = p->getNormalisableRange().convertFrom0to1(p->getValue());
-                if (juce::roundToInt(realVal) == 2)
-                    sampleModeOps.add(op - 1); // store as 0-based to match XML
+                if (juce::roundToInt(realVal) == 2) // 2 = Sample mode
+                    sampleModeOps.add(op);
             }
         }
+    
         // Walk the <SampleData> child element and strip entries for unused operators.
         // If NO operators are in sample mode, remove the whole element (or leave it empty).
         if (auto* sampleData = xml.getChildByName("SampleData"))
@@ -969,11 +972,13 @@ struct FMAlgorithm
             else
             {
                 // Remove child entries whose operator index is not in sampleModeOps.
+                // Adjust the attribute name ("op", "index", "operator", etc.) to match
+                // whatever your getStateInformation writes inside <SampleData>.
                 juce::Array<juce::XmlElement*> toRemove;
                 for (auto* entry : sampleData->getChildIterator())
                 {
-		    int opIndex = entry->getIntAttribute("index", -1);
-                    if (!sampleModeOps.contains(opIndex))
+                    int opIndex = entry->getIntAttribute("index", -1); // adjust attr name if needed
+                    if (!sampleModeOps.contains(opIndex + 1))
                         toRemove.add(entry);
                 }
                 for (auto* entry : toRemove)

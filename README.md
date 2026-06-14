@@ -219,9 +219,9 @@ Take the incoming audio. Pause it. Twist it and reverse it.
 
 ## TODO
 - Review of all features.
-- Tempo Sync for effects is /fully broken/. Currently the sync is routed for cutoff, and nothing else.
+- Tempo Sync for effects is in progress ... I've added LFOs to the effects page and we'll see how that works long-term. Some effects don't have their knobs exposed in a way that makes it easy to actually modulate with the LFOs [IE knobs that go from 0 to 360] so we need to scale the LFO input/etc. up to resolve that, and that's still in progress.
 
 Pictures of the synth in use are provided in the pictures/ folder, and I've switched between themes for each picture so you can get an idea of the theme options. There are also build scripts in the main folder, and built vst3 and standalone builds for all three OS's in the release folder.
-This is mostly AI-coded, but I am actively using the synth myself and have read over all of the code and think I understand it (though how much can one understand code they haven't written themselves?). Your mileage, as always, may vary.
+This is mostly AI-coded, but I am actively using the synth myself and have read over all of the code in the releases and think I understand it (though how much can one understand code they haven't written themselves?). Your mileage, as always, may vary.
 
 Happy synthing!

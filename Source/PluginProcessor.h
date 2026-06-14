@@ -16,20 +16,87 @@ struct FMSound : public juce::SynthesiserSound
 // Controlling FX LFOs.
 struct FXModLFO
 {
-    void prepare (double sampleRate) { currentSampleRate = sampleRate; }
-    void setRate (float hz) { rateHz = hz; }
-    float tick()
+    // Call once in prepareToPlay — caches all param pointers and sample rate
+    void prepare (double sampleRate, juce::AudioProcessorValueTreeState& apvts, int lfoIndex)
     {
-        phase += (juce::MathConstants<double>::twoPi * rateHz) / currentSampleRate;
+        currentSampleRate = sampleRate;
+        juce::String s = juce::String (lfoIndex + 1);
+        rateParam  = apvts.getRawParameterValue ("FX_LFO_RATE_"  + s);
+        depthParam = apvts.getRawParameterValue ("FX_LFO_DEPTH_" + s);
+        waveParam  = apvts.getRawParameterValue ("FX_LFO_WAVE_"  + s);
+        syncParam  = apvts.getRawParameterValue ("FX_LFO_SYNC_"  + s);
+        tgtParam   = apvts.getRawParameterValue ("FX_LFO_TGT_"   + s);
+        jassert (rateParam != nullptr && depthParam != nullptr &&
+                 waveParam != nullptr && syncParam  != nullptr && tgtParam != nullptr);
+    }
+
+    // Returns the LFO output scaled by depth. Call once per buffer.
+    float tick (float activeBPM, int numSamples)
+    {
+        float rate   = rateParam  != nullptr ? rateParam->load  (std::memory_order_relaxed) : 1.0f;
+        float depth  = depthParam != nullptr ? depthParam->load (std::memory_order_relaxed) : 1.0f;
+        bool  synced = syncParam  != nullptr && syncParam->load (std::memory_order_relaxed) > 0.5f;
+        int   wave   = waveParam  != nullptr ? static_cast<int> (waveParam->load (std::memory_order_relaxed)) : 0;
+    
+        if (synced && activeBPM > 0.0f)
+        {
+            const float subdivisions[] = { 1.0f, 2.0f, 4.0f, 8.0f, 16.0f };
+            float normalized = (rate - 0.01f) / (20.0f - 0.01f);
+            int subIdx = juce::jlimit (0, 4, static_cast<int> (normalized * 5.0f));
+            rate = (activeBPM / 60.0f) * subdivisions[subIdx];
+        }
+    
+        // Advance by a full buffer's worth of phase, not just one sample
+        phase += (juce::MathConstants<double>::twoPi * rate * numSamples) / currentSampleRate;
         if (phase >= juce::MathConstants<double>::twoPi)
             phase -= juce::MathConstants<double>::twoPi;
-        return std::sin (static_cast<float> (phase));
+
+        float raw = 0.0f;
+        float fPhase = static_cast<float> (phase);
+        float twoPi  = static_cast<float> (juce::MathConstants<double>::twoPi);
+        switch (wave)
+        {
+            case 0: // Sine
+                raw = std::sin (fPhase);
+                break;
+            case 1: // Triangle
+                raw = (2.0f / twoPi) * (fPhase < twoPi * 0.5f
+                      ? fPhase
+                      : twoPi - fPhase) * 2.0f - 1.0f;
+                break;
+            case 2: // Saw (descending)
+                raw = 1.0f - (2.0f * fPhase / twoPi);
+                break;
+            case 3: // Square
+                raw = (fPhase < static_cast<float> (juce::MathConstants<double>::pi)) ? 1.0f : -1.0f;
+                break;
+            default:
+                raw = std::sin (fPhase);
+                break;
+        }
+
+        return raw * depth;
+    }
+
+    // Returns encoded target: -1 for None, otherwise (fxSlot * 5 + fxParam)
+    // fxSlot = result/5, fxParam = result%5  (0=Ratio,1=Detune,2=Phase,3=Fold,4=Level)
+    int getTarget() const
+    {
+        if (tgtParam == nullptr) return -1;
+        int tgtIdx = static_cast<int> (tgtParam->load (std::memory_order_relaxed));
+        int fxBase = tgtIdx - 1; // index 0 = None, 1 = "FX 1 Ratio", etc.
+        if (fxBase < 0 || fxBase >= 15) return -1;
+        return fxBase;
     }
 
 private:
     double phase = 0.0;
     double currentSampleRate = 44100.0;
-    float  rateHz = 1.0f;
+    std::atomic<float>* rateParam  = nullptr;
+    std::atomic<float>* depthParam = nullptr;
+    std::atomic<float>* waveParam  = nullptr;
+    std::atomic<float>* syncParam  = nullptr;
+    std::atomic<float>* tgtParam   = nullptr;
 };
 
 class FMPluginAudioProcessor  : public juce::AudioProcessor
@@ -79,7 +146,6 @@ private:
     std::array<std::array<SynthEffect, 2>, numFxSlots> fxEffects;
     // Parameter pointers for each effects slot
     std::atomic<float>* fxTypeParams[numFxSlots]   { nullptr };
-    std::atomic<float>* fxSyncParams[numFxSlots]   { nullptr };
     std::atomic<float>* fxMixParams[numFxSlots]    { nullptr };
     std::atomic<float>* fxRatioParams[numFxSlots]  { nullptr };
     std::atomic<float>* fxDetuneParams[numFxSlots] { nullptr };
@@ -87,7 +153,7 @@ private:
     std::atomic<float>* fxFoldParams[numFxSlots]   { nullptr };
     // FX LFOs — three global, voice-independent modulators
     FXModLFO fxLfo[3];
-    float fxLfoOutput[3] = { 0.0f, 0.0f };
+    float fxLfoOutput[3] = { 0.0f, 0.0f, 0.0f };
     // One shared sample buffer per operator slot (shared across all voices, set once)
     std::array<std::shared_ptr<juce::AudioBuffer<float>>, ProjectConfig::numOperators> loadedSamples;
     // also for everything we need to flush on every run to not echo forever

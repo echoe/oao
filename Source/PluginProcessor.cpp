@@ -29,7 +29,6 @@ FMPluginAudioProcessor::FMPluginAudioProcessor()
     {
         juce::String s = juce::String (i + 1);
         fxTypeParams[i]   = apvts.getRawParameterValue ("FX_TYPE_"   + s);
-        fxSyncParams[i]   = apvts.getRawParameterValue ("FX_SYNC_"   + s);
         fxMixParams[i]    = apvts.getRawParameterValue ("FX_MIX_"    + s);
         fxRatioParams[i]  = apvts.getRawParameterValue ("FX_RATIO_"  + s);
         fxDetuneParams[i] = apvts.getRawParameterValue ("FX_DETUNE_" + s);
@@ -102,8 +101,6 @@ juce::AudioProcessorValueTreeState::ParameterLayout FMPluginAudioProcessor::crea
         juce::String s = juce::String (i + 1);
         params.push_back (std::make_unique<juce::AudioParameterChoice> (
             juce::ParameterID { "FX_TYPE_" + s, 1 }, "FX " + s + " Type", effectTypeChoices, 0));
-        params.push_back (std::make_unique<juce::AudioParameterBool> (
-            juce::ParameterID { "FX_SYNC_" + s, 1 }, "FX " + s + " Sync", false));
         params.push_back (std::make_unique<juce::AudioParameterFloat> (
             juce::ParameterID { "FX_MIX_" + s, 1 }, "FX " + s + " Mix", 0.0f, 1.0f, 1.0f));
         params.push_back (std::make_unique<juce::AudioParameterFloat> (
@@ -117,7 +114,8 @@ juce::AudioProcessorValueTreeState::ParameterLayout FMPluginAudioProcessor::crea
     }
 
     // Three Effects LFO Parameters
-    juce::StringArray lfoWaveChoices { "Sine", "Triangle", "Saw", "Square" };
+    juce::StringArray lfoWaveChoices   { "Sine", "Triangle", "Saw", "Square" };
+    auto              lfoTargetChoices = ProjectConfig::getFXLFOTargetChoices();
     for (int i = 0; i < 3; ++i)
     {
         juce::String s = juce::String (i + 1);
@@ -126,9 +124,12 @@ juce::AudioProcessorValueTreeState::ParameterLayout FMPluginAudioProcessor::crea
         params.push_back (std::make_unique<juce::AudioParameterBool> (
             juce::ParameterID { "FX_LFO_SYNC_" + s, 1 }, "FX LFO " + s + " Sync", false));
         params.push_back (std::make_unique<juce::AudioParameterFloat> (
-            juce::ParameterID { "FX_LFO_RATE_" + s, 1 }, "FX LFO " + s + " Rate", 0.01f, 20.0f, 1.0f));
+            juce::ParameterID { "FX_LFO_RATE_" + s, 1 }, "FX LFO " + s + " Rate",
+            juce::NormalisableRange<float> (0.0f, 20.0f, 0.0f, 1.0f), 1.0f));
         params.push_back (std::make_unique<juce::AudioParameterFloat> (
-            juce::ParameterID { "FX_LFO_DEPTH_" + s, 1 }, "FX LFO " + s + " Depth", 0.0f, 1.0f, 0.5f));
+            juce::ParameterID { "FX_LFO_DEPTH_" + s, 1 }, "FX LFO " + s + " Depth", -1.0f, 1.0f, 0.0f));
+        params.push_back (std::make_unique<juce::AudioParameterChoice> (
+            juce::ParameterID { "FX_LFO_TGT_" + s, 1 }, "FX LFO " + s + " Target", lfoTargetChoices, 0));
     }
 
     // Generate Modulation Matrix Nodes (NxN Grid)
@@ -154,8 +155,8 @@ juce::AudioProcessorValueTreeState::ParameterLayout FMPluginAudioProcessor::crea
     }
 
     // --- MODULATION MATRIX: 6 SLOTS ---
-    // Sources: None + 6 Operators = 7 choices (index 0 = None, 1-6 = Op 1-6)
-    // Targets: None + 5 params x 6 ops + 8 effects = 39 choices
+    // Sources: None + 6 Operators + 3 LFOs = 10 choices (index 0 = None, 1-6 = Op 1-6)
+    // Targets: None + 5 params x 6 ops + 3 effects x 5 params = 46 choices
     juce::StringArray modSourceChoices {
         "None",
         "Op 1", "Op 2", "Op 3", "Op 4", "Op 5", "Op 6",
@@ -164,16 +165,16 @@ juce::AudioProcessorValueTreeState::ParameterLayout FMPluginAudioProcessor::crea
     juce::StringArray modTargetChoices {
         "None",
         // Per-operator targets (5 params x 6 ops = 30)
-        "Op 1 Ratio",  "Op 1 Detune", "Op 1 Phase", "Op 1 Fold", "Op 1 Level",
-        "Op 2 Ratio",  "Op 2 Detune", "Op 2 Phase", "Op 2 Fold", "Op 2 Level",
-        "Op 3 Ratio",  "Op 3 Detune", "Op 3 Phase", "Op 3 Fold", "Op 3 Level",
-        "Op 4 Ratio",  "Op 4 Detune", "Op 4 Phase", "Op 4 Fold", "Op 4 Level",
-        "Op 5 Ratio",  "Op 5 Detune", "Op 5 Phase", "Op 5 Fold", "Op 5 Level",
-        "Op 6 Ratio",  "Op 6 Detune", "Op 6 Phase", "Op 6 Fold", "Op 6 Level",
+        "Op 1 Knob 1",  "Op 1 Knob 2", "Op 1 Knob 3", "Op 1 Knob 4", "Op 1 Level",
+        "Op 2 Knob 1",  "Op 2 Knob 2", "Op 2 Knob 3", "Op 2 Knob 4", "Op 2 Level",
+        "Op 3 Knob 1",  "Op 3 Knob 2", "Op 3 Knob 3", "Op 3 Knob 4", "Op 3 Level",
+        "Op 4 Knob 1",  "Op 4 Knob 2", "Op 4 Knob 3", "Op 4 Knob 4", "Op 4 Level",
+        "Op 5 Knob 1",  "Op 5 Knob 2", "Op 5 Knob 3", "Op 5 Knob 4", "Op 5 Level",
+        "Op 6 Knob 1",  "Op 6 Knob 2", "Op 6 Knob 3", "Op 6 Knob 4", "Op 6 Level",
         // Effects targets (15)
-        "Fx 1 Ratio",  "Fx 1 Detune", "Fx 1 Phase", "Fx 1 Fold", "Fx 1 Level",
-        "Fx 2 Ratio",  "Fx 2 Detune", "Fx 2 Phase", "Fx 2 Fold", "Fx 2 Level",
-        "Fx 3 Ratio",  "Fx 3 Detune", "Fx 3 Phase", "Fx 3 Fold", "Fx 3 Level",
+        "Fx 1 Knob 1",  "Fx 1 Knob 2", "Fx 1 Knob 3", "Fx 1 Knob 4", "Fx 1 Level",
+        "Fx 2 Knob 1",  "Fx 2 Knob 2", "Fx 2 Knob 3", "Fx 2 Knob 4", "Fx 2 Level",
+        "Fx 3 Knob 1",  "Fx 3 Knob 2", "Fx 3 Knob 3", "Fx 3 Knob 4", "Fx 3 Level",
     };
     
     for (int slot = 1; slot <= 6; ++slot)
@@ -265,10 +266,9 @@ void FMPluginAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlo
         	fxEffects[i][ch].reset();
 	}
     }
-    //Start LFOs
-    fxLfo[0].prepare (sampleRate);
-    fxLfo[1].prepare (sampleRate);
-    fxLfo[2].prepare (sampleRate);
+    // Start LFOs — cache APVTS param pointers at prepare time
+    for (int i = 0; i < 3; ++i)
+        fxLfo[i].prepare (sampleRate, apvts, i);
 }
 
 void FMPluginAudioProcessor::releaseResources() {}
@@ -292,10 +292,6 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
     juce::ScopedNoDenormals noDenormals;
     auto totalNumInputChannels  = getTotalNumInputChannels();
     auto totalNumOutputChannels = getTotalNumOutputChannels();
-    // effects LFOs
-    for (int lfo = 0; lfo < 3; lfo ++)
-        fxLfoOutput[lfo] = fxLfo[lfo].tick();
-
 #ifdef OAO_FX_ONLY
     // FX mode: input audio passes straight through to the effects chain.
     for (int ch = totalNumInputChannels; ch < totalNumOutputChannels; ++ch)
@@ -404,39 +400,24 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
             activeBPM = static_cast<float> (positionInfo->getBpm().orFallback (120.0));
     }
 #endif
-    // FX LFO modulation — add into mod sums before the effects loop
-    for (int modSlot = 0; modSlot < ProjectConfig::numModSlots; ++modSlot)
+    // Tick FX LFOs (activeBPM is now available in both synth and FX modes)
+    // and dispatch directly into mod sums via each LFO's cached target param
+    int   numSamples = buffer.getNumSamples();
+    for (int i = 0; i < 3; ++i)
     {
-        juce::String s = juce::String (modSlot + 1);
-        auto* srcParam = apvts.getRawParameterValue ("MOD_SRC_" + s);
-        auto* tgtParam = apvts.getRawParameterValue ("MOD_TGT_" + s);
-        auto* amtParam = apvts.getRawParameterValue ("MOD_AMT_" + s);
-        if (srcParam == nullptr || tgtParam == nullptr || amtParam == nullptr) continue;
-
-        int srcIdx = static_cast<int> (srcParam->load (std::memory_order_relaxed));
-        int tgtIdx = static_cast<int> (tgtParam->load (std::memory_order_relaxed));
-        float amt  = amtParam->load (std::memory_order_relaxed);
-
-        float lfoVal = 0.0f;
-        if      (srcIdx == 7) lfoVal = fxLfoOutput[0];
-        else if (srcIdx == 8) lfoVal = fxLfoOutput[1];
-	else if (srcIdx == 9) lfoVal = fxLfoOutput[2];
-        else continue; // operator sources handled inside voices
-
-        // FX targets start at index 31 in modTargetChoices (1 None + 6 ops x 5 params)
-        int fxBase = tgtIdx - 31;
-        if (fxBase < 0 || fxBase >= 15) continue;
-        int fxSlot  = fxBase / 5;
-        int fxParam = fxBase % 5;
-
-        float scaled = lfoVal * amt;
+        fxLfoOutput[i] = fxLfo[i].tick (activeBPM, numSamples);
+        int target = fxLfo[i].getTarget();
+        if (target < 0) continue;
+        int fxSlot  = target / 5;
+        int fxParam = target % 5;
         switch (fxParam)
         {
-            case 0: fxRatioModSum[fxSlot]  += scaled; break;
-            case 1: fxDetuneModSum[fxSlot] += scaled; break;
-            case 2: fxPhaseModSum[fxSlot]  += scaled; break;
-            case 3: fxFoldModSum[fxSlot]   += scaled; break;
-            case 4: fxLevelModSum[fxSlot]  += scaled; break;
+            case 0: fxRatioModSum[fxSlot]  += fxLfoOutput[i]; break;
+            case 1: fxDetuneModSum[fxSlot] += fxLfoOutput[i]; break;
+            case 2: fxPhaseModSum[fxSlot]  += fxLfoOutput[i]; break;
+            case 3: fxFoldModSum[fxSlot]   += fxLfoOutput[i]; break;
+            case 4: fxLevelModSum[fxSlot]  += fxLfoOutput[i]; break;
+            default: break;
         }
     }
     // Now we start the effects loop
@@ -454,8 +435,6 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
             float fold   = fxFoldParams[slot]->load   (std::memory_order_relaxed) + fxFoldModSum[slot];
             float mix    = juce::jlimit (0.0f, 1.0f,
                                          fxMixParams[slot]->load (std::memory_order_relaxed) + fxLevelModSum[slot]);
-            bool  isSynced   = fxSyncParams[slot]->load   (std::memory_order_relaxed) > 0.5f;
-
             for (int ch = 0; ch < 2; ++ch) 
             {
                 if (effectType != lastFxEffectType[slot])
@@ -467,25 +446,13 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
 
             if (effectType == 0) continue; // None — skip entirely
 
-            // Compute cutoff from ratio knob (same mapping as operators)
-            float normalizedRatio = (ratio - 0.01f) / (16.0f - 0.01f);
+            // Shared pre-computations only used by filters (1-3) and granular (23)
+            // All other effects map raw knob values directly to avoid LFO range squashing
+            float normalizedRatio = juce::jlimit (0.0f, 1.0f, (ratio - 0.01f) / (16.0f - 0.01f));
             float baseCutoff      = 20.0f * std::pow (1000.0f, normalizedRatio);
-
-            // Tempo sync — snap cutoff to rhythmic subdivision
-            if (isSynced && activeBPM > 0.0f)
-            {
-                // Map phase knob to subdivision (0=1/16, 0.25=1/8, 0.5=1/4, 0.75=1/2, 1.0=1/1)
-                float normalizedPhase = phase / 360.0f;
-                float subdivisions[]  = { 16.0f, 8.0f, 4.0f, 2.0f, 1.0f };
-                int   subIdx          = juce::jlimit (0, 4, static_cast<int> (normalizedPhase * 5.0f));
-                float beatsPerCycle   = 1.0f / subdivisions[subIdx];
-                baseCutoff            = (activeBPM / 60.0f) / beatsPerCycle;
-                baseCutoff            = juce::jlimit (20.0f, static_cast<float> (getSampleRate()) * 0.49f, baseCutoff);
-            }
-    
-            float dampingAmt      = juce::jlimit (0.001f, 0.95f, (detune + 50.0f) / 100.0f);
-            float feedbackAmt     = juce::jlimit (-0.95f, 0.95f, (fold * 2.0f) - 1.0f);
-            float coupledRes      = dampingAmt * dampingAmt;
+            // Resonance for filters only — derived from detune, clamped tightly
+            float filterRes       = juce::jlimit (0.001f, 0.95f, (detune + 50.0f) / 100.0f);
+            float coupledRes      = filterRes * filterRes;
 
             for (int i = 0; i < numSamples; ++i)
             {
@@ -493,228 +460,245 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
                 float inR = rightData[i];
                 float outL = inL;
                 float outR = inR;
-                
+
                 // TRUE STEREO EFFECTS
-                if (effectType == 12) // Chorus
+                // Each passes raw modulated values directly — no shared intermediary squashing
+                if (effectType == 12) // Chorus: Rate | Depth | Spread | Voices
                 {
-                    auto out = fxEffects[slot][0].processSampleStereoChorus (inL, inR, fxEffects[slot][1], normalizedRatio, dampingAmt, phase / 360.0f, juce::jlimit (0.0f, 1.0f, fold), getSampleRate());
+                    float rate   = normalizedRatio;
+                    float depth  = juce::jlimit (0.0f, 1.0f, (detune + 50.0f) / 100.0f);
+                    float spread = juce::jlimit (0.0f, 1.0f, phase / 360.0f);
+                    float voices = juce::jlimit (0.0f, 1.0f, fold);
+                    auto out = fxEffects[slot][0].processSampleStereoChorus (inL, inR, fxEffects[slot][1], rate, depth, spread, voices, getSampleRate());
                     outL = std::isfinite(out.L) ? out.L : 0.0f;
                     outR = std::isfinite(out.R) ? out.R : 0.0f;
                 }
-                else if (effectType == 13) // Old Chorus
+                else if (effectType == 13) // Old Chorus: Rate | Depth | Mode | Warmth
                 {
-                    auto out = fxEffects[slot][0].processSampleStereoOldChorus (inL, inR, fxEffects[slot][1], normalizedRatio, dampingAmt, phase / 360.0f, juce::jlimit (0.0f, 1.0f, fold), getSampleRate());
+                    float rate   = normalizedRatio;
+                    float depth  = juce::jlimit (0.0f, 1.0f, (detune + 50.0f) / 100.0f);
+                    float mode   = juce::jlimit (0.0f, 1.0f, phase / 360.0f);
+                    float warmth = juce::jlimit (0.0f, 1.0f, fold);
+                    auto out = fxEffects[slot][0].processSampleStereoOldChorus (inL, inR, fxEffects[slot][1], rate, depth, mode, warmth, getSampleRate());
                     outL = std::isfinite(out.L) ? out.L : 0.0f;
                     outR = std::isfinite(out.R) ? out.R : 0.0f;
                 }
-                else if (effectType == 17) // Allpass Reverb
+                else if (effectType == 17) // AP Reverb: Size | Decay | Diffusion | Damping
                 {
-                    auto out = fxEffects[slot][0].processSampleStereoAllpassReverb (inL, inR, fxEffects[slot][1], normalizedRatio, dampingAmt, phase / 360.0f, juce::jlimit (0.0f, 1.0f, fold), getSampleRate());
+                    float size      = normalizedRatio;
+                    float decay     = juce::jlimit (0.0f, 0.99f, (detune + 50.0f) / 100.0f);
+                    float diffusion = juce::jlimit (0.0f, 1.0f, phase / 360.0f);
+                    float damping   = juce::jlimit (0.0f, 1.0f, fold);
+                    auto out = fxEffects[slot][0].processSampleStereoAllpassReverb (inL, inR, fxEffects[slot][1], size, decay, diffusion, damping, getSampleRate());
                     outL = std::isfinite(out.L) ? std::tanh(out.L) : 0.0f;
                     outR = std::isfinite(out.R) ? std::tanh(out.R) : 0.0f;
                 }
-                else if (effectType == 18) // Allpass Delay
+                else if (effectType == 18) // AP Delay: Time | Feedback | Diffusion | Damping
                 {
-                    auto out = fxEffects[slot][0].processSampleStereoAllpassDelay (inL, inR, fxEffects[slot][1], normalizedRatio, dampingAmt, phase / 360.0f, juce::jlimit (0.0f, 1.0f, fold), getSampleRate());
+                    float time      = normalizedRatio;
+                    float feedback  = juce::jlimit (0.0f, 0.95f, (detune + 50.0f) / 100.0f);
+                    float diffusion = juce::jlimit (0.0f, 1.0f, phase / 360.0f);
+                    float damping   = juce::jlimit (0.0f, 1.0f, fold);
+                    auto out = fxEffects[slot][0].processSampleStereoAllpassDelay (inL, inR, fxEffects[slot][1], time, feedback, diffusion, damping, getSampleRate());
                     outL = std::isfinite(out.L) ? std::tanh(out.L) : 0.0f;
                     outR = std::isfinite(out.R) ? std::tanh(out.R) : 0.0f;
                 }
-                else if (effectType == 20) // Ambient Delay
+                else if (effectType == 20) // Ambient Delay: Time | Feedback | Shimmer | Diffusion
                 {
-                    auto out = fxEffects[slot][0].processSampleStereoAmbientDelay (inL, inR, fxEffects[slot][1], normalizedRatio, dampingAmt, phase / 360.0f, juce::jlimit (0.0f, 1.0f, fold), getSampleRate());
+                    float time      = normalizedRatio;
+                    float feedback  = juce::jlimit (0.0f, 0.95f, (detune + 50.0f) / 100.0f);
+                    float shimmer   = juce::jlimit (0.0f, 1.0f, phase / 360.0f);
+                    float diffusion = juce::jlimit (0.0f, 1.0f, fold);
+                    auto out = fxEffects[slot][0].processSampleStereoAmbientDelay (inL, inR, fxEffects[slot][1], time, feedback, shimmer, diffusion, getSampleRate());
                     outL = std::isfinite(out.L) ? out.L : 0.0f;
                     outR = std::isfinite(out.R) ? out.R : 0.0f;
                 }
-                else 
+                else
                 {
                     // DUAL MONO EFFECTS
-                    float inArr[2] = { inL, inR };
+                    float inArr[2]  = { inL, inR };
                     float outArr[2] = { 0.0f, 0.0f };
-                    
+
                     for (int ch = 0; ch < 2; ++ch)
                     {
                         switch (effectType)
                         {
                             case 1: // Lowpass
                             case 2: // Highpass
-                            case 3: // Bandpass
+                            case 3: // Bandpass — filters use baseCutoff/coupledRes (frequency mapping needed)
                             {
                                 fxEffects[slot][ch].setResonance (coupledRes);
                                 float k = fxEffects[slot][ch].getPrecalculatedK();
                                 outArr[ch] = fxEffects[slot][ch].processSampleAudioRate (inArr[ch], baseCutoff, k);
                                 break;
                             }
-                            case 4: // Effect + Drive
+                            case 4: // Filter Drive: Cutoff | Resonance | Overdrive | Mode
                             {
                                 float cutoff   = normalizedRatio;
-                                float res      = dampingAmt;
-                                float drive    = phase / 360.0f;
+                                float res      = juce::jlimit (0.0f, 1.0f, (detune + 50.0f) / 100.0f);
+                                float drive    = juce::jlimit (0.0f, 1.0f, phase / 360.0f);
                                 float LP_or_HP = juce::jlimit (0.0f, 1.0f, fold);
-                
                                 outArr[ch] = fxEffects[slot][ch].processSampleFilterDrive (inArr[ch], cutoff, res, drive, LP_or_HP, getSampleRate());
                                 outArr[ch] = std::isfinite (outArr[ch]) ? outArr[ch] : 0.0f;
                                 break;
                             }
-                            case 5: // Comb
+                            case 5: // Comb: Cutoff | Damping | Keytrack | Feedback
                             {
-                                outArr[ch] = fxEffects[slot][ch].processSampleComb (inArr[ch], baseCutoff, feedbackAmt, dampingAmt);
+                                float feedback = juce::jlimit (-0.95f, 0.95f, fold * 2.0f - 1.0f);
+                                float damping  = juce::jlimit (0.001f, 0.95f, (detune + 50.0f) / 100.0f);
+                                outArr[ch] = fxEffects[slot][ch].processSampleComb (inArr[ch], baseCutoff, feedback, damping);
                                 outArr[ch] = std::isfinite (outArr[ch]) ? std::tanh (outArr[ch]) : 0.0f;
                                 break;
                             }
-                            case 6: // Formant
+                            case 6: // Formant: Vowel | Nasal | Vowel Mod | Drive
                             {
-                                float normalizedRatio2 = (ratio - 0.01f) / (16.0f - 0.01f);
-                                float baseVowel        = normalizedRatio2 * 4.0f;
-                                float modDepth         = phase / 360.0f;
-                                float dynamicVowel     = juce::jlimit (0.0f, 4.0f, baseVowel + (fxPhaseModSum[slot] * modDepth * 4.0f));
-                                float normalizedDetune = (detune + 50.0f) / 100.0f;
-                                float qFactor          = juce::jmap (normalizedDetune, 0.0f, 1.0f, 2.0f, 15.0f);
-                                float drive            = 1.0f + (fold * 4.0f);
-                                float drivenInput      = std::tanh (inArr[ch] * drive);
-                
-                                float output           = fxEffects[slot][ch].processSampleFormant (drivenInput, dynamicVowel, qFactor);
-                                outArr[ch]             = std::isfinite (output) ? std::tanh (output) : 0.0f;
+                                float baseVowel    = normalizedRatio * 4.0f;
+                                float modDepth     = juce::jlimit (0.0f, 1.0f, phase / 360.0f);
+                                float dynamicVowel = juce::jlimit (0.0f, 4.0f, baseVowel + (fxPhaseModSum[slot] * modDepth * 4.0f));
+                                float qFactor      = juce::jmap (juce::jlimit (0.0f, 1.0f, (detune + 50.0f) / 100.0f), 0.0f, 1.0f, 2.0f, 15.0f);
+                                float drive        = 1.0f + (juce::jlimit (0.0f, 1.0f, fold) * 4.0f);
+                                float drivenInput  = std::tanh (inArr[ch] * drive);
+                                float output       = fxEffects[slot][ch].processSampleFormant (drivenInput, dynamicVowel, qFactor);
+                                outArr[ch]         = std::isfinite (output) ? std::tanh (output) : 0.0f;
                                 break;
                             }
-                            case 7: // Compressor
+                            case 7: // Compressor: Threshold | Ratio | Attack | Release
                             {
                                 float threshold = normalizedRatio;
-                                float compRatio = dampingAmt;
-                                float attack    = phase / 360.0f;
+                                float compRatio = juce::jlimit (0.0f, 1.0f, (detune + 50.0f) / 100.0f);
+                                float attack    = juce::jlimit (0.0f, 1.0f, phase / 360.0f);
                                 float release   = juce::jlimit (0.0f, 1.0f, fold);
                                 outArr[ch] = fxEffects[slot][ch].processSampleCompressor (inArr[ch], threshold, compRatio, attack, release, getSampleRate());
                                 outArr[ch] = std::isfinite (outArr[ch]) ? outArr[ch] : 0.0f;
                                 break;
                             }
-                            case 8: // Three-Lane EQ
+                            case 8: // 3-Band EQ: Low Gain | Mid Gain | High Gain | Master
                             {
                                 float lowGain  = normalizedRatio;
-                                float midGain  = dampingAmt;
-                                float highGain = phase / 360.0f;
+                                float midGain  = juce::jlimit (0.0f, 1.0f, (detune + 50.0f) / 100.0f);
+                                float highGain = juce::jlimit (0.0f, 1.0f, phase / 360.0f);
                                 float master   = juce::jlimit (0.0f, 1.0f, fold);
-                
                                 outArr[ch] = fxEffects[slot][ch].processSampleThreeBandEQ (inArr[ch], lowGain, midGain, highGain, master, getSampleRate());
                                 outArr[ch] = std::isfinite (outArr[ch]) ? outArr[ch] : 0.0f;
                                 break;
                             }
-                            case 9: // OTT
+                            case 9: // OTT: Depth | Time | Upward | Tone
                             {
                                 float depth    = normalizedRatio;
-                                float timeKnob = dampingAmt;
-                                float upward   = phase / 360.0f;
+                                float timeKnob = juce::jlimit (0.0f, 1.0f, (detune + 50.0f) / 100.0f);
+                                float upward   = juce::jlimit (0.0f, 1.0f, phase / 360.0f);
                                 float tone     = juce::jlimit (0.0f, 1.0f, fold);
                                 outArr[ch] = fxEffects[slot][ch].processSampleOTT (inArr[ch], depth, timeKnob, upward, tone, getSampleRate());
                                 outArr[ch] = std::isfinite (outArr[ch]) ? outArr[ch] : 0.0f;
                                 break;
                             }
-                            case 10: // Lo-Fi Effect
+                            case 10: // Lo-Fi: Decimate | Bits | Wear | Tone
                             {
                                 float decimate = normalizedRatio;
-                                float bits     = dampingAmt;
-                                float wear     = phase / 360.0f;
+                                float bits     = juce::jlimit (0.0f, 1.0f, (detune + 50.0f) / 100.0f);
+                                float wear     = juce::jlimit (0.0f, 1.0f, phase / 360.0f);
                                 float tone     = juce::jlimit (0.0f, 1.0f, fold);
-                
                                 outArr[ch] = fxEffects[slot][ch].processSampleLoFi (inArr[ch], decimate, bits, wear, tone, getSampleRate());
+                                outArr[ch] = std::isfinite (outArr[ch]) ? outArr[ch] : 0.0f;
                                 break;
                             }
-                            case 11: // Tape
+                            case 11: // Tape: Wobble | Age | Saturation | Bias
                             {
                                 float wobbleRate = normalizedRatio;
-                                float age        = dampingAmt;
-                                float saturation = phase / 360.0f;
+                                float age        = juce::jlimit (0.0f, 1.0f, (detune + 50.0f) / 100.0f);
+                                float saturation = juce::jlimit (0.0f, 1.0f, phase / 360.0f);
                                 float bias       = juce::jlimit (0.0f, 1.0f, fold);
                                 outArr[ch] = fxEffects[slot][ch].processSampleTape (inArr[ch], wobbleRate, age, saturation, bias, getSampleRate());
                                 outArr[ch] = std::isfinite (outArr[ch]) ? outArr[ch] : 0.0f;
                                 break;
                             }
-                            case 14: // Distortion
+                            case 14: // Distortion: Drive | Flavor | Tone | Degrade
                             {
                                 float drive       = normalizedRatio;
-                                float flavor      = dampingAmt;
-                                float toneKnob    = phase / 360.0f;
+                                float flavor      = juce::jlimit (0.0f, 1.0f, (detune + 50.0f) / 100.0f);
+                                float toneKnob    = juce::jlimit (0.0f, 1.0f, phase / 360.0f);
                                 float degradation = juce::jlimit (0.0f, 1.0f, fold);
                                 outArr[ch] = fxEffects[slot][ch].processSampleDistortion (inArr[ch], drive, flavor, toneKnob, degradation, getSampleRate());
                                 outArr[ch] = std::isfinite (outArr[ch]) ? outArr[ch] : 0.0f;
                                 break;
                             }
-                            case 15: // Bitcrush
+                            case 15: // Bitcrush: Bits | Rate | Jitter | Noise
                             {
                                 float bits   = normalizedRatio;
-                                float rate   = dampingAmt;
-                                float jitter = phase / 360.0f;
+                                float rate   = juce::jlimit (0.0f, 1.0f, (detune + 50.0f) / 100.0f);
+                                float jitter = juce::jlimit (0.0f, 1.0f, phase / 360.0f);
                                 float noise  = juce::jlimit (0.0f, 1.0f, fold);
                                 outArr[ch] = fxEffects[slot][ch].processSampleBitcrush (inArr[ch], bits, rate, jitter, noise, getSampleRate());
                                 outArr[ch] = std::isfinite (outArr[ch]) ? outArr[ch] : 0.0f;
                                 break;
                             }
-                            case 16: // Ring Modulator
+                            case 16: // Ring Mod: Frequency | Shape | Depth | Feedback
                             {
                                 float frequency = 0.1f * std::pow (50000.0f, normalizedRatio);
-                                float shape     = dampingAmt;
-                                float depth     = phase / 360.0f;
+                                float shape     = juce::jlimit (0.0f, 1.0f, (detune + 50.0f) / 100.0f);
+                                float depth     = juce::jlimit (0.0f, 1.0f, phase / 360.0f);
                                 float feedback  = juce::jlimit (0.0f, 0.95f, fold);
                                 outArr[ch] = fxEffects[slot][ch].processSampleRingMod (inArr[ch], frequency, shape, depth, feedback, getSampleRate());
                                 outArr[ch] = std::isfinite (outArr[ch]) ? outArr[ch] : 0.0f;
                                 break;
                             }
-                            case 19: // Time Control Delay
+                            case 19: // Time Control Delay: Time | Feedback | Damping | Drive
                             {
                                 float delayTime = normalizedRatio;
-                                float feedback  = dampingAmt;
-                                float damping   = phase / 360.0f;
+                                float feedback  = juce::jlimit (0.0f, 0.95f, (detune + 50.0f) / 100.0f);
+                                float damping   = juce::jlimit (0.0f, 1.0f, phase / 360.0f);
                                 float drive     = juce::jlimit (0.0f, 1.0f, fold);
-                
                                 outArr[ch] = fxEffects[slot][ch].processSampleTimeCtrlDelay (inArr[ch], delayTime, feedback, damping, drive, getSampleRate());
                                 outArr[ch] = std::isfinite (outArr[ch]) ? outArr[ch] : 0.0f;
                                 break;
                             }
-                            case 21: // DJFX Delay
+                            case 21: // DJFX Delay: Buffer | Speed | Loop On | Drift
                             {
                                 float bufferAmt = normalizedRatio;
-                                float speed     = dampingAmt;
-                                float on        = phase / 360.0f;
+                                float speed     = juce::jlimit (0.0f, 1.0f, (detune + 50.0f) / 100.0f);
+                                float on        = juce::jlimit (0.0f, 1.0f, phase / 360.0f);
                                 float drift     = juce::jlimit (0.0f, 1.0f, fold);
                                 outArr[ch] = fxEffects[slot][ch].processSampleDJFXDelay (inArr[ch], bufferAmt, speed, on, drift, getSampleRate());
                                 outArr[ch] = std::isfinite (outArr[ch]) ? outArr[ch] : 0.0f;
                                 break;
                             }
-                            case 22: // Scatter
+                            case 22: // Scatter: Type | Size | Speed | Depth
                             {
                                 float pattern = normalizedRatio;
-                                float size = juce::jlimit(0.0f, 1.0f, (detune + 50.0f) / 100.0f);
-                                float speed = phase / 360.0f;
-                                float depth = juce::jlimit (0.0f, 1.0f, fold);
+                                float size    = juce::jlimit (0.0f, 1.0f, (detune + 50.0f) / 100.0f);
+                                float speed   = juce::jlimit (0.0f, 1.0f, phase / 360.0f);
+                                float depth   = juce::jlimit (0.0f, 1.0f, fold);
                                 outArr[ch] = fxEffects[slot][ch].processSampleScatter (inArr[ch], pattern, size, speed, depth, getSampleRate());
                                 outArr[ch] = std::isfinite (outArr[ch]) ? outArr[ch] : 0.0f;
                                 break;
                             }
-                            case 23: // Granular
+                            case 23: // Granular: Grain Size | Damping | Scatter | Feedback
                             {
                                 float grainDurationMs = juce::jmap (normalizedRatio, 0.0f, 1.0f, 10.0f, 1000.0f);
+                                float damping         = juce::jlimit (0.0f, 0.95f, (detune + 50.0f) / 100.0f);
                                 float scatterAmt      = juce::jlimit (0.0f, 1.0f, phase / 360.0f);
-                                outArr[ch] = fxEffects[slot][ch].processSampleGranular (inArr[ch], baseCutoff, scatterAmt, grainDurationMs, feedbackAmt, dampingAmt);
+                                float feedback        = juce::jlimit (-0.95f, 0.95f, fold * 2.0f - 1.0f);
+                                outArr[ch] = fxEffects[slot][ch].processSampleGranular (inArr[ch], baseCutoff, scatterAmt, grainDurationMs, feedback, damping);
                                 outArr[ch] = std::isfinite (outArr[ch]) ? std::tanh (outArr[ch]) : 0.0f;
                                 break;
                             }
-                            case 24: // Color Bass
+                            case 24: // Color Bass: Drive | Shimmer | Tone | Decay
                             {
                                 float drive   = juce::jlimit (0.0f, 1.0f, normalizedRatio);
                                 float shimmer = juce::jlimit (0.0f, 1.0f, phase / 360.0f);
-                                float tone    = juce::jlimit (0.0f, 1.0f, dampingAmt);
+                                float tone    = juce::jlimit (0.0f, 1.0f, (detune + 50.0f) / 100.0f);
                                 float decay   = juce::jlimit (0.0f, 1.0f, fold);
                                 outArr[ch]    = fxEffects[slot][ch].processSampleColorBass (inArr[ch], drive, shimmer, tone, decay, getSampleRate());
                                 outArr[ch] = std::isfinite (outArr[ch]) ? outArr[ch] : 0.0f;
                                 break;
                             }
-                            case 25: // Spectral Freeze
+                            case 25: // Spectral Freeze: Freeze On | Blend | Pitch | Blur
                             {
-                                float freeze   = normalizedRatio;
-                                float blend    = dampingAmt;
-                                float rawPitch = phase / 360.0f; 
-                                // Map 0.0-1.0 phase to +/- 24 semitones ratio for resampling
+                                float freeze     = normalizedRatio;
+                                float blend      = juce::jlimit (0.0f, 1.0f, (detune + 50.0f) / 100.0f);
+                                float rawPitch   = juce::jlimit (0.0f, 1.0f, phase / 360.0f);
                                 float pitchRatio = std::pow (2.0f, (rawPitch - 0.5f) * 48.0f / 12.0f);
-                                float blur     = juce::jlimit (0.0f, 1.0f, fold);
-                                
+                                float blur       = juce::jlimit (0.0f, 1.0f, fold);
                                 outArr[ch] = fxEffects[slot][ch].processSampleSpectralFreeze (inArr[ch], freeze, blend, pitchRatio, blur, getSampleRate());
                                 outArr[ch] = std::isfinite (outArr[ch]) ? outArr[ch] : 0.0f;
                                 break;
@@ -724,7 +708,7 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
                                 break;
                         }
                     }
-                    
+
                     // Assign mono outputs back to main stereo channels
                     outL = outArr[0];
                     outR = outArr[1];

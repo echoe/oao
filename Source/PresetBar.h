@@ -551,12 +551,6 @@ struct FMAlgorithm
                     range.convertTo0to1 (static_cast<float> (newTypeIndex)));
             }
 
-            // 2. Sync
-            if (auto* syncParam = dynamic_cast<juce::RangedAudioParameter*> (
-                    apvts.getParameter ("FX_SYNC_" + s)))
-                syncParam->setValueNotifyingHost (
-                    (!drumMode && prng.nextFloat() < 0.30f) ? 1.0f : 0.0f);
-
             // 3. Mix
             if (auto* mixParam = dynamic_cast<juce::RangedAudioParameter*> (
                     apvts.getParameter ("FX_MIX_" + s)))
@@ -875,10 +869,6 @@ struct FMAlgorithm
                 {
                     p->setValueNotifyingHost (
                         prng.nextFloat() < 0.80f ? 0.0f : prng.nextFloat());
-                }
-                else if (id.startsWith ("TEMPO_SYNC"))
-                {
-                    p->setValueNotifyingHost (0.0f); // drums never tempo-sync
                 }
             }
         }

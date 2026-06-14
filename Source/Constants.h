@@ -16,6 +16,19 @@ namespace ProjectConfig
     {
         return { "None", "Lowpass", "Highpass", "Bandpass", "Filter Drive", "Comb", "Formant", "Compressor", "3-bar EQ", "OTT", "Lofi", "Tape", "Chorus", "Old Chorus", "Distortion", "Bitcrush", "Ring Mod", "AP Reverb", "AP Delay", "Timeshift Delay", "Shimmer Delay", "DJFX Delay", "Scatter", "Granular", "Color Bass", "Spectral Freeze" };
     }
+    // FX LFO target list — 15 entries (3 slots x 5 params), index 0 = None
+    // Order must stay in sync with the fxRatioModSum/fxDetuneModSum/etc. arrays
+    // and with the dispatch in PluginProcessor (fxBase = tgtIdx - 1, fxSlot = fxBase/5, fxParam = fxBase%5)
+    inline juce::StringArray getFXLFOTargetChoices()
+    {
+        return {
+            "None",
+            "FX 1 Knob A", "FX 1 Knob B", "FX 1 Knob C", "FX 1 Knob D", "FX 1 Mix",
+            "FX 2 Knob A", "FX 2 Knob B", "FX 2 Knob C", "FX 2 Knob D", "FX 2 Mix",
+            "FX 3 Knob A", "FX 3 Knob B", "FX 3 Knob C", "FX 3 Knob D", "FX 3 Mix",
+        };
+    }
+
     // Effects knobs list
     inline std::array<const char*, 4> getEffectKnobLabels (int effectTypeIndex)
     {

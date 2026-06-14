@@ -4,21 +4,151 @@
 #include "Constants.h"
 #include "OAOColors.h"
 
-class EffectsSlot : public juce::Component
+// ============================================================
+//  FX LFO SLOT  — one row in the LFO sidebar
+// ============================================================
+class FXLFOSlot : public juce::Component
 {
 public:
-    EffectsSlot (juce::AudioProcessorValueTreeState& apvts, int slotIndex, OAOColors& c)
-	    : colors (c)
+    FXLFOSlot (juce::AudioProcessorValueTreeState& apvts, int lfoIndex, OAOColors& c)
+        : colors (c)
     {
-        juce::String s = juce::String (slotIndex + 1);
-        // Effect type selector. We grab the list from Constants.h
-        effectSelector.addItemList (ProjectConfig::getEffectTypeChoices(), 1);
-	effectSelector.setSelectedId (1, juce::dontSendNotification);
-        addAndMakeVisible (effectSelector);
+        juce::String s = juce::String (lfoIndex + 1);
+
+        // Label
+        label.setText ("LFO " + s, juce::dontSendNotification);
+        label.setJustificationType (juce::Justification::centred);
+        addAndMakeVisible (label);
+
+        // Waveform selector
+        waveSelector.addItem ("Sine",     1);
+        waveSelector.addItem ("Triangle", 2);
+        waveSelector.addItem ("Saw",      3);
+        waveSelector.addItem ("Square",   4);
+        waveSelector.setSelectedId (1, juce::dontSendNotification);
+        addAndMakeVisible (waveSelector);
+
         // Sync button
         syncButton.setButtonText ("Sync");
         syncButton.setClickingTogglesState (true);
         addAndMakeVisible (syncButton);
+
+        // Rate knob
+        rateSlider.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
+        rateSlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 0, 0);
+        addAndMakeVisible (rateSlider);
+        rateLabel.setText ("Rate", juce::dontSendNotification);
+        rateLabel.setJustificationType (juce::Justification::centred);
+        addAndMakeVisible (rateLabel);
+
+        // Depth knob
+        depthSlider.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
+        depthSlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 0, 0);
+        addAndMakeVisible (depthSlider);
+        depthLabel.setText ("Depth", juce::dontSendNotification);
+        depthLabel.setJustificationType (juce::Justification::centred);
+        addAndMakeVisible (depthLabel);
+
+        // APVTS attachments
+        waveAttach  = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (
+            apvts, "FX_LFO_WAVE_"  + s, waveSelector);
+        syncAttach  = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (
+            apvts, "FX_LFO_SYNC_"  + s, syncButton);
+        rateAttach  = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
+            apvts, "FX_LFO_RATE_"  + s, rateSlider);
+        depthAttach = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
+            apvts, "FX_LFO_DEPTH_" + s, depthSlider);
+    }
+
+    void paint (juce::Graphics& g) override
+    {
+        g.fillAll (colors.background);
+        g.setColour (colors.text.withAlpha (0.1f));
+        g.drawRect (getLocalBounds(), 1);
+    }
+
+    void lookAndFeelChanged() override
+    {
+        juce::Component::lookAndFeelChanged();
+
+        label.setColour      (juce::Label::textColourId, colors.text);
+        rateLabel.setColour  (juce::Label::textColourId, colors.text);
+        depthLabel.setColour (juce::Label::textColourId, colors.text);
+
+        waveSelector.setColour (juce::ComboBox::backgroundColourId, colors.surface);
+        waveSelector.setColour (juce::ComboBox::textColourId,       colors.text);
+
+        rateSlider.setColour  (juce::Slider::textBoxBackgroundColourId, colors.surface);
+        rateSlider.setColour  (juce::Slider::textBoxTextColourId,       colors.text);
+        depthSlider.setColour (juce::Slider::textBoxBackgroundColourId, colors.surface);
+        depthSlider.setColour (juce::Slider::textBoxTextColourId,       colors.text);
+
+        waveSelector.sendLookAndFeelChange();
+        rateSlider.sendLookAndFeelChange();
+        depthSlider.sendLookAndFeelChange();
+    }
+
+    void resized() override
+    {
+        auto area = getLocalBounds().reduced (getWidth() * 0.02f);
+
+        // Top row: label | waveform selector | sync button
+        auto topRow = area.removeFromTop (getHeight() * 0.28f);
+        label.setBounds        (topRow.removeFromLeft  (topRow.getWidth() * 0.20f));
+        syncButton.setBounds   (topRow.removeFromRight (topRow.getWidth() * 0.22f).reduced (2));
+        waveSelector.setBounds (topRow.reduced (2));
+
+        area.removeFromTop (getHeight() * 0.02f);
+
+        // Bottom row: Rate knob | Depth knob
+        int textBoxH = (int)(getHeight() * 0.12f);
+        int textBoxW = (int)(getWidth()  * 0.18f);
+        int knobW    = area.getWidth() / 2;
+
+        auto rateArea = area.removeFromLeft (knobW);
+        rateLabel.setBounds (rateArea.removeFromBottom (getHeight() * 0.18f));
+        rateSlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, textBoxW, textBoxH);
+        rateSlider.setBounds (rateArea);
+
+        depthLabel.setBounds (area.removeFromBottom (getHeight() * 0.18f));
+        depthSlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, textBoxW, textBoxH);
+        depthSlider.setBounds (area);
+    }
+
+private:
+    OAOColors& colors;
+
+    juce::Label      label;
+    juce::ComboBox   waveSelector;
+    juce::TextButton syncButton;
+    juce::Slider     rateSlider,  depthSlider;
+    juce::Label      rateLabel,   depthLabel;
+
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> waveAttach;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment>   syncAttach;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>   rateAttach, depthAttach;
+};
+
+
+// ============================================================
+//  EFFECTS SLOT  — unchanged from original
+// ============================================================
+class EffectsSlot : public juce::Component
+{
+public:
+    EffectsSlot (juce::AudioProcessorValueTreeState& apvts, int slotIndex, OAOColors& c)
+        : colors (c)
+    {
+        juce::String s = juce::String (slotIndex + 1);
+        // Effect type selector
+        effectSelector.addItemList (ProjectConfig::getEffectTypeChoices(), 1);
+        effectSelector.setSelectedId (1, juce::dontSendNotification);
+        addAndMakeVisible (effectSelector);
+        // Sync button (hidden until per-effect sync is implemented)
+        syncButton.setButtonText ("Sync");
+        syncButton.setClickingTogglesState (true);
+        addAndMakeVisible (syncButton);
+        syncButton.setVisible (false); // TODO: re-enable when per-effect sync is implemented
         // Mix knob
         mixSlider.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
         mixSlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 0, 0);
@@ -37,30 +167,27 @@ public:
         }
         // Slot label
         slotLabel.setText ("FX " + s, juce::dontSendNotification);
-        //slotLabel.setFont (juce::Font (juce::FontOptions (14.0f)));
         slotLabel.setJustificationType (juce::Justification::centred);
         addAndMakeVisible (slotLabel);
         // Attachments
-	effectAttach = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (
+        effectAttach = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (
             apvts, "FX_TYPE_" + s, effectSelector);
         syncAttach = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (
             apvts, "FX_SYNC_" + s, syncButton);
         mixAttach = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
             apvts, "FX_MIX_" + s, mixSlider);
-        // connecting knobs 
         const juce::StringArray knobIDs = { "FX_RATIO_", "FX_DETUNE_", "FX_PHASE_", "FX_FOLD_" };
         for (int i = 0; i < 4; ++i)
             knobAttachments[i] = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
                 apvts, knobIDs[i] + s, knobs[i]);
-        // Update labels when effect type changes, and update on instantiate
         effectSelector.onChange = [this] { updateLabels(); };
         updateLabels();
     }
 
     void updateLabels()
     {
-        int typeIndex = effectSelector.getSelectedId() - 1; // ComboBox is 1-indexed
-	auto labels = ProjectConfig::getEffectKnobLabels (typeIndex);
+        int typeIndex = effectSelector.getSelectedId() - 1;
+        auto labels   = ProjectConfig::getEffectKnobLabels (typeIndex);
         for (int i = 0; i < 4; ++i)
             knobLabels[i].setText (labels[i], juce::dontSendNotification);
     }
@@ -76,26 +203,23 @@ public:
     {
         juce::Component::lookAndFeelChanged();
 
-        // Update Labels
         slotLabel.setColour (juce::Label::textColourId, colors.text);
-        mixLabel.setColour (juce::Label::textColourId, colors.text);
-	// Update knobs
+        mixLabel.setColour  (juce::Label::textColourId, colors.text);
         for (int i = 0; i < 4; ++i)
             knobLabels[i].setColour (juce::Label::textColourId, colors.text);
-        // Update ComboBox
+
         effectSelector.setColour (juce::ComboBox::backgroundColourId, colors.surface);
-        effectSelector.setColour (juce::ComboBox::textColourId, colors.text);
-        // Update Mix Slider
+        effectSelector.setColour (juce::ComboBox::textColourId,       colors.text);
+
         mixSlider.setColour (juce::Slider::textBoxBackgroundColourId, colors.surface);
-        mixSlider.setColour (juce::Slider::textBoxTextColourId, colors.text);
-        // Update the 4 Parameter Knobs
+        mixSlider.setColour (juce::Slider::textBoxTextColourId,       colors.text);
+
         for (int i = 0; i < 4; ++i)
         {
             knobs[i].setColour (juce::Slider::textBoxBackgroundColourId, colors.surface);
-            knobs[i].setColour (juce::Slider::textBoxTextColourId, colors.text);
+            knobs[i].setColour (juce::Slider::textBoxTextColourId,       colors.text);
             knobs[i].sendLookAndFeelChange();
         }
-        // Nudge the others
         effectSelector.sendLookAndFeelChange();
         mixSlider.sendLookAndFeelChange();
     }
@@ -103,25 +227,23 @@ public:
     void resized() override
     {
         auto area = getLocalBounds().reduced (getWidth() * 0.02f);
-    
-        // Top row: slot label, effect selector, sync button
+
+        // Top row: slot label | effect selector (sync button hidden, no space needed)
         auto topRow = area.removeFromTop (getHeight() * 0.18f);
         slotLabel.setBounds      (topRow.removeFromLeft (topRow.getWidth() * 0.10f));
-        syncButton.setBounds     (topRow.removeFromRight (topRow.getWidth() * 0.10f).reduced (2));
         effectSelector.setBounds (topRow.reduced (2));
         area.removeFromTop (getHeight() * 0.005f);
-    
-        // Shared textbox sizing
-        int textBoxH = (int)(getHeight() * 0.12f); //knob label
+
+        int textBoxH = (int)(getHeight() * 0.12f);
         int textBoxW = (int)(getWidth()  * 0.1f);
-    
+
         // Mix knob on the left
         auto mixArea = area.removeFromLeft (area.getWidth() * 0.12f);
         mixLabel.setBounds (mixArea.removeFromBottom (getHeight() * 0.22f));
         mixSlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, textBoxW, textBoxH);
         mixSlider.setBounds (mixArea);
         area.removeFromLeft (area.getWidth() * 0.01f);
-    
+
         // Four knobs share remaining space
         int knobW = area.getWidth() / 4;
         for (int i = 0; i < 4; ++i)
@@ -142,14 +264,15 @@ private:
         knobLabels[2].setText (c, juce::dontSendNotification);
         knobLabels[3].setText (d, juce::dontSendNotification);
     }
+
     OAOColors& colors;
-    juce::Label    slotLabel;
-    juce::ComboBox effectSelector;
+    juce::Label      slotLabel;
+    juce::ComboBox   effectSelector;
     juce::TextButton syncButton;
-    juce::Slider   mixSlider;
-    juce::Label    mixLabel;
-    juce::Slider   knobs[4];
-    juce::Label    knobLabels[4];
+    juce::Slider     mixSlider;
+    juce::Label      mixLabel;
+    juce::Slider     knobs[4];
+    juce::Label      knobLabels[4];
 
     std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> effectAttach;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment>   syncAttach;
@@ -158,32 +281,52 @@ private:
 };
 
 
+// ============================================================
+//  EFFECTS PAGE  — 70% FX slots | 30% LFO sidebar
+// ============================================================
 class EffectsPage : public juce::Component
 {
 public:
     EffectsPage (juce::AudioProcessorValueTreeState& apvts, OAOColors& c)
-	    : colors(c)
+        : colors (c)
     {
         for (int i = 0; i < 3; ++i)
         {
             slots.push_back (std::make_unique<EffectsSlot> (apvts, i, colors));
             addAndMakeVisible (*slots.back());
+
+            lfoSlots.push_back (std::make_unique<FXLFOSlot> (apvts, i, colors));
+            addAndMakeVisible (*lfoSlots.back());
         }
     }
 
     void paint (juce::Graphics& g) override
     {
-        // Draw flow arrows between slots
+        float splitX = getWidth() * splitRatio;
+
+        // Flow arrows between FX slots
         g.setColour (colors.text.withAlpha (0.3f));
         g.setFont (getHeight() * 0.03f);
-        int slotH = getHeight() / 3;
+        int slotH = (int)(getHeight() / 3);
         for (int i = 0; i < 2; ++i)
         {
             int arrowY = slotH * (i + 1);
             g.drawText (juce::String (juce::CharPointer_UTF8 ("\xe2\x86\x93")),
-                        getWidth() / 2 - 10, arrowY - 12, 20, 20,
+                        (int)(splitX * 0.5f) - 10, arrowY - 12, 20, 20,
                         juce::Justification::centred);
         }
+
+        // Divider between FX area and LFO sidebar
+        g.setColour (colors.text.withAlpha (0.15f));
+        g.drawVerticalLine ((int)splitX, getHeight() * 0.01f, getHeight() * 0.99f);
+
+        // Sidebar header
+        g.setColour (colors.text.withAlpha (0.6f));
+        g.setFont (getHeight() * 0.025f);
+        g.drawText ("FX LFOs",
+                    (int)splitX, 0,
+                    getWidth() - (int)splitX, (int)(getHeight() * 0.04f),
+                    juce::Justification::centred);
     }
 
     void lookAndFeelChanged() override
@@ -191,28 +334,45 @@ public:
         juce::Component::lookAndFeelChanged();
 
         for (auto& slot : slots)
-        {
-            if (slot != nullptr)
-                slot->lookAndFeelChanged();
-        }
+            if (slot != nullptr) slot->lookAndFeelChanged();
+
+        for (auto& lfo : lfoSlots)
+            if (lfo != nullptr) lfo->lookAndFeelChanged();
     }
 
     void resized() override
     {
         float h = getHeight();
         float w = getWidth();
-        auto area = getLocalBounds().reduced (w * 0.01f, h * 0.01f);
-        float arrowH = h * 0.03f;
-        int slotH = (area.getHeight() - 2 * arrowH) / 3;
-    
+        float arrowH  = h * 0.03f;
+        float padding = h * 0.01f;
+
+        // Split into FX area (left 70%) and LFO sidebar (right 30%)
+        auto full    = getLocalBounds().reduced (w * 0.005f, padding);
+        auto fxArea  = full.removeFromLeft  ((int)(full.getWidth() * splitRatio));
+        auto lfoArea = full;
+
+        // FX slots — same layout as before
+        int slotH = (int)((fxArea.getHeight() - 2 * arrowH) / 3);
         for (int i = 0; i < 3; ++i)
         {
-            slots[i]->setBounds (area.removeFromTop (slotH).reduced (0, h * 0.005f));
-            if (i < 2) area.removeFromTop (arrowH);
+            slots[i]->setBounds (fxArea.removeFromTop (slotH).reduced (0, (int)(h * 0.005f)));
+            if (i < 2) fxArea.removeFromTop ((int)arrowH);
         }
+
+        // LFO sidebar header space
+        lfoArea.removeFromTop ((int)(h * 0.04f));
+
+        // Three LFO slots share the sidebar equally
+        int lfoH = lfoArea.getHeight() / 3;
+        for (int i = 0; i < 3; ++i)
+            lfoSlots[i]->setBounds (lfoArea.removeFromTop (lfoH).reduced (2, (int)(h * 0.005f)));
     }
 
 private:
+    static constexpr float splitRatio = 0.70f;
+
     OAOColors& colors;
     std::vector<std::unique_ptr<EffectsSlot>> slots;
+    std::vector<std::unique_ptr<FXLFOSlot>>   lfoSlots;
 };

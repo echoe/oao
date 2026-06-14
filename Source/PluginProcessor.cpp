@@ -116,6 +116,21 @@ juce::AudioProcessorValueTreeState::ParameterLayout FMPluginAudioProcessor::crea
             juce::ParameterID { "FX_FOLD_" + s, 1 }, "FX " + s + " Fold", 0.0f, 1.0f, 0.0f));
     }
 
+    // Three Effects LFO Parameters
+    juce::StringArray lfoWaveChoices { "Sine", "Triangle", "Saw", "Square" };
+    for (int i = 0; i < 3; ++i)
+    {
+        juce::String s = juce::String (i + 1);
+        params.push_back (std::make_unique<juce::AudioParameterChoice> (
+            juce::ParameterID { "FX_LFO_WAVE_" + s, 1 }, "FX LFO " + s + " Wave", lfoWaveChoices, 0));
+        params.push_back (std::make_unique<juce::AudioParameterBool> (
+            juce::ParameterID { "FX_LFO_SYNC_" + s, 1 }, "FX LFO " + s + " Sync", false));
+        params.push_back (std::make_unique<juce::AudioParameterFloat> (
+            juce::ParameterID { "FX_LFO_RATE_" + s, 1 }, "FX LFO " + s + " Rate", 0.01f, 20.0f, 1.0f));
+        params.push_back (std::make_unique<juce::AudioParameterFloat> (
+            juce::ParameterID { "FX_LFO_DEPTH_" + s, 1 }, "FX LFO " + s + " Depth", 0.0f, 1.0f, 0.5f));
+    }
+
     // Generate Modulation Matrix Nodes (NxN Grid)
     for (int src = 0; src < ProjectConfig::numOperators; ++src)
     {
@@ -143,7 +158,8 @@ juce::AudioProcessorValueTreeState::ParameterLayout FMPluginAudioProcessor::crea
     // Targets: None + 5 params x 6 ops + 8 effects = 39 choices
     juce::StringArray modSourceChoices {
         "None",
-        "Op 1", "Op 2", "Op 3", "Op 4", "Op 5", "Op 6"
+        "Op 1", "Op 2", "Op 3", "Op 4", "Op 5", "Op 6",
+	"FX LFO 1", "FX LFO 2", "FX LFO 3"
     };
     juce::StringArray modTargetChoices {
         "None",
@@ -249,6 +265,10 @@ void FMPluginAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlo
         	fxEffects[i][ch].reset();
 	}
     }
+    //Start LFOs
+    fxLfo[0].prepare (sampleRate);
+    fxLfo[1].prepare (sampleRate);
+    fxLfo[2].prepare (sampleRate);
 }
 
 void FMPluginAudioProcessor::releaseResources() {}
@@ -268,13 +288,16 @@ void FMPluginAudioProcessor::updateVoices()
 
 void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
 {
+    //defaults, inputs, outputs
     juce::ScopedNoDenormals noDenormals;
     auto totalNumInputChannels  = getTotalNumInputChannels();
     auto totalNumOutputChannels = getTotalNumOutputChannels();
+    // effects LFOs
+    for (int lfo = 0; lfo < 3; lfo ++)
+        fxLfoOutput[lfo] = fxLfo[lfo].tick();
 
 #ifdef OAO_FX_ONLY
     // FX mode: input audio passes straight through to the effects chain.
-    // Clear any extra output channels that have no corresponding input.
     for (int ch = totalNumInputChannels; ch < totalNumOutputChannels; ++ch)
         buffer.clear (ch, 0, buffer.getNumSamples());
 #else
@@ -381,6 +404,41 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
             activeBPM = static_cast<float> (positionInfo->getBpm().orFallback (120.0));
     }
 #endif
+    // FX LFO modulation — add into mod sums before the effects loop
+    for (int modSlot = 0; modSlot < ProjectConfig::numModSlots; ++modSlot)
+    {
+        juce::String s = juce::String (modSlot + 1);
+        auto* srcParam = apvts.getRawParameterValue ("MOD_SRC_" + s);
+        auto* tgtParam = apvts.getRawParameterValue ("MOD_TGT_" + s);
+        auto* amtParam = apvts.getRawParameterValue ("MOD_AMT_" + s);
+        if (srcParam == nullptr || tgtParam == nullptr || amtParam == nullptr) continue;
+
+        int srcIdx = static_cast<int> (srcParam->load (std::memory_order_relaxed));
+        int tgtIdx = static_cast<int> (tgtParam->load (std::memory_order_relaxed));
+        float amt  = amtParam->load (std::memory_order_relaxed);
+
+        float lfoVal = 0.0f;
+        if      (srcIdx == 7) lfoVal = fxLfoOutput[0];
+        else if (srcIdx == 8) lfoVal = fxLfoOutput[1];
+	else if (srcIdx == 9) lfoVal = fxLfoOutput[2];
+        else continue; // operator sources handled inside voices
+
+        // FX targets start at index 31 in modTargetChoices (1 None + 6 ops x 5 params)
+        int fxBase = tgtIdx - 31;
+        if (fxBase < 0 || fxBase >= 15) continue;
+        int fxSlot  = fxBase / 5;
+        int fxParam = fxBase % 5;
+
+        float scaled = lfoVal * amt;
+        switch (fxParam)
+        {
+            case 0: fxRatioModSum[fxSlot]  += scaled; break;
+            case 1: fxDetuneModSum[fxSlot] += scaled; break;
+            case 2: fxPhaseModSum[fxSlot]  += scaled; break;
+            case 3: fxFoldModSum[fxSlot]   += scaled; break;
+            case 4: fxLevelModSum[fxSlot]  += scaled; break;
+        }
+    }
     // Now we start the effects loop
     {
         auto* leftData  = buffer.getWritePointer (0);

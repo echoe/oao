@@ -13,6 +13,25 @@ struct FMSound : public juce::SynthesiserSound
     bool appliesToChannel (int) override { return true; }
 };
 
+// Controlling FX LFOs.
+struct FXModLFO
+{
+    void prepare (double sampleRate) { currentSampleRate = sampleRate; }
+    void setRate (float hz) { rateHz = hz; }
+    float tick()
+    {
+        phase += (juce::MathConstants<double>::twoPi * rateHz) / currentSampleRate;
+        if (phase >= juce::MathConstants<double>::twoPi)
+            phase -= juce::MathConstants<double>::twoPi;
+        return std::sin (static_cast<float> (phase));
+    }
+
+private:
+    double phase = 0.0;
+    double currentSampleRate = 44100.0;
+    float  rateHz = 1.0f;
+};
+
 class FMPluginAudioProcessor  : public juce::AudioProcessor
 {
 public:
@@ -66,6 +85,9 @@ private:
     std::atomic<float>* fxDetuneParams[numFxSlots] { nullptr };
     std::atomic<float>* fxPhaseParams[numFxSlots]  { nullptr };
     std::atomic<float>* fxFoldParams[numFxSlots]   { nullptr };
+    // FX LFOs — three global, voice-independent modulators
+    FXModLFO fxLfo[3];
+    float fxLfoOutput[3] = { 0.0f, 0.0f };
     // One shared sample buffer per operator slot (shared across all voices, set once)
     std::array<std::shared_ptr<juce::AudioBuffer<float>>, ProjectConfig::numOperators> loadedSamples;
     // also for everything we need to flush on every run to not echo forever

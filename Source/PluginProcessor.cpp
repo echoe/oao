@@ -122,7 +122,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout FMPluginAudioProcessor::crea
 
     // Three Effects LFO Parameters
     juce::StringArray lfoWaveChoices   { "Sine", "Triangle", "Saw", "Square" };
-    auto              lfoTargetChoices = ProjectConfig::getFXLFOTargetChoices();
+    auto              lfoTargetChoices = ModChoices::fxtargets();
     for (int i = 0; i < 3; ++i)
     {
         juce::String s = juce::String (i + 1);
@@ -162,28 +162,9 @@ juce::AudioProcessorValueTreeState::ParameterLayout FMPluginAudioProcessor::crea
     }
 
     // --- MODULATION MATRIX: 6 SLOTS ---
-    // Sources: None + 6 Operators + 3 LFOs = 10 choices (index 0 = None, 1-6 = Op 1-6)
-    // Targets: None + 5 params x 6 ops + 3 effects x 5 params = 46 choices
-    juce::StringArray modSourceChoices {
-        "None",
-        "Op 1", "Op 2", "Op 3", "Op 4", "Op 5", "Op 6",
-	"FX LFO 1", "FX LFO 2", "FX LFO 3"
-    };
-    juce::StringArray modTargetChoices {
-        "None",
-        // Per-operator targets (5 params x 6 ops = 30)
-        "Op 1 Knob 1",  "Op 1 Knob 2", "Op 1 Knob 3", "Op 1 Knob 4", "Op 1 Level",
-        "Op 2 Knob 1",  "Op 2 Knob 2", "Op 2 Knob 3", "Op 2 Knob 4", "Op 2 Level",
-        "Op 3 Knob 1",  "Op 3 Knob 2", "Op 3 Knob 3", "Op 3 Knob 4", "Op 3 Level",
-        "Op 4 Knob 1",  "Op 4 Knob 2", "Op 4 Knob 3", "Op 4 Knob 4", "Op 4 Level",
-        "Op 5 Knob 1",  "Op 5 Knob 2", "Op 5 Knob 3", "Op 5 Knob 4", "Op 5 Level",
-        "Op 6 Knob 1",  "Op 6 Knob 2", "Op 6 Knob 3", "Op 6 Knob 4", "Op 6 Level",
-        // Effects targets (15)
-        "Fx 1 Knob 1",  "Fx 1 Knob 2", "Fx 1 Knob 3", "Fx 1 Knob 4", "Fx 1 Level",
-        "Fx 2 Knob 1",  "Fx 2 Knob 2", "Fx 2 Knob 3", "Fx 2 Knob 4", "Fx 2 Level",
-        "Fx 3 Knob 1",  "Fx 3 Knob 2", "Fx 3 Knob 3", "Fx 3 Knob 4", "Fx 3 Level",
-    };
-    
+    auto modSourceChoices = ModChoices::sources();
+    auto modTargetChoices = ModChoices::targets();
+
     for (int slot = 1; slot <= 6; ++slot)
     {
         juce::String s = juce::String (slot);

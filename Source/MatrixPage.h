@@ -4,31 +4,6 @@
 #include "OAOColors.h"
 #include "OAOLookAndFeel.h"
 
-// Shared choice lists for modulation — keep these in sync with PluginProcessor.cpp
-namespace ModChoices
-{
-    inline juce::StringArray sources()
-    {
-        return { "None", "Op 1", "Op 2", "Op 3", "Op 4", "Op 5", "Op 6", "FX LFO 1", "FX LFO 2" };
-    }
-
-    inline juce::StringArray targets()
-    {
-        return {
-            "None",
-            "Op 1 Knob A",  "Op 1 Knob B", "Op 1 Knob C", "Op 1 Knob D", "Op 1 Level",
-            "Op 2 Knob A",  "Op 2 Knob B", "Op 2 Knob C", "Op 2 Knob D", "Op 2 Level",
-            "Op 3 Knob A",  "Op 3 Knob B", "Op 3 Knob C", "Op 3 Knob D", "Op 3 Level",
-            "Op 4 Knob A",  "Op 4 Knob B", "Op 4 Knob C", "Op 4 Knob D", "Op 4 Level",
-            "Op 5 Knob A",  "Op 5 Knob B", "Op 5 Knob C", "Op 5 Knob D", "Op 5 Level",
-            "Op 6 Knob A",  "Op 6 Knob B", "Op 6 Knob C", "Op 6 Knob D", "Op 6 Level",
-	    "Fx 1 Knob A",  "Fx 1 Knob B", "Fx 1 Knob C", "Fx 1 Knob D", "Fx 1 Level",
-	    "Fx 2 Knob A",  "Fx 2 Knob B", "Fx 2 Knob C", "Fx 2 Knob D", "Fx 2 Level",
-	    "Fx 3 Knob A",  "Fx 3 Knob B", "Fx 3 Knob C", "Fx 3 Knob D", "Fx 3 Level",
-        };
-    }
-}
-
 // --- ONE ROW OF THE MODULATION MATRIX ---
 struct ModMatrixSlot : public juce::Component
 {

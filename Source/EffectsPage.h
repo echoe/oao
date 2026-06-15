@@ -29,7 +29,7 @@ public:
         addAndMakeVisible (waveSelector);
 
         // Target selector
-        targetSelector.addItemList (ProjectConfig::getFXLFOTargetChoices(), 1);
+        targetSelector.addItemList (ModChoices::fxtargets(), 1);
         targetSelector.setSelectedId (1, juce::dontSendNotification);
         addAndMakeVisible (targetSelector);
 

@@ -16,19 +16,6 @@ namespace ProjectConfig
     {
         return { "None", "Lowpass", "Highpass", "Bandpass", "Filter Drive", "Comb", "Formant", "Compressor", "3-bar EQ", "OTT", "Lofi", "Tape", "Chorus", "Old Chorus", "Distortion", "Bitcrush", "Ring Mod", "AP Reverb", "AP Delay", "Timeshift Delay", "Shimmer Delay", "DJFX Delay", "Scatter", "Granular", "Color Bass", "Spectral Freeze" };
     }
-    // FX LFO target list — 15 entries (3 slots x 5 params), index 0 = None
-    // Order must stay in sync with the fxRatioModSum/fxDetuneModSum/etc. arrays
-    // and with the dispatch in PluginProcessor (fxBase = tgtIdx - 1, fxSlot = fxBase/5, fxParam = fxBase%5)
-    inline juce::StringArray getFXLFOTargetChoices()
-    {
-        return {
-            "None",
-            "FX 1 Knob A", "FX 1 Knob B", "FX 1 Knob C", "FX 1 Knob D", "FX 1 Mix",
-            "FX 2 Knob A", "FX 2 Knob B", "FX 2 Knob C", "FX 2 Knob D", "FX 2 Mix",
-            "FX 3 Knob A", "FX 3 Knob B", "FX 3 Knob C", "FX 3 Knob D", "FX 3 Mix",
-        };
-    }
-
     // Effects knobs list
     inline std::array<const char*, 4> getEffectKnobLabels (int effectTypeIndex)
     {
@@ -62,5 +49,38 @@ namespace ProjectConfig
             case 25: return { "Freeze On", "Blend",    "Pitch",     "Blur"     }; // Spectral Freeze
 	    default: return { "A",         "B",        "C",         "D"        };
 	}
+    }
+}
+
+namespace ModChoices // Choices for LFOs
+{
+    inline juce::StringArray sources()
+    {
+        return { "None", "Op 1", "Op 2", "Op 3", "Op 4", "Op 5", "Op 6", "FX LFO 1", "FX LFO 2", "FX LFO 3" };
+    }
+
+    inline juce::StringArray targets()
+    {
+        return {
+            "None",
+            "Op 1 Knob A",  "Op 1 Knob B", "Op 1 Knob C", "Op 1 Knob D", "Op 1 Level",
+            "Op 2 Knob A",  "Op 2 Knob B", "Op 2 Knob C", "Op 2 Knob D", "Op 2 Level",
+            "Op 3 Knob A",  "Op 3 Knob B", "Op 3 Knob C", "Op 3 Knob D", "Op 3 Level",
+            "Op 4 Knob A",  "Op 4 Knob B", "Op 4 Knob C", "Op 4 Knob D", "Op 4 Level",
+            "Op 5 Knob A",  "Op 5 Knob B", "Op 5 Knob C", "Op 5 Knob D", "Op 5 Level",
+            "Op 6 Knob A",  "Op 6 Knob B", "Op 6 Knob C", "Op 6 Knob D", "Op 6 Level",
+            "FX 1 Knob A",  "FX 1 Knob B", "FX 1 Knob C", "FX 1 Knob D", "FX 1 Level",
+            "FX 2 Knob A",  "FX 2 Knob B", "FX 2 Knob C", "FX 2 Knob D", "FX 2 Level",
+            "FX 3 Knob A",  "FX 3 Knob B", "FX 3 Knob C", "FX 3 Knob D", "FX 3 Level",
+        };
+    }
+    inline juce::StringArray fxtargets()
+    {
+        return {
+            "None",
+            "FX 1 Knob A", "FX 1 Knob B", "FX 1 Knob C", "FX 1 Knob D", "FX 1 Mix",
+            "FX 2 Knob A", "FX 2 Knob B", "FX 2 Knob C", "FX 2 Knob D", "FX 2 Mix",
+            "FX 3 Knob A", "FX 3 Knob B", "FX 3 Knob C", "FX 3 Knob D", "FX 3 Mix",
+        };
     }
 }

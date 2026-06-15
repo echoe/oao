@@ -310,7 +310,7 @@ public:
                 float output           = internalEffect.processSampleAudioRate(audioInputSum, dynamicCutoff, currentK);
                 outputSample           = std::isfinite(output) ? std::tanh(output) : 0.0f;
             }
-            else if (effectType == 4) // Effect + Drive                  
+            else if (effectType == 4) // Filter + Drive                  
             {
                 float cutoff   = ratio; // 0.0 -> 1.0
                 float res      = juce::jlimit (0.0f, 1.0f, (detune + 50.0f) / 100.0f);

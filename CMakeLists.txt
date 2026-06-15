@@ -29,6 +29,7 @@ juce_add_plugin(OAO
     COPY_PLUGIN_AFTER_BUILD TRUE
     PLUGIN_MANUFACTURER_CODE "Ecoe"
     PLUGIN_PLUGIN_CODE "OAOS"
+    PLIST_TO_MERGE "<plist><dict><key>NSBluetoothAlwaysUsageDescription</key><string>This app uses Bluetooth to connect to external devices.</string><key>NSBluetoothPeripheralUsageDescription</key><string>This app uses Bluetooth to connect to external devices.</string></dict></plist>"
     FORMATS VST3 Standalone
     PRODUCT_NAME "OAO")
 

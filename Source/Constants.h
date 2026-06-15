@@ -8,6 +8,8 @@ namespace ProjectConfig
     static constexpr int numOperators = 6;
     // ModSlots, for FMVoice and FMOperator
     static constexpr int numModSlots = 6;
+    // EffectSlots, for EffectsPage
+    static constexpr int numEffects = 3;
     // Base plugin size
     static constexpr int pluginSizeX = 1000;
     static constexpr int pluginSizeY = 700;

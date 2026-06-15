@@ -4,9 +4,7 @@
 #include "Constants.h"
 #include "OAOColors.h"
 
-// ============================================================
 //  FX LFO SLOT  — one row in the LFO sidebar
-// ============================================================
 class FXLFOSlot : public juce::Component
 {
 public:
@@ -146,10 +144,7 @@ private:
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>   rateAttach, depthAttach;
 };
 
-
-// ============================================================
-//  EFFECTS SLOT  — unchanged from original
-// ============================================================
+// Effects slot - we make three of these to show the effects
 class EffectsSlot : public juce::Component
 {
 public:
@@ -160,14 +155,14 @@ public:
         effectSelector.addItemList (ProjectConfig::getEffectTypeChoices(), 1);
         effectSelector.setSelectedId (1, juce::dontSendNotification);
         addAndMakeVisible (effectSelector);
-        // Mix knob
+        
         mixSlider.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
         mixSlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 0, 0);
         addAndMakeVisible (mixSlider);
         mixLabel.setText ("Mix", juce::dontSendNotification);
         mixLabel.setJustificationType (juce::Justification::centred);
         addAndMakeVisible (mixLabel);
-        // Four knobs
+        
         for (int i = 0; i < 4; ++i)
         {
             knobs[i].setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
@@ -179,7 +174,7 @@ public:
         slotLabel.setText ("FX " + s, juce::dontSendNotification);
         slotLabel.setJustificationType (juce::Justification::centred);
         addAndMakeVisible (slotLabel);
-        // Attachments
+        
         effectAttach = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (
             apvts, "FX_TYPE_" + s, effectSelector);
         mixAttach = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
@@ -275,16 +270,14 @@ private:
 };
 
 
-// ============================================================
-//  EFFECTS PAGE  — 70% FX slots | 30% LFO sidebar
-// ============================================================
+//  EFFECTS PAGE  — show the FX and sidebar
 class EffectsPage : public juce::Component
 {
 public:
     EffectsPage (juce::AudioProcessorValueTreeState& apvts, OAOColors& c)
         : colors (c)
     {
-        for (int i = 0; i < 3; ++i)
+        for (int i = 0; i < ProjectConfig::numEffects; ++i)
         {
             slots.push_back (std::make_unique<EffectsSlot> (apvts, i, colors));
             addAndMakeVisible (*slots.back());
@@ -301,16 +294,15 @@ public:
         // Flow arrows between FX slots
         g.setColour (colors.text.withAlpha (0.3f));
         g.setFont (getHeight() * 0.03f);
-        int slotH = (int)(getHeight() / 3);
-        for (int i = 0; i < 2; ++i)
+        int slotH = (int)(getHeight() / ProjectConfig::numEffects);
+        // Draw dividers
+        for (int i = 0; i < (ProjectConfig::numEffects - 1); ++i)
         {
             int arrowY = slotH * (i + 1);
             g.drawText (juce::String (juce::CharPointer_UTF8 ("\xe2\x86\x93")),
                         (int)(splitX * 0.5f) - 10, arrowY - 12, 20, 20,
                         juce::Justification::centred);
         }
-
-        // Divider
         g.setColour (colors.text.withAlpha (0.15f));
         g.drawVerticalLine ((int)splitX, getHeight() * 0.01f, getHeight() * 0.99f);
     }
@@ -338,22 +330,21 @@ public:
         auto lfoArea = full;
 
         // FX slots
-        int slotH = (int)((fxArea.getHeight() - 2 * arrowH) / 3);
-        for (int i = 0; i < 3; ++i)
+        int slotH = (int)((fxArea.getHeight() - 2 * arrowH) / ProjectConfig::numEffects);
+        for (int i = 0; i < ProjectConfig::numEffects; ++i)
         {
             slots[i]->setBounds (fxArea.removeFromTop (slotH).reduced (0, (int)(h * 0.005f)));
-            if (i < 2) fxArea.removeFromTop ((int)arrowH);
+            if (i < (ProjectConfig::numEffects - 1)) fxArea.removeFromTop ((int)arrowH);
         }
 
         // LFO sidebar
-        int lfoH = lfoArea.getHeight() / 3;
-        for (int i = 0; i < 3; ++i)
+        int lfoH = lfoArea.getHeight() / ProjectConfig::numEffects;
+        for (int i = 0; i < ProjectConfig::numEffects; ++i)
             lfoSlots[i]->setBounds (lfoArea.removeFromTop (lfoH).reduced (2, (int)(h * 0.005f)));
     }
 
 private:
-    static constexpr float splitRatio = 0.70f;
-
+    static constexpr float splitRatio = 0.75f; // controls split between effects and effect lfos
     OAOColors& colors;
     std::vector<std::unique_ptr<EffectsSlot>> slots;
     std::vector<std::unique_ptr<FXLFOSlot>>   lfoSlots;

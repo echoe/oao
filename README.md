@@ -200,6 +200,7 @@ Take the incoming audio. Pause it. Twist it and reverse it.
 -- both choruses
 -- allpass delay and reverb
 -- ambient delay
+- There are also three LFOs, one per effect. The LFOs can only be assigned to effects within the effects page, but you can use them as a source in the mod matrix :)
 
 ## Settings
 - A settings page for a few things.

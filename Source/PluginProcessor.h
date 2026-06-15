@@ -24,6 +24,7 @@ struct FXModLFO
         currentSampleRate = sampleRate;
         juce::String s = juce::String (lfoIndex + 1);
         rateParam  = apvts.getRawParameterValue ("FX_LFO_RATE_"  + s);
+        rateSyncParam = apvts.getRawParameterValue ("FX_LFO_RATE_SYNC_" + s);
         depthParam = apvts.getRawParameterValue ("FX_LFO_DEPTH_" + s);
         waveParam  = apvts.getRawParameterValue ("FX_LFO_WAVE_"  + s);
         syncParam  = apvts.getRawParameterValue ("FX_LFO_SYNC_"  + s);
@@ -43,11 +44,19 @@ struct FXModLFO
 
         if (synced && activeBPM > 0.0f)
         {
-            // Map rate knob to one of five beat subdivisions: 1/1, 1/2, 1/4, 1/8, 1/16
-            const float subdivisions[] = { 1.0f, 2.0f, 4.0f, 8.0f, 16.0f };
-            float normalized = (rate - 0.01f) / (20.0f - 0.01f);
-            int subIdx = juce::jlimit (0, 4, static_cast<int> (normalized * 5.0f));
-            rate = (activeBPM / 60.0f) * subdivisions[subIdx];
+            // Simply grab the index (0-8) from the choice parameter
+            int subIdx = static_cast<int> (rateSyncParam->load (std::memory_order_relaxed));
+            
+            // Use an array that matches your Constants.h syncRates order
+            const float multipliers[] = { 0.125f, 0.25f, 0.5f, 1.0f, 2.0f, 4.0f, 8.0f, 16.0f, 32.0f };
+            subIdx = juce::jlimit (0, 8, subIdx);
+
+            // Calculate rate based on BPM
+            rate = (activeBPM / 60.0f) * multipliers[subIdx];
+        }
+        else
+        {
+            rate = rateParam->load (std::memory_order_relaxed);
         }
 
         // Advance phase by one sample (negative rate runs LFO in reverse)
@@ -101,6 +110,7 @@ private:
     double phase = 0.0;
     double currentSampleRate = 44100.0;
     std::atomic<float>* rateParam  = nullptr;
+    std::atomic<float>* rateSyncParam = nullptr;
     std::atomic<float>* depthParam = nullptr;
     std::atomic<float>* waveParam  = nullptr;
     std::atomic<float>* syncParam  = nullptr;

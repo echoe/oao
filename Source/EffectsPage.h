@@ -40,6 +40,12 @@ public:
         rateSlider.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
         rateSlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 0, 0);
         addAndMakeVisible (rateSlider);
+        // Second Rate knob for if it's synced
+        rateSyncSlider.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
+        rateSyncSlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 0, 0);
+        addAndMakeVisible (rateSyncSlider);
+        
+
         rateLabel.setText ("Rate", juce::dontSendNotification);
         rateLabel.setJustificationType (juce::Justification::centred);
         addAndMakeVisible (rateLabel);
@@ -61,8 +67,21 @@ public:
             apvts, "FX_LFO_SYNC_"  + s, syncButton);
         rateAttach   = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
             apvts, "FX_LFO_RATE_"  + s, rateSlider);
+        rateSyncAttach = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
+            apvts, "FX_LFO_RATE_SYNC_" + s, rateSyncSlider);
         depthAttach  = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
             apvts, "FX_LFO_DEPTH_" + s, depthSlider);
+
+        // Swap knob visibility
+        syncButton.onClick = [this]() 
+        { 
+            bool isSynced = syncButton.getToggleState();
+            rateSlider.setVisible (!isSynced);
+            rateSyncSlider.setVisible (isSynced);
+        };
+        
+        // 4. Force the initial state on boot
+        syncButton.onClick();
     }
 
     void paint (juce::Graphics& g) override
@@ -87,12 +106,15 @@ public:
 
         rateSlider.setColour  (juce::Slider::textBoxBackgroundColourId, colors.surface);
         rateSlider.setColour  (juce::Slider::textBoxTextColourId,       colors.text);
+        rateSyncSlider.setColour  (juce::Slider::textBoxBackgroundColourId, colors.surface);
+        rateSyncSlider.setColour  (juce::Slider::textBoxTextColourId,       colors.text);
         depthSlider.setColour (juce::Slider::textBoxBackgroundColourId, colors.surface);
         depthSlider.setColour (juce::Slider::textBoxTextColourId,       colors.text);
 
         waveSelector.sendLookAndFeelChange();
         targetSelector.sendLookAndFeelChange();
         rateSlider.sendLookAndFeelChange();
+        rateSyncSlider.sendLookAndFeelChange();
         depthSlider.sendLookAndFeelChange();
     }
 
@@ -122,6 +144,8 @@ public:
         rateLabel.setBounds (rateArea.removeFromBottom (getHeight() * 0.15f));
         rateSlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, textBoxW, textBoxH);
         rateSlider.setBounds (rateArea);
+        rateSyncSlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, textBoxW, textBoxH);
+        rateSyncSlider.setBounds (rateArea); //put in the same place
 
         depthLabel.setBounds (area.removeFromBottom (getHeight() * 0.15f));
         depthSlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, textBoxW, textBoxH);
@@ -135,13 +159,13 @@ private:
     juce::ComboBox   waveSelector;
     juce::ComboBox   targetSelector;
     juce::TextButton syncButton;
-    juce::Slider     rateSlider,  depthSlider;
+    juce::Slider     rateSlider,  depthSlider, rateSyncSlider;
     juce::Label      rateLabel,   depthLabel;
 
     std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> waveAttach;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> targetAttach;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment>   syncAttach;
-    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>   rateAttach, depthAttach;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>   rateAttach, depthAttach, rateSyncAttach;
 };
 
 // Effects slot - we make three of these to show the effects

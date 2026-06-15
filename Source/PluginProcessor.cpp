@@ -25,7 +25,7 @@ FMPluginAudioProcessor::FMPluginAudioProcessor()
     }
     synth.addSound (new FMSound());
 #endif
-    for (int i = 0; i < numFxSlots; ++i)
+    for (int i = 0; i < ProjectConfig::numEffects; ++i)
     {
         juce::String s = juce::String (i + 1);
         fxTypeParams[i]   = apvts.getRawParameterValue ("FX_TYPE_"   + s);
@@ -68,6 +68,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout FMPluginAudioProcessor::crea
     juce::StringArray modeChoices { "Wave", "Additive", "Effect", "Sample" };
     juce::StringArray waveShapeChoices { "Sine", "Triangle", "Saw", "Square", "Pulse", "SquarePWM", "White Noise", "Pink Noise" };
     juce::StringArray freqModeChoices { "Standard", "Sync", "Hz", "LFO" };
+    juce::StringArray lfosyncRates = { "8/1", "4/1", "2/1", "1/1", "1/2", "1/4", "1/8", "1/16", "1/32" }; // for Sync LFOs
     auto effectTypeChoices = ProjectConfig::getEffectTypeChoices();
 
     // Setting up an option to use when/if you see too many decimal attributes ...
@@ -88,7 +89,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout FMPluginAudioProcessor::crea
         params.push_back (std::make_unique<juce::AudioParameterChoice> (juce::ParameterID { "FILTER_TYPE_" + opNum, 1 }, "Op " + opNum + " Effect Type", effectTypeChoices, 0));
         // Tempo Sync/hz lock/LFO mode
         params.push_back (std::make_unique<juce::AudioParameterChoice> (juce::ParameterID { "FREQ_MODE_" + opNum, 1 }, "Op " + opNum + " Freq Mode", freqModeChoices, 0));
-	// Osc Settings - Ratios, Detune, Phase, Fold. We repurpose these for effect
+	// Osc Settings - Ratios, Detune, Phase, Fold. We repurpose these for everything
         params.push_back (std::make_unique<juce::AudioParameterFloat> (juce::ParameterID {"RATIO_" + opNum, 1}, "Op " + opNum + " Ratio", 0.01f, 16.0f, 1.0f));
         params.push_back (std::make_unique<juce::AudioParameterFloat> (juce::ParameterID {"DETUNE_" + opNum, 1}, "Op " + opNum + " Detune", -50.0f, 50.0f, 0.0f));
         params.push_back (std::make_unique<juce::AudioParameterFloat> (juce::ParameterID { "PHASE_" + opNum, 1 }, "Op " + opNum + " Phase", 0.0f, 360.0f, 0.0f));
@@ -101,9 +102,8 @@ juce::AudioProcessorValueTreeState::ParameterLayout FMPluginAudioProcessor::crea
         // Output Levels
         params.push_back (std::make_unique<juce::AudioParameterFloat> (juce::ParameterID {"OUT_" + opNum, 1}, "Op " + opNum + " Out Level", 0.0f, 1.0f, (i == 0) ? 1.0f : 0.0f));
     }
-    // Effects page — 3 slots, each with type, sync, mix, and 4 knobs
-    const int numFxSlots = 3;
-    for (int i = 0; i < numFxSlots; ++i)
+    // Effects page — slots, each with type, sync, mix, and 4 knobs
+    for (int i = 0; i < ProjectConfig::numEffects; ++i)
     {
         juce::String s = juce::String (i + 1);
         params.push_back (std::make_unique<juce::AudioParameterChoice> (
@@ -120,10 +120,10 @@ juce::AudioProcessorValueTreeState::ParameterLayout FMPluginAudioProcessor::crea
             juce::ParameterID { "FX_FOLD_" + s, 1 }, "FX " + s + " Fold", 0.0f, 1.0f, 0.0f));
     }
 
-    // Three Effects LFO Parameters
+    // Effects LFO Parameters
     juce::StringArray lfoWaveChoices   { "Sine", "Triangle", "Saw", "Square" };
     auto              lfoTargetChoices = ModChoices::fxtargets();
-    for (int i = 0; i < 3; ++i)
+    for (int i = 0; i < ProjectConfig::numEffects; ++i)
     {
         juce::String s = juce::String (i + 1);
         params.push_back (std::make_unique<juce::AudioParameterChoice> (
@@ -133,6 +133,8 @@ juce::AudioProcessorValueTreeState::ParameterLayout FMPluginAudioProcessor::crea
         params.push_back (std::make_unique<juce::AudioParameterFloat> (
             juce::ParameterID { "FX_LFO_RATE_" + s, 1 }, "FX LFO " + s + " Rate",
             juce::NormalisableRange<float> (0.0f, 20.0f, 0.0f, 1.0f), 1.0f, twoDecimalAttributes)); // don't show full float
+        params.push_back (std::make_unique<juce::AudioParameterChoice> (
+            juce::ParameterID ( "FX_LFO_RATE_SYNC_" + s, 1), "Rate Sync", lfosyncRates, 5));
         params.push_back (std::make_unique<juce::AudioParameterFloat> (
             juce::ParameterID { "FX_LFO_DEPTH_" + s, 1 }, "FX LFO " + s + " Depth", -1.0f, 1.0f, 0.0f));
         params.push_back (std::make_unique<juce::AudioParameterChoice> (
@@ -246,7 +248,7 @@ void FMPluginAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlo
         }
 #endif
     setOversamplingFactor (1);
-    for (int i = 0; i < numFxSlots; ++i)
+    for (int i = 0; i < ProjectConfig::numEffects; ++i)
     {
 	for (int ch = 0; ch < 2; ++ch)
 	{
@@ -255,7 +257,7 @@ void FMPluginAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlo
 	}
     }
     // Start LFOs — cache APVTS param pointers at prepare time
-    for (int i = 0; i < 3; ++i)
+    for (int i = 0; i < ProjectConfig::numEffects; ++i)
         fxLfo[i].prepare (sampleRate, apvts, i);
 }
 
@@ -268,8 +270,7 @@ void FMPluginAudioProcessor::updateVoices()
     {
         if (auto* voice = dynamic_cast<FMVoice*> (synth.getVoice (i)))
         {
-            // In a production build, add a thread-safe method inside `FMVoice` 
-            // (e.g., voice->updateParameters(...)) to read these parameters atomically.
+            // In a production build, add a thread-safe method inside `FMVoice` (e.g., voice->updateParameters(...)) to read these parameters atomically.
         }
     }
 }
@@ -343,11 +344,11 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
 
 #ifndef OAO_FX_ONLY
     // Collect per-voice FX modulation (synth mode only — no voices in FX mode)
-    std::array<float, 3> fxRatioModSum  { 0.0f, 0.0f, 0.0f };
-    std::array<float, 3> fxDetuneModSum { 0.0f, 0.0f, 0.0f };
-    std::array<float, 3> fxPhaseModSum  { 0.0f, 0.0f, 0.0f };
-    std::array<float, 3> fxFoldModSum   { 0.0f, 0.0f, 0.0f };
-    std::array<float, 3> fxLevelModSum  { 0.0f, 0.0f, 0.0f };
+    std::array<float, ProjectConfig::numEffects> fxRatioModSum  { 0.0f, 0.0f, 0.0f };
+    std::array<float, ProjectConfig::numEffects> fxDetuneModSum { 0.0f, 0.0f, 0.0f };
+    std::array<float, ProjectConfig::numEffects> fxPhaseModSum  { 0.0f, 0.0f, 0.0f };
+    std::array<float, ProjectConfig::numEffects> fxFoldModSum   { 0.0f, 0.0f, 0.0f };
+    std::array<float, ProjectConfig::numEffects> fxLevelModSum  { 0.0f, 0.0f, 0.0f };
 
     for (int v = 0; v < synth.getNumVoices(); ++v)
     {
@@ -355,7 +356,7 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
         {
             if (voice->isVoiceActive())
             {
-                for (int i = 0; i < 3; ++i)
+                for (int i = 0; i < ProjectConfig::numEffects; ++i)
                 {
                     fxRatioModSum[i]  += voice->fxRatioMods[i].load  (std::memory_order_relaxed);
                     fxDetuneModSum[i] += voice->fxDetuneMods[i].load (std::memory_order_relaxed);
@@ -374,11 +375,11 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
     }
 #else
     // No voice modulation in FX mode — zero everything
-    std::array<float, 3> fxRatioModSum  { 0.0f, 0.0f, 0.0f };
-    std::array<float, 3> fxDetuneModSum { 0.0f, 0.0f, 0.0f };
-    std::array<float, 3> fxPhaseModSum  { 0.0f, 0.0f, 0.0f };
-    std::array<float, 3> fxFoldModSum   { 0.0f, 0.0f, 0.0f };
-    std::array<float, 3> fxLevelModSum  { 0.0f, 0.0f, 0.0f };
+    std::array<float, ProjectConfig::numEffects> fxRatioModSum  { 0.0f, 0.0f, 0.0f };
+    std::array<float, ProjectConfig::numEffects> fxDetuneModSum { 0.0f, 0.0f, 0.0f };
+    std::array<float, ProjectConfig::numEffects> fxPhaseModSum  { 0.0f, 0.0f, 0.0f };
+    std::array<float, ProjectConfig::numEffects> fxFoldModSum   { 0.0f, 0.0f, 0.0f };
+    std::array<float, ProjectConfig::numEffects> fxLevelModSum  { 0.0f, 0.0f, 0.0f };
     // Also need activeBPM for tempo-sync in the FX loop
     float activeBPM = 120.0f;
     if (auto* playHead = getPlayHead())
@@ -394,7 +395,7 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
         auto* rightData  = buffer.getWritePointer (1);
         int   numSamples = buffer.getNumSamples();
 
-        for (int slot = 0; slot < numFxSlots; ++slot)
+        for (int slot = 0; slot < ProjectConfig::numEffects; ++slot)
         {
             int effectType = static_cast<int> (fxTypeParams[slot]->load (std::memory_order_relaxed));
 
@@ -420,7 +421,7 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
             // Determine which LFO (if any) targets this slot, and which param
             int lfoTargetParam = -1;
             int lfoIndex       = -1;
-            for (int lfo = 0; lfo < 3; ++lfo)
+            for (int lfo = 0; lfo < ProjectConfig::numEffects; ++lfo)
             {
                 int t = fxLfo[lfo].getTarget();
                 if (t >= 0 && t / 5 == slot)
@@ -923,7 +924,7 @@ void FMPluginAudioProcessor::reset() // This function solves issues if you're lo
             }
         }
     // and clear effects
-    for (int i = 0; i < numFxSlots; ++i)
+    for (int i = 0; i < ProjectConfig::numEffects; ++i)
     {
 	for (int ch = 0; ch < 2; ++ch)
 	{

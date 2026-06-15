@@ -70,6 +70,13 @@ juce::AudioProcessorValueTreeState::ParameterLayout FMPluginAudioProcessor::crea
     juce::StringArray freqModeChoices { "Standard", "Sync", "Hz", "LFO" };
     auto effectTypeChoices = ProjectConfig::getEffectTypeChoices();
 
+    // Setting up an option to use when/if you see too many decimal attributes ...
+    auto twoDecimalAttributes = juce::AudioParameterFloatAttributes()
+        .withStringFromValueFunction ([](float value, int) 
+        { 
+            return juce::String (value, 2); 
+        });
+
     // Generate parameters for each operator dynamically
     for (int i = 0; i < ProjectConfig::numOperators; ++i)
     {
@@ -125,7 +132,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout FMPluginAudioProcessor::crea
             juce::ParameterID { "FX_LFO_SYNC_" + s, 1 }, "FX LFO " + s + " Sync", false));
         params.push_back (std::make_unique<juce::AudioParameterFloat> (
             juce::ParameterID { "FX_LFO_RATE_" + s, 1 }, "FX LFO " + s + " Rate",
-            juce::NormalisableRange<float> (0.0f, 20.0f, 0.0f, 1.0f), 1.0f));
+            juce::NormalisableRange<float> (0.0f, 20.0f, 0.0f, 1.0f), 1.0f, twoDecimalAttributes)); // don't show full float
         params.push_back (std::make_unique<juce::AudioParameterFloat> (
             juce::ParameterID { "FX_LFO_DEPTH_" + s, 1 }, "FX LFO " + s + " Depth", -1.0f, 1.0f, 0.0f));
         params.push_back (std::make_unique<juce::AudioParameterChoice> (
@@ -400,66 +407,82 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
             activeBPM = static_cast<float> (positionInfo->getBpm().orFallback (120.0));
     }
 #endif
-    // Tick FX LFOs (activeBPM is now available in both synth and FX modes)
-    // and dispatch directly into mod sums via each LFO's cached target param
-    int   numSamples = buffer.getNumSamples();
-    for (int i = 0; i < 3; ++i)
-    {
-        fxLfoOutput[i] = fxLfo[i].tick (activeBPM, numSamples);
-        int target = fxLfo[i].getTarget();
-        if (target < 0) continue;
-        int fxSlot  = target / 5;
-        int fxParam = target % 5;
-        switch (fxParam)
-        {
-            case 0: fxRatioModSum[fxSlot]  += fxLfoOutput[i]; break;
-            case 1: fxDetuneModSum[fxSlot] += fxLfoOutput[i]; break;
-            case 2: fxPhaseModSum[fxSlot]  += fxLfoOutput[i]; break;
-            case 3: fxFoldModSum[fxSlot]   += fxLfoOutput[i]; break;
-            case 4: fxLevelModSum[fxSlot]  += fxLfoOutput[i]; break;
-            default: break;
-        }
-    }
     // Now we start the effects loop
     {
-        auto* leftData  = buffer.getWritePointer (0);
-        auto* rightData = buffer.getWritePointer (1);
+        auto* leftData   = buffer.getWritePointer (0);
+        auto* rightData  = buffer.getWritePointer (1);
         int   numSamples = buffer.getNumSamples();
-    
+
         for (int slot = 0; slot < numFxSlots; ++slot)
         {
-            int   effectType = static_cast<int> (fxTypeParams[slot]->load  (std::memory_order_relaxed));
-            float ratio  = fxRatioParams[slot]->load  (std::memory_order_relaxed) + fxRatioModSum[slot];
-            float detune = fxDetuneParams[slot]->load (std::memory_order_relaxed) + fxDetuneModSum[slot];
-            float phase  = fxPhaseParams[slot]->load  (std::memory_order_relaxed) + fxPhaseModSum[slot];
-            float fold   = fxFoldParams[slot]->load   (std::memory_order_relaxed) + fxFoldModSum[slot];
-            float mix    = juce::jlimit (0.0f, 1.0f,
-                                         fxMixParams[slot]->load (std::memory_order_relaxed) + fxLevelModSum[slot]);
-            for (int ch = 0; ch < 2; ++ch) 
+            int effectType = static_cast<int> (fxTypeParams[slot]->load (std::memory_order_relaxed));
+
+            for (int ch = 0; ch < 2; ++ch)
             {
                 if (effectType != lastFxEffectType[slot])
                 {
-                    fxEffects[slot][ch].reset(); 
+                    fxEffects[slot][ch].reset();
                     lastFxEffectType[slot] = effectType;
                 }
             }
 
             if (effectType == 0) continue; // None — skip entirely
 
-            // Shared pre-computations only used by filters (1-3) and granular (23)
-            // All other effects map raw knob values directly to avoid LFO range squashing
-            float normalizedRatio = juce::jlimit (0.0f, 1.0f, (ratio - 0.01f) / (16.0f - 0.01f));
-            float baseCutoff      = 20.0f * std::pow (1000.0f, normalizedRatio);
-            // Resonance for filters only — derived from detune, clamped tightly
-            float filterRes       = juce::jlimit (0.001f, 0.95f, (detune + 50.0f) / 100.0f);
-            float coupledRes      = filterRes * filterRes;
+            // Base knob values + per-buffer voice mod sums (voice mods are per-buffer)
+            float baseRatio  = fxRatioParams[slot]->load  (std::memory_order_relaxed) + fxRatioModSum[slot];
+            float baseDetune = fxDetuneParams[slot]->load (std::memory_order_relaxed) + fxDetuneModSum[slot];
+            float basePhase  = fxPhaseParams[slot]->load  (std::memory_order_relaxed) + fxPhaseModSum[slot];
+            float baseFold   = fxFoldParams[slot]->load   (std::memory_order_relaxed) + fxFoldModSum[slot];
+            float baseMix    = juce::jlimit (0.0f, 1.0f,
+                                             fxMixParams[slot]->load (std::memory_order_relaxed) + fxLevelModSum[slot]);
+
+            // Determine which LFO (if any) targets this slot, and which param
+            int lfoTargetParam = -1;
+            int lfoIndex       = -1;
+            for (int lfo = 0; lfo < 3; ++lfo)
+            {
+                int t = fxLfo[lfo].getTarget();
+                if (t >= 0 && t / 5 == slot)
+                {
+                    lfoTargetParam = t % 5;
+                    lfoIndex       = lfo;
+                    break; // one LFO per slot for now
+                }
+            }
 
             for (int i = 0; i < numSamples; ++i)
             {
+                // Tick the LFO once per sample and apply to the right parameter
+                float ratio  = baseRatio;
+                float detune = baseDetune;
+                float phase  = basePhase;
+                float fold   = baseFold;
+                float mix    = baseMix;
+
+                if (lfoIndex >= 0)
+                {
+                    float lfoVal = fxLfo[lfoIndex].tick (activeBPM);
+                    switch (lfoTargetParam)
+                    {
+                        case 0: ratio  += lfoVal * 16.0f;  break; // ratio range ~0-16
+                        case 1: detune += lfoVal * 50.0f;  break; // detune range -50 to +50
+                        case 2: phase  += lfoVal * 360.0f; break; // phase range 0-360
+                        case 3: fold   += lfoVal;          break; // fold range 0-1
+                        case 4: mix     = juce::jlimit (0.0f, 1.0f, mix + lfoVal); break; // mix 0-1
+                        default: break;
+                    }
+                }
+
                 float inL = leftData[i];
                 float inR = rightData[i];
                 float outL = inL;
                 float outR = inR;
+
+                // Shared pre-computations for filter-family effects
+                float normalizedRatio = juce::jlimit (0.0f, 1.0f, (ratio - 0.01f) / (16.0f - 0.01f));
+                float baseCutoff      = 20.0f * std::pow (1000.0f, normalizedRatio);
+                float filterRes       = juce::jlimit (0.001f, 0.95f, (detune + 50.0f) / 100.0f);
+                float coupledRes      = filterRes * filterRes;
 
                 // TRUE STEREO EFFECTS
                 // Each passes raw modulated values directly — no shared intermediary squashing

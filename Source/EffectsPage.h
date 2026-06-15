@@ -103,7 +103,7 @@ public:
         auto area = getLocalBounds().reduced (getWidth() * 0.02f);
 
         // Top row: label | wave selector | sync button
-        auto topRow = area.removeFromTop (getHeight() * 0.25f);
+        auto topRow = area.removeFromTop (getHeight() * 0.17f);
         label.setBounds        (topRow.removeFromLeft  (topRow.getWidth() * 0.20f));
         syncButton.setBounds   (topRow.removeFromRight (topRow.getWidth() * 0.22f).reduced (2));
         waveSelector.setBounds (topRow.reduced (2));
@@ -111,7 +111,7 @@ public:
         area.removeFromTop (getHeight() * 0.02f);
 
         // Middle row: target selector (full width)
-        targetSelector.setBounds (area.removeFromTop (getHeight() * 0.25f).reduced (2));
+        targetSelector.setBounds (area.removeFromTop (getHeight() * 0.17f).reduced (2));
 
         area.removeFromTop (getHeight() * 0.02f);
 
@@ -313,14 +313,6 @@ public:
         // Divider
         g.setColour (colors.text.withAlpha (0.15f));
         g.drawVerticalLine ((int)splitX, getHeight() * 0.01f, getHeight() * 0.99f);
-
-        // Sidebar header
-        g.setColour (colors.text.withAlpha (0.6f));
-        g.setFont (getHeight() * 0.025f);
-        g.drawText ("FX LFOs",
-                    (int)splitX, 0,
-                    getWidth() - (int)splitX, (int)(getHeight() * 0.04f),
-                    juce::Justification::centred);
     }
 
     void lookAndFeelChanged() override
@@ -354,7 +346,6 @@ public:
         }
 
         // LFO sidebar
-        lfoArea.removeFromTop ((int)(h * 0.04f)); // header space
         int lfoH = lfoArea.getHeight() / 3;
         for (int i = 0; i < 3; ++i)
             lfoSlots[i]->setBounds (lfoArea.removeFromTop (lfoH).reduced (2, (int)(h * 0.005f)));

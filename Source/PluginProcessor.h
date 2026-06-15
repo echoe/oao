@@ -13,7 +13,9 @@ struct FMSound : public juce::SynthesiserSound
     bool appliesToChannel (int) override { return true; }
 };
 
-// Controlling FX LFOs.
+// FX LFO — global, voice-independent modulator for the effects chain.
+// Caches APVTS raw parameter pointers at prepare() time for lock-free audio-thread reads.
+// tick() advances phase by one sample and returns output scaled by depth — call per sample.
 struct FXModLFO
 {
     // Call once in prepareToPlay — caches all param pointers and sample rate
@@ -30,28 +32,32 @@ struct FXModLFO
                  waveParam != nullptr && syncParam  != nullptr && tgtParam != nullptr);
     }
 
-    // Returns the LFO output scaled by depth. Call once per buffer.
-    float tick (float activeBPM, int numSamples)
+    // Advance phase by one sample and return LFO output scaled by depth.
+    // Call once per sample inside the effects loop.
+    float tick (float activeBPM)
     {
         float rate   = rateParam  != nullptr ? rateParam->load  (std::memory_order_relaxed) : 1.0f;
         float depth  = depthParam != nullptr ? depthParam->load (std::memory_order_relaxed) : 1.0f;
         bool  synced = syncParam  != nullptr && syncParam->load (std::memory_order_relaxed) > 0.5f;
         int   wave   = waveParam  != nullptr ? static_cast<int> (waveParam->load (std::memory_order_relaxed)) : 0;
-    
+
         if (synced && activeBPM > 0.0f)
         {
+            // Map rate knob to one of five beat subdivisions: 1/1, 1/2, 1/4, 1/8, 1/16
             const float subdivisions[] = { 1.0f, 2.0f, 4.0f, 8.0f, 16.0f };
             float normalized = (rate - 0.01f) / (20.0f - 0.01f);
             int subIdx = juce::jlimit (0, 4, static_cast<int> (normalized * 5.0f));
             rate = (activeBPM / 60.0f) * subdivisions[subIdx];
         }
-    
-        // Advance by a full buffer's worth of phase, not just one sample
-        phase += (juce::MathConstants<double>::twoPi * rate * numSamples) / currentSampleRate;
-        if (phase >= juce::MathConstants<double>::twoPi)
-            phase -= juce::MathConstants<double>::twoPi;
 
-        float raw = 0.0f;
+        // Advance phase by one sample (negative rate runs LFO in reverse)
+        phase += (juce::MathConstants<double>::twoPi * (double)rate) / currentSampleRate;
+        while (phase >= juce::MathConstants<double>::twoPi)
+            phase -= juce::MathConstants<double>::twoPi;
+        while (phase < 0.0)
+            phase += juce::MathConstants<double>::twoPi;
+
+        float raw    = 0.0f;
         float fPhase = static_cast<float> (phase);
         float twoPi  = static_cast<float> (juce::MathConstants<double>::twoPi);
         switch (wave)
@@ -79,7 +85,7 @@ struct FXModLFO
     }
 
     // Returns encoded target: -1 for None, otherwise (fxSlot * 5 + fxParam)
-    // fxSlot = result/5, fxParam = result%5  (0=Ratio,1=Detune,2=Phase,3=Fold,4=Level)
+    // fxSlot = result/5, fxParam = result%5  (0=Ratio, 1=Detune, 2=Phase, 3=Fold, 4=Level)
     int getTarget() const
     {
         if (tgtParam == nullptr) return -1;
@@ -88,6 +94,8 @@ struct FXModLFO
         if (fxBase < 0 || fxBase >= 15) return -1;
         return fxBase;
     }
+
+    bool isPrepared() const { return rateParam != nullptr; }
 
 private:
     double phase = 0.0;
@@ -153,7 +161,6 @@ private:
     std::atomic<float>* fxFoldParams[numFxSlots]   { nullptr };
     // FX LFOs — three global, voice-independent modulators
     FXModLFO fxLfo[3];
-    float fxLfoOutput[3] = { 0.0f, 0.0f, 0.0f };
     // One shared sample buffer per operator slot (shared across all voices, set once)
     std::array<std::shared_ptr<juce::AudioBuffer<float>>, ProjectConfig::numOperators> loadedSamples;
     // also for everything we need to flush on every run to not echo forever

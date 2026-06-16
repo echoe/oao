@@ -403,7 +403,7 @@ public:
     }
 
     // Granular Resonator / Glitch Effect
-    float processSampleGranular (float input, float freqHz, float scatterAmount, float grainDurationMs, float feedback, float dampingNormalized)
+    float processSampleGranular (float input, float freqHz, float grainDurationMs, float scatterAmount, float dampingNormalized, float feedback)
     {
         if (combBuffer.empty()) return input;
         

@@ -537,13 +537,13 @@ public:
                 float granularFreq = baseFrequency + (modulationSum * 200.0f);
                 granularFreq = juce::jlimit(20.0f, static_cast<float>(currentSampleRate) * 0.49f, granularFreq);
                 // set floats for each variable to current knobs, scale knobs to scale required for vars
-                float scatterAmt      = juce::jlimit(0.0f, 1.0f, phaseKnob / 360.0f);
                 float grainDurationMs = juce::jmap((ratio - 0.01f) / (16.0f - 0.01f), 0.0f, 1.0f, 10.0f, 1000.0f);
+		float scatterAmt      = juce::jlimit(0.0f, 1.0f, (detune + 50.0f) / 100.0f);
+		float dampingAmt      = juce::jlimit(0.001f, 0.95f, phaseKnob / 360.0f);
                 float feedbackAmt     = juce::jlimit(-0.95f, 0.95f, (foldKnob * 2.0f) - 1.0f);
-                float dampingAmt      = juce::jlimit(0.001f, 0.95f, (detune + 50.0f) / 100.0f);
                 // output
-                float output = internalEffect.processSampleGranular(audioInputSum, granularFreq, scatterAmt, grainDurationMs, feedbackAmt, dampingAmt);
-                outputSample = std::isfinite(output) ? std::tanh(output) : 0.0f;
+                float output = internalEffect.processSampleGranular(audioInputSum, granularFreq, grainDurationMs, scatterAmt, dampingAmt, feedbackAmt);
+		outputSample = std::isfinite(output) ? std::tanh(output) : 0.0f;
             }
             else if (effectType == 24) // Color Bass
             {

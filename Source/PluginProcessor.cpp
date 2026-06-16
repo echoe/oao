@@ -683,10 +683,10 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
                             case 23: // Granular: Grain Size | Damping | Scatter | Feedback
                             {
                                 float grainDurationMs = juce::jmap (normalizedRatio, 0.0f, 1.0f, 10.0f, 1000.0f);
-                                float damping         = juce::jlimit (0.0f, 0.95f, (detune + 50.0f) / 100.0f);
-                                float scatterAmt      = juce::jlimit (0.0f, 1.0f, phase / 360.0f);
-                                float feedback        = juce::jlimit (-0.95f, 0.95f, fold * 2.0f - 1.0f);
-                                outArr[ch] = fxEffects[slot][ch].processSampleGranular (inArr[ch], baseCutoff, scatterAmt, grainDurationMs, feedback, damping);
+                                float scatterAmt = juce::jlimit (0.0f, 1.0f, (detune + 50.0f) / 100.0f);
+                                float dampingAmt = juce::jlimit (0.001f, 0.95f, phase / 360.0f);
+                                float feedbackAmt = juce::jlimit (-0.95f, 0.95f, fold * 2.0f - 1.0f);
+                                outArr[ch] = fxEffects[slot][ch].processSampleGranular (inArr[ch], baseCutoff, grainDurationMs, scatterAmt, dampingAmt, feedbackAmt);
                                 outArr[ch] = std::isfinite (outArr[ch]) ? std::tanh (outArr[ch]) : 0.0f;
                                 break;
                             }

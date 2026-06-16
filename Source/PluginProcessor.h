@@ -155,6 +155,7 @@ public:
     std::array<float, scopeBufferSize> scopeBuffer { 0.0f };
     std::atomic<int> scopeWritePos { 0 };
 private:
+    juce::AudioBuffer<float> inputCapture;
     juce::Synthesiser synth;
     WaveTable waveTable; //single shared instance for all operators
     juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();

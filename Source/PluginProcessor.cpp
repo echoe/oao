@@ -93,7 +93,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout FMPluginAudioProcessor::crea
         params.push_back (std::make_unique<juce::AudioParameterFloat> (juce::ParameterID {"RATIO_" + opNum, 1}, "Op " + opNum + " Ratio", 0.01f, 16.0f, 1.0f));
         params.push_back (std::make_unique<juce::AudioParameterFloat> (juce::ParameterID {"DETUNE_" + opNum, 1}, "Op " + opNum + " Detune", -50.0f, 50.0f, 0.0f));
         params.push_back (std::make_unique<juce::AudioParameterFloat> (juce::ParameterID { "PHASE_" + opNum, 1 }, "Op " + opNum + " Phase", 0.0f, 360.0f, 0.0f));
-	params.push_back (std::make_unique<juce::AudioParameterFloat> (juce::ParameterID { "FOLD_" + opNum, 1 }, "Op " + opNum + " Phase", 0.0f, 1.0f, 0.0f));
+	params.push_back (std::make_unique<juce::AudioParameterFloat> (juce::ParameterID { "FOLD_" + opNum, 1 }, "Op " + opNum + " Fold", 0.0f, 1.0f, 0.0f));
         // Envelopes
         params.push_back (std::make_unique<juce::AudioParameterFloat> (juce::ParameterID {"ATTACK_" + opNum, 1}, "Op " + opNum + " Attack", 0.001f, 5.0f, 0.1f));
         params.push_back (std::make_unique<juce::AudioParameterFloat> (juce::ParameterID {"DECAY_" + opNum, 1}, "Op " + opNum + " Decay", 0.01f, 5.0f, 0.2f));
@@ -259,6 +259,9 @@ void FMPluginAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlo
     // Start LFOs — cache APVTS param pointers at prepare time
     for (int i = 0; i < ProjectConfig::numEffects; ++i)
         fxLfo[i].prepare (sampleRate, apvts, i);
+    // Pre-allocate the input capture buffer using the max block size
+    inputCapture.setSize (getTotalNumInputChannels(), samplesPerBlock);
+    inputCapture.clear(); // Good practice to zero it out initially
 }
 
 void FMPluginAudioProcessor::releaseResources() {}
@@ -299,11 +302,11 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
             voice->setDAWTempo (activeBPM);
 
     // Capture input before clearing (external audio ops, if ever re-added, would use this)
-    juce::AudioBuffer<float> inputCapture (totalNumInputChannels, buffer.getNumSamples());
-    for (int ch = 0; ch < totalNumInputChannels; ++ch)
-        inputCapture.copyFrom (ch, 0, buffer, ch, 0, buffer.getNumSamples());
-
-    buffer.clear();
+    if (inputCapture.getNumSamples() >= buffer.getNumSamples())
+    {
+        for (int ch = 0; ch < totalNumInputChannels; ++ch)
+            inputCapture.copyFrom (ch, 0, buffer, ch, 0, buffer.getNumSamples());
+    }
     DBG ("after clear - inputCh: " + juce::String (totalNumInputChannels) +
          " outputCh: " + juce::String (totalNumOutputChannels) +
          " sample0: " + juce::String (buffer.getSample (0, 0)));

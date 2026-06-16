@@ -183,6 +183,12 @@ void FMVoice::renderNextBlock (juce::AudioBuffer<float>& outputBuffer, int start
         cachedFreqModes[i] = static_cast<int> (safeLoad (opParams[i].freqMode, 0.0f));
     }
 
+    // prep for block audio handling
+    for (int opIdx = 0; opIdx < ProjectConfig::numOperators; ++opIdx)
+    {
+        operators[opIdx].prepareForBlock();
+    }
+
     // Here's our sample-rate DSP loop
     for (int sample = 0; sample < numSamples; ++sample)
     {

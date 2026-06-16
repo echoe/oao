@@ -44,6 +44,11 @@ public:
         phase = (phaseInDegrees / 360.0) * juce::MathConstants<double>::twoPi;
     }
 
+    void prepareForBlock() noexcept
+    {
+        blockSampleBuffer = sampleBuffer;
+    }
+
     void resetVoiceState()
     {
         envelope.reset();
@@ -54,6 +59,7 @@ public:
         xfadePingDir  = 1.0f;
         xfadeActive   = false;
 	scatterWindowOffset = 0.0f;
+	blockSampleBuffer = nullptr;
         internalEffect.reset();
     }
 
@@ -86,8 +92,8 @@ public:
         float outputSample = 0.0f;
         if (mode == 2) // Sample playback
         {
-            auto buf = sampleBuffer; // local copy of shared_ptr — safe on audio thread
-            if (buf != nullptr && buf->getNumSamples() > 0)
+            auto* buf = blockSampleBuffer.get();
+	    if (buf != nullptr && buf->getNumSamples() > 0)
             {
                 int numSamples  = buf->getNumSamples();
                 int numChannels = buf->getNumChannels();
@@ -723,8 +729,8 @@ public:
 private:
     // Shared pointer to loaded sample audio. Set from the main thread before playback.
     std::shared_ptr<juce::AudioBuffer<float>> sampleBuffer;
+    std::shared_ptr<juce::AudioBuffer<float>> blockSampleBuffer { nullptr };
     double samplePlayPos = 0.0;
-
     // Secondary playhead used for crossfade blending (loop seam / ping-pong turnarounds).
     // Not needed for one-shot or stutter — those modes do their blending inline.
     double xfadePlayPos  = 0.0;

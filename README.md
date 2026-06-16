@@ -152,9 +152,9 @@ Additional Notes:
 - Note: This ambient shimmer delay has a 16 second (!!!) possible time. Shimmer is a one-octave-up duplication of the sound and the knob acts as a mix knob for that.
 #### DJFX Delay
 - Options: Buffer, Speed, Loop On, Drift
-- Modeled after a famous DJ-style delay.
-- Without the loop on this functions as a varispeed that 'catches up' to the audio going through the playhead every Buffer seconds.
-- Speed is set to go from roughly -2x to +2x so if you want it to be at 1x, set it to around 25 or -25!
+- Modeled after a famous DJ-style delay. (...)
+- Without the loop on this functions as a varispeed that 'catches up' to the audio going through the playhead every Buffer seconds (the main knob is mapped to let you set this buffer from 10ms to 2000ms long).
+- Speed is set to go from roughly -2x to +2x. if you want it to be at 1x, set it to around 25 or -25!
 #### Scatter
 - Options: Pattern, Size, Speed, Depth
 - Pattern 0.0-0.25: Stutter (repeats short segments)

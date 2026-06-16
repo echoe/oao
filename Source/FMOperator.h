@@ -461,8 +461,8 @@ public:
             {
                 // Frequency: ratio knob maps to 0.1Hz - 5000Hz exponentially
                 float normalizedRatio = (ratio - 0.01f) / (16.0f - 0.01f);
-                float frequency       = 0.1f * std::pow (50000.0f, normalizedRatio);
-                float shape           = juce::jlimit (0.0f, 1.0f, (detune + 50.0f) / 100.0f);
+                float frequency       = 20.0f * std::pow (250.0f, normalizedRatio);
+		float shape           = juce::jlimit (0.0f, 1.0f, (detune + 50.0f) / 100.0f);
                 float depth           = phaseKnob / 360.0f;
                 float feedback        = juce::jlimit (0.0f, 0.95f, foldKnob);
                 float output = internalEffect.processSampleRingMod (audioInputSum, frequency, shape,

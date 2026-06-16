@@ -642,8 +642,8 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
                             }
                             case 16: // Ring Mod: Frequency | Shape | Depth | Feedback
                             {
-                                float frequency = 0.1f * std::pow (50000.0f, normalizedRatio);
-                                float shape     = juce::jlimit (0.0f, 1.0f, (detune + 50.0f) / 100.0f);
+                                float frequency       = 20.0f * std::pow (250.0f, normalizedRatio);
+				float shape     = juce::jlimit (0.0f, 1.0f, (detune + 50.0f) / 100.0f);
                                 float depth     = juce::jlimit (0.0f, 1.0f, phase / 360.0f);
                                 float feedback  = juce::jlimit (0.0f, 0.95f, fold);
                                 outArr[ch] = fxEffects[slot][ch].processSampleRingMod (inArr[ch], frequency, shape, depth, feedback, getSampleRate());

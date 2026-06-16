@@ -1556,26 +1556,48 @@ public:
             {
                 freezeHasFrozenFrame = false;
             }
-    
             // 4. BUILD SYNTHESIS FRAME
             if (freezeHasFrozenFrame)
             {
-                for (int i = 0; i < freezeFFTSize; ++i)
+                // Convert semitones to a linear pitch ratio
+                // pitch = 0 means no shift, +12 = one octave up, -12 = one octave down
+                float pitchRatio = std::pow (2.0f, pitch / 12.0f);
+            
+                // Clear the synthesis frame first
+                std::fill (freezeSynthFrame.begin(), freezeSynthFrame.end(), 0.0f);
+            
+                int numBins = freezeFFTSize / 2 + 1; // only positive frequencies matter
+            
+                for (int i = 0; i < numBins; ++i)
                 {
-                    // get the static magnitude from the captured frame
-                    float re  = freezeFrozenFrame[i * 2];
-                    float im  = freezeFrozenFrame[i * 2 + 1];
-                    float mag = std::sqrt (re * re + im * im);
+                    // Find the source bin in the frozen frame for this output bin
+                    float sourceBinF = static_cast<float> (i) / pitchRatio;
+                    int   sourceBin  = static_cast<int> (sourceBinF);
             
-                    // make a new random phase for this bin on every hop
-                    float randomPhase = freezeRandom.nextFloat() * juce::MathConstants<float>::twoPi;
+                    if (sourceBin >= numBins) break;
             
-                    // reconstruct complex numbers with the static magnitude and new random phase
+                    // Interpolate magnitude between adjacent bins for smoother shifting
+                    float frac    = sourceBinF - static_cast<float> (sourceBin);
+                    int   nextBin = std::min (sourceBin + 1, numBins - 1);
+            
+                    float re0 = freezeFrozenFrame[sourceBin * 2];
+                    float im0 = freezeFrozenFrame[sourceBin * 2 + 1];
+                    float re1 = freezeFrozenFrame[nextBin * 2];
+                    float im1 = freezeFrozenFrame[nextBin * 2 + 1];
+            
+                    float mag0 = std::sqrt (re0 * re0 + im0 * im0);
+                    float mag1 = std::sqrt (re1 * re1 + im1 * im1);
+                    float mag  = mag0 + frac * (mag1 - mag0); // linear interp
+            
+                    // Random phase per hop — same as your existing approach
+                    float randomPhase = freezeRandom.nextFloat()
+                                        * juce::MathConstants<float>::twoPi;
+            
                     freezeSynthFrame[i * 2]     = mag * std::cos (randomPhase);
                     freezeSynthFrame[i * 2 + 1] = mag * std::sin (randomPhase);
                 }
             }
-            else
+	    else
             {
                 // Pass through live spectrum unchanged
                 for (int i = 0; i < freezeFFTSize * 2; ++i)

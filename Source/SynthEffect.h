@@ -286,30 +286,39 @@ public:
     // Fast Audio-Rate modulated SVF
     virtual float processSampleAudioRate (float input, float cutoffHz, float precalculatedK)
     {
-        float x = 3.1415926535f * cutoffHz / static_cast<float>(sampleRate);
+        // 1. HARD CLAMP the cutoff to 45% of the sample rate.
+        float safeCutoff = juce::jlimit(20.0f, static_cast<float>(sampleRate) * 0.45f, cutoffHz);
+
+        // 2. Stable Fast Tangent Approximation
+        float x = 3.1415926535f * safeCutoff / static_cast<float>(sampleRate);
         float x2 = x * x;
-        
-        float g_mod = x * (945.0f - 105.0f * x2 + x2 * x2) / (945.0f - 420.0f * x2 + 15.0f * x2 * x2);
+        float g_mod = x * (15.0f - x2) / (15.0f - 6.0f * x2);
+
+        // 3. TPT Denominator
         float h_mod = 1.0f / (1.0f + g_mod * (g_mod + precalculatedK));
-    
+
+        // 4. State Variable Filter processing
         float hp = (input - (g_mod + precalculatedK) * s1 - s2) * h_mod;
         float bp = g_mod * hp + s1;
         float lp = g_mod * bp + s2;
-    
+
+        // 5. Update state variables
         s1 = 2.0f * bp - s1;
         s2 = 2.0f * lp - s2;
-    
-        if (std::isnan(s1) || std::isinf(s1)) 
-        { 
-            reset(); 
-            return 0.0f; 
+
+        // 6. Prevent NaNs and infinite feedback
+        if (std::isnan(s1) || std::isinf(s1) || std::abs(s1) < 1e-6f)
+        {
+            if (std::isnan(s1) || std::isinf(s1)) reset();
+            else { s1 = 0.0f; s2 = 0.0f; } // Snap denormals to zero
+            return 0.0f;
         }
-    
+
         switch (currentType)
         {
             case Highpass: return hp;
             case Bandpass: return bp;
-            case Lowpass:  
+            case Lowpass:
             default:       return lp;
         }
     }
@@ -335,26 +344,37 @@ public:
         // Run 3 parallel SVF Bandpasses using the fast polynomial approximation
         for (int i = 0; i < 3; ++i)
         {
-            float x = juce::MathConstants<float>::pi * freqs[i] / static_cast<float>(sampleRate);
+            // 1. HARD CLAMP the cutoff to 45% of the sample rate.
+            float safeCutoff = juce::jlimit(20.0f, static_cast<float>(sampleRate) * 0.45f, freqs[i]);
+
+            // 2. Stable Fast Tangent Approximation
+            float x = juce::MathConstants<float>::pi * safeCutoff / static_cast<float>(sampleRate);
             float x2 = x * x;
-            float g_mod = x * (945.0f - 105.0f * x2 + x2 * x2) / (945.0f - 420.0f * x2 + 15.0f * x2 * x2);
+            float g_mod = x * (15.0f - x2) / (15.0f - 6.0f * x2);
+
+            // 3. TPT Denominator
             float h_mod = 1.0f / (1.0f + g_mod * (g_mod + precalcK));
 
+            // 4. State Variable Filter processing
             float hp = (input - (g_mod + precalcK) * f_s1[i] - f_s2[i]) * h_mod;
             float bp = g_mod * hp + f_s1[i];
             float lp = g_mod * bp + f_s2[i];
 
+            // 5. Update state variables
             f_s1[i] = 2.0f * bp - f_s1[i];
             f_s2[i] = 2.0f * lp - f_s2[i];
 
-            if (std::isnan(f_s1[i]) || std::isinf(f_s1[i])) 
-            { 
-                reset(); 
-                return 0.0f; 
+            // 6. Prevent NaNs and infinite feedback
+            if (std::isnan(f_s1[i]) || std::isinf(f_s1[i]) || std::abs(f_s1[i]) < 1e-6f)
+            {
+                if (std::isnan(f_s1[i]) || std::isinf(f_s1[i])) reset();
+                else { f_s1[i] = 0.0f; f_s2[i] = 0.0f; } // Snap denormals to zero
+                return 0.0f;
             }
+            
             outputAccumulator += bp;
         }
-        // Gain compensation for 3 parallel resonant peaks & soft clipper
+	// Gain compensation for 3 parallel resonant peaks & soft clipper
         return std::tanh(outputAccumulator * 0.33f);
     }
 
@@ -1033,19 +1053,16 @@ public:
         // 4B. VARISPEED WITH RHYTHMIC JUMP
         else
         {
+            djfxLoopStart = -1.0f; 
             djfxJumpTimer++;
-            
             // When the timer hits the buffer size, clear the built-up delay
             if (djfxJumpTimer >= captureSize)
             {
                 djfxJumpTimer = 0;
-                
                 // Snap read pointer to exactly 1 sample behind the write pointer
-                // to instantly grab the most recent incoming sound.
                 djfxReadPtr = static_cast<float>(djfxWritePtr) - 1.0f;
             }
-        }
-    
+        } 
         // 5. GLOBAL BUFFER WRAPPING
         while (djfxReadPtr >= static_cast<float>(djfxBufferSize)) djfxReadPtr -= static_cast<float>(djfxBufferSize);
         while (djfxReadPtr < 0.0f)                                djfxReadPtr += static_cast<float>(djfxBufferSize);

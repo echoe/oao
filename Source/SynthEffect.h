@@ -1072,12 +1072,8 @@ public:
         return std::isfinite (output) ? output : 0.0f;
     }
 
-    float processSampleColorBass (float  input,
-                                   float  drive,
-                                   float  shimmer,
-                                   float  tone,
-                                   float  decay,
-                                   double sampleRate)
+    float processSampleColorBass (float input, float drive, float shimmer,
+                                  float tone, float decay, double sampleRate)
     {
         // pitch detection (zero-crossing period estimator)
         ++zcSampleCount;

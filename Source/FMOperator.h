@@ -548,8 +548,8 @@ public:
             else if (effectType == 24) // Color Bass
             {
                 float drive   = juce::jlimit (0.0f, 1.0f, (ratio - 0.01f) / (16.0f - 0.01f));
-                float shimmer = juce::jlimit (0.0f, 1.0f, phaseKnob / 360.0f);
-                float tone    = juce::jlimit (0.0f, 1.0f, (detune + 50.0f) / 100.0f);
+                float shimmer = juce::jlimit (0.0f, 1.0f, (detune + 50.0f) / 100.0f);
+		float tone    = juce::jlimit (0.0f, 1.0f, phaseKnob / 360.0f);
                 float decay   = juce::jlimit (0.0f, 1.0f, foldKnob);
                 float output  = internalEffect.processSampleColorBass (audioInputSum, drive,
                                                                         shimmer, tone,

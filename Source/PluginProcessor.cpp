@@ -693,8 +693,8 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
                             case 24: // Color Bass: Drive | Shimmer | Tone | Decay
                             {
                                 float drive   = juce::jlimit (0.0f, 1.0f, normalizedRatio);
-                                float shimmer = juce::jlimit (0.0f, 1.0f, phase / 360.0f);
-                                float tone    = juce::jlimit (0.0f, 1.0f, (detune + 50.0f) / 100.0f);
+                                float shimmer = juce::jlimit (0.0f, 1.0f, (detune + 50.0f) / 100.0f);
+				float tone    = juce::jlimit (0.0f, 1.0f, phase / 360.0f);
                                 float decay   = juce::jlimit (0.0f, 1.0f, fold);
                                 outArr[ch]    = fxEffects[slot][ch].processSampleColorBass (inArr[ch], drive, shimmer, tone, decay, getSampleRate());
                                 outArr[ch] = std::isfinite (outArr[ch]) ? outArr[ch] : 0.0f;

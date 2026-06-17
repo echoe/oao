@@ -46,7 +46,7 @@ namespace ProjectConfig
             case 20: return { "Time",      "Feedback", "Shimmer",   "Diffusion"}; // Ambient Delay 
             case 21: return { "Buffer",    "Speed",    "Loop On",   "Drift"    }; // DJFX Delay
 	    case 22: return { "Type",      "Size",     "Speed",     "Depth"    }; // Scatter. More strange effects
-	    case 23: return { "Grain Size","Damping",  "Scatter",   "Feedback" }; // Granular
+	    case 23: return { "Grain Size","Scatter",  "Damping",   "Feedback" }; // Granular
 	    case 24: return { "Drive",     "Shimmer",  "Tone",      "Decay"    }; // Color Bass
             case 25: return { "Freeze On", "Blend",    "Pitch",     "Blur"     }; // Spectral Freeze
 	    default: return { "A",         "B",        "C",         "D"        };

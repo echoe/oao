@@ -140,7 +140,8 @@ void FMVoice::resetVoiceState()
 
     for (int i = 0; i < ProjectConfig::numOperators; ++i)
     {
-        operators[i].resetPhase (0.0f); 
+        operators[i].resetPhase (0.0f);
+        operators[i].resetEnvelope(); 
     }
 }
 

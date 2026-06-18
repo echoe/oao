@@ -18,10 +18,9 @@ public:
         internalEffect.reset();
     }
 
-    void setEnvelopeParameters (const juce::ADSR::Parameters& p)
-    {
-        envelope.setParameters (p);
-    }
+    void setEnvelopeParameters (const juce::ADSR::Parameters& p) {envelope.setParameters (p);}
+
+    void resetEnvelope(){envelope.reset();}
 
     void noteOn (const juce::ADSR::Parameters& envParams)
     {
@@ -44,10 +43,7 @@ public:
         phase = (phaseInDegrees / 360.0) * juce::MathConstants<double>::twoPi;
     }
 
-    void prepareForBlock() noexcept
-    {
-        blockSampleBuffer = sampleBuffer;
-    }
+    void prepareForBlock() noexcept{blockSampleBuffer = sampleBuffer;}
 
     void resetVoiceState()
     {

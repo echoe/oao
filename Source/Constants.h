@@ -63,19 +63,30 @@ namespace ModChoices // Choices for LFOs
 
     inline juce::StringArray targets()
     {
-        return {
-            "None",
-            "Op 1 Knob A",  "Op 1 Knob B", "Op 1 Knob C", "Op 1 Knob D", "Op 1 Level",
-            "Op 2 Knob A",  "Op 2 Knob B", "Op 2 Knob C", "Op 2 Knob D", "Op 2 Level",
-            "Op 3 Knob A",  "Op 3 Knob B", "Op 3 Knob C", "Op 3 Knob D", "Op 3 Level",
-            "Op 4 Knob A",  "Op 4 Knob B", "Op 4 Knob C", "Op 4 Knob D", "Op 4 Level",
-            "Op 5 Knob A",  "Op 5 Knob B", "Op 5 Knob C", "Op 5 Knob D", "Op 5 Level",
-            "Op 6 Knob A",  "Op 6 Knob B", "Op 6 Knob C", "Op 6 Knob D", "Op 6 Level",
-            "FX 1 Knob A",  "FX 1 Knob B", "FX 1 Knob C", "FX 1 Knob D", "FX 1 Level",
-            "FX 2 Knob A",  "FX 2 Knob B", "FX 2 Knob C", "FX 2 Knob D", "FX 2 Level",
-            "FX 3 Knob A",  "FX 3 Knob B", "FX 3 Knob C", "FX 3 Knob D", "FX 3 Level",
-        };
+        juce::StringArray t;
+        t.add("None");                                          // 0
+        for (int op = 0; op < 6; ++op)                         // 1-30
+        {
+            t.add("Op " + juce::String(op+1) + " Knob A");
+            t.add("Op " + juce::String(op+1) + " Knob B");
+            t.add("Op " + juce::String(op+1) + " Knob C");
+            t.add("Op " + juce::String(op+1) + " Knob D");
+            t.add("Op " + juce::String(op+1) + " Level");
+        }
+        for (int fx = 0; fx < 3; ++fx)                         // 31-45
+        {
+            t.add("FX " + juce::String(fx+1) + " Knob A");
+            t.add("FX " + juce::String(fx+1) + " Knob B");
+            t.add("FX " + juce::String(fx+1) + " Knob C");
+            t.add("FX " + juce::String(fx+1) + " Knob D");
+            t.add("FX " + juce::String(fx+1) + " Mix");
+        }
+        for (int src = 0; src < 6; ++src)                      // 46-81
+            for (int dst = 0; dst < 6; ++dst)
+                t.add("Op " + juce::String(src+1) + " → Op " + juce::String(dst+1));
+        return t;
     }
+
     inline juce::StringArray fxtargets()
     {
         return {

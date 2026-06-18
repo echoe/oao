@@ -17,10 +17,29 @@ struct ModMatrixSlot : public juce::Component
         sourceSelector.setSelectedId (1, juce::dontSendNotification);
         addAndMakeVisible (sourceSelector);
 
-        targetSelector.addItemList (ModChoices::targets(), 1);
-        targetSelector.setSelectedId (1, juce::dontSendNotification);
-        addAndMakeVisible (targetSelector);
+        // Target selector. We stack and create the menu so it's usable  without scrolling through 80 choices
+        addAndMakeVisible(targetSelector);
+        buildTargetMenu();
+        
+        // restore value from parameter on construction:
+        if (auto* param = apvts.getRawParameterValue("MOD_TGT_" + s))
+        {
+            int idx = static_cast<int>(param->load(std::memory_order_relaxed));
+            targetSelector.setSelectedId(idx + 1, juce::dontSendNotification);
+        }
 
+        targetSelector.onChange = [this, &apvts, s]()
+        {
+            // Map ComboBox ID back to parameter index
+            int selectedId = targetSelector.getSelectedId();
+            if (auto* param = apvts.getParameter("MOD_TGT_" + s))
+            {
+                // ComboBox IDs are 1-based, parameter choice indices are 0-based
+                float normalized = param->convertTo0to1(selectedId - 1);
+                param->setValueNotifyingHost(normalized);
+            }
+        };
+        
         // Bi-polar amount slider
         amountSlider.setSliderStyle (juce::Slider::LinearVertical);
         amountSlider.setRange (-1.0, 1.0, 0.001);
@@ -37,8 +56,6 @@ struct ModMatrixSlot : public juce::Component
         // Attach to APVTS — param IDs must match PluginProcessor exactly
         srcAttach = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (
             apvts, "MOD_SRC_" + s, sourceSelector);
-        tgtAttach = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (
-            apvts, "MOD_TGT_" + s, targetSelector);
         amtAttach = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
             apvts, "MOD_AMT_" + s, amountSlider);
     }
@@ -51,6 +68,56 @@ struct ModMatrixSlot : public juce::Component
         sourceSelector.setBounds (area.removeFromLeft (w * 0.25f).reduced (2, 0));
         targetSelector.setBounds (area.removeFromLeft (w * 0.35f).reduced (2, 0));
         amountSlider.setBounds   (area.reduced (2, 0));
+    }
+
+    void buildTargetMenu()
+    {
+        targetSelector.clear(juce::dontSendNotification);
+        targetSelector.addItem("None", 1);
+    
+        // Operator params — nested by operator
+        juce::PopupMenu opMenu;
+        for (int op = 0; op < 6; ++op)
+        {
+            juce::PopupMenu sub;
+            int base = op * 5 + 2; // offset by 1 for None, +1 for ComboBox 1-indexing
+            sub.addItem(base + 0, "Knob A");
+            sub.addItem(base + 1, "Knob B");
+            sub.addItem(base + 2, "Knob C");
+            sub.addItem(base + 3, "Knob D");
+            sub.addItem(base + 4, "Level");
+            opMenu.addSubMenu("Op " + juce::String(op + 1), sub);
+        }
+        targetSelector.getRootMenu()->addSubMenu("Operators", opMenu);
+    
+        // FX params — nested by slot
+        juce::PopupMenu fxMenu;
+        for (int fx = 0; fx < 3; ++fx)
+        {
+            juce::PopupMenu sub;
+            int base = fx * 5 + 32;
+            sub.addItem(base + 0, "Knob A");
+            sub.addItem(base + 1, "Knob B");
+            sub.addItem(base + 2, "Knob C");
+            sub.addItem(base + 3, "Knob D");
+            sub.addItem(base + 4, "Mix");
+            fxMenu.addSubMenu("FX " + juce::String(fx + 1), sub);
+        }
+        targetSelector.getRootMenu()->addSubMenu("Effects", fxMenu);
+    
+        // FM Matrix — nested by source operator
+        juce::PopupMenu matrixMenu;
+        for (int src = 0; src < 6; ++src)
+        {
+            juce::PopupMenu sub;
+            for (int dst = 0; dst < 6; ++dst)
+            {
+                int id = 47 + src * 6 + dst; // 46 entries before this + 1 for 1-indexing
+                sub.addItem(id, "Op " + juce::String(dst + 1));
+            }
+            matrixMenu.addSubMenu("Op " + juce::String(src + 1), sub);
+        }
+        targetSelector.getRootMenu()->addSubMenu("FM Matrix", matrixMenu);
     }
 
     void paint (juce::Graphics& g) override {}
@@ -86,7 +153,7 @@ private:
     juce::ComboBox sourceSelector, targetSelector;
     juce::Slider   amountSlider;
 
-    std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> srcAttach, tgtAttach;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> srcAttach;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>   amtAttach;
 };
 

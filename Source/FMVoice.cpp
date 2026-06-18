@@ -211,6 +211,9 @@ void FMVoice::renderNextBlock (juce::AudioBuffer<float>& outputBuffer, int start
         std::array<float, ProjectConfig::numOperators> ratioModOffsets  { 0.0f };
         std::array<float, ProjectConfig::numOperators> detuneModOffsets { 0.0f };
         
+        // matrix modulation storage
+        float matrixModOffsets[ProjectConfig::numOperators][ProjectConfig::numOperators] {};
+
         for (int slot = 0; slot < ProjectConfig::numModSlots; ++slot)
         {
             if (!modSlotSrc[slot] || !modSlotTgt[slot] || !modSlotAmt[slot])
@@ -274,6 +277,16 @@ void FMVoice::renderNextBlock (juce::AudioBuffer<float>& outputBuffer, int start
                     case 4: fxLevelMods[fxIdx].store  (fxLevelMods[fxIdx].load()  + srcSignal); break;
                 }
             }
+            else if (tgtIdx >= 46 && tgtIdx <= 81)
+            {
+                int matrixIdx = tgtIdx - 46;       // 0-35
+                int src       = matrixIdx / 6;     // which source op
+                int dst       = matrixIdx % 6;     // which dest op
+                // matrixParams[src][dst] is a raw pointer to the MOD_src_dst parameter.
+                // We can't write to it directly from the audio thread safely,
+                // so accumulate into a separate modulation array instead:
+                matrixModOffsets[src][dst] += srcSignal;
+            }
         }
 
         // Process the operators!
@@ -284,7 +297,7 @@ void FMVoice::renderNextBlock (juce::AudioBuffer<float>& outputBuffer, int start
 
             for (int src = 0; src < ProjectConfig::numOperators; ++src)
             {
-                float modIndex = safeLoad(matrixParams[src][dest]); 
+                float modIndex = safeLoad(matrixParams[src][dest]) + matrixModOffsets[src][dest];
                 if (modIndex > 0.0f)
                 {
                     float modSignal = (src == dest) ? (lastOpOutputs[src] + previousOpOutputs[src]) * 0.5f : lastOpOutputs[src];

@@ -92,6 +92,7 @@ void FMVoice::startNote (int midiNoteNumber, float velocity, juce::SynthesiserSo
 {
     baseFrequency = juce::MidiMessage::getMidiNoteInHertz (midiNoteNumber);
     level = velocity;
+    currentVelocity.store(velocity, std::memory_order_relaxed); // so we can modulate things with this if desired
     resetVoiceState();
     for (int i = 0; i < ProjectConfig::numOperators; ++i)
     {
@@ -125,7 +126,12 @@ void FMVoice::stopNote (float, bool allowTailOff)
 }
 
 void FMVoice::pitchWheelMoved (int) {}
-void FMVoice::controllerMoved (int, int) {}
+// So we can modulate things with the mod wheel ...
+void FMVoice::controllerMoved(int controllerNumber, int newControllerValue)
+{
+    if (controllerNumber == 1) // CC1 = mod wheel
+        currentModWheel.store(newControllerValue / 127.0f, std::memory_order_relaxed);
+}
 
 void FMVoice::setDAWTempo (float newBPM) noexcept
 {
@@ -219,8 +225,26 @@ void FMVoice::renderNextBlock (juce::AudioBuffer<float>& outputBuffer, int start
                 continue;
         
             // Source signal: Op 1 = index 1, so operator index = srcIdx - 1
-            float srcSignal = lastOpOutputs[srcIdx - 1] * amt;
-        
+            // We get different sources depending on the mod slot. This follows the list in Constants.h
+            float rawSrc = 0.0f;
+            if (srcIdx >= 1 && srcIdx <= 6)
+            {
+                rawSrc = lastOpOutputs[srcIdx - 1];
+            }
+            else if (srcIdx >= 7 && srcIdx <= 9)
+            {
+                rawSrc = fxLfoOutputs[srcIdx - 7].load(std::memory_order_relaxed);
+            }
+            else if (srcIdx == 10)
+            {
+                rawSrc = currentVelocity.load(std::memory_order_relaxed);
+            }
+            else if (srcIdx == 11)
+            {
+                rawSrc = currentModWheel.load(std::memory_order_relaxed);
+            }
+
+            float srcSignal = rawSrc * amt; 
             // tgtIdx 1-30: laid out as blocks of 5 per operator
 	    if (tgtIdx >= 1 && tgtIdx <= 30)
             {

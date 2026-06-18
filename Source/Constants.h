@@ -58,7 +58,7 @@ namespace ModChoices // Choices for LFOs
 {
     inline juce::StringArray sources()
     {
-        return { "None", "Op 1", "Op 2", "Op 3", "Op 4", "Op 5", "Op 6", "FX LFO 1", "FX LFO 2", "FX LFO 3" };
+        return { "None", "Op 1", "Op 2", "Op 3", "Op 4", "Op 5", "Op 6", "FX LFO 1", "FX LFO 2", "FX LFO 3", "Velocity", "Mod Wheel" };
     }
 
     inline juce::StringArray targets()

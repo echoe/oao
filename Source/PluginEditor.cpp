@@ -94,7 +94,7 @@ FMPluginAudioProcessorEditor::FMPluginAudioProcessorEditor (FMPluginAudioProcess
 #endif
 
     addAndMakeVisible (effectsPageButton);
-    effectsPageButton.setButtonText ("Effects");
+    effectsPageButton.setButtonText ("Effects/LFOs");
     effectsPageButton.onClick = [this] { setPage (PageView::Effects); };
 
     addAndMakeVisible (settingsPageButton);

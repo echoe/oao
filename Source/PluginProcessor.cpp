@@ -284,19 +284,20 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
     juce::ScopedNoDenormals noDenormals;
     auto totalNumInputChannels  = getTotalNumInputChannels();
     auto totalNumOutputChannels = getTotalNumOutputChannels();
+    // Get activeBPM for tempo sync
+    float activeBPM = 120.0f;
+    if (auto* playHead = getPlayHead())
+    {           
+        auto positionInfo = playHead->getPosition();
+        if (positionInfo.hasValue())
+            activeBPM = static_cast<float> (positionInfo->getBpm().orFallback (120.0));
+    }
 #ifdef OAO_FX_ONLY
     // FX mode: input audio passes straight through to the effects chain.
     for (int ch = totalNumInputChannels; ch < totalNumOutputChannels; ++ch)
         buffer.clear (ch, 0, buffer.getNumSamples());
 #else
-    // Synth mode: read tempo, update voices, render synth.
-    float activeBPM = 120.0f;
-    if (auto* playHead = getPlayHead())
-    {
-        auto positionInfo = playHead->getPosition();
-        if (positionInfo.hasValue())
-            activeBPM = static_cast<float> (positionInfo->getBpm().orFallback (120.0));
-    }
+    // Synth mode: update voices, render synth.
     for (int i = 0; i < synth.getNumVoices(); ++i)
         if (auto* voice = dynamic_cast<FMVoice*> (synth.getVoice (i)))
             voice->setDAWTempo (activeBPM);
@@ -383,14 +384,6 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
     std::array<float, ProjectConfig::numEffects> fxPhaseModSum  { 0.0f, 0.0f, 0.0f };
     std::array<float, ProjectConfig::numEffects> fxFoldModSum   { 0.0f, 0.0f, 0.0f };
     std::array<float, ProjectConfig::numEffects> fxLevelModSum  { 0.0f, 0.0f, 0.0f };
-    // Also need activeBPM for tempo-sync in the FX loop
-    float activeBPM = 120.0f;
-    if (auto* playHead = getPlayHead())
-    {
-        auto positionInfo = playHead->getPosition();
-        if (positionInfo.hasValue())
-            activeBPM = static_cast<float> (positionInfo->getBpm().orFallback (120.0));
-    }
 #endif
     // Now we start the effects loop
     {
@@ -438,6 +431,9 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
             for (int i = 0; i < numSamples; ++i)
             {
                 // Tick the LFO once per sample and apply to the right parameter
+                float lfoOutputs[3];
+                for (int lfo = 0; lfo < 3; ++lfo)
+                    lfoOutputs[lfo] = fxLfo[lfo].tick(activeBPM);
                 float ratio  = baseRatio;
                 float detune = baseDetune;
                 float phase  = basePhase;
@@ -446,7 +442,7 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
 
                 if (lfoIndex >= 0)
                 {
-                    float lfoVal = fxLfo[lfoIndex].tick (activeBPM);
+                    float lfoVal = lfoOutputs[lfoIndex];
                     switch (lfoTargetParam)
                     {
                         case 0: ratio  += lfoVal * 16.0f;  break; // ratio range ~0-16
@@ -728,6 +724,11 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
             }
         }
     }
+    // after effects loop, store last LFO value for voices in the next block
+    for (int i = 0; i < 3; ++i)
+        for (int v = 0; v < synth.getNumVoices(); ++v)
+            if (auto* voice = dynamic_cast<FMVoice*>(synth.getVoice(v)))
+                voice->fxLfoOutputs[i].store(fxLfo[i].getLastOutput(), std::memory_order_relaxed);
 
     // Master Gain
     juce::dsp::AudioBlock<float> block (buffer);

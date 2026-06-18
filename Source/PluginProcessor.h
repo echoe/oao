@@ -89,9 +89,12 @@ struct FXModLFO
                 raw = std::sin (fPhase);
                 break;
         }
-
-        return raw * depth;
+        float result = raw * depth;
+        lastOutput = result;  // ← store it
+        return result;
     }
+
+    float getLastOutput() const { return lastOutput; }
 
     // Returns encoded target: -1 for None, otherwise (fxSlot * 5 + fxParam)
     // fxSlot = result/5, fxParam = result%5  (0=Ratio, 1=Detune, 2=Phase, 3=Fold, 4=Level)
@@ -107,6 +110,7 @@ struct FXModLFO
     bool isPrepared() const { return rateParam != nullptr; }
 
 private:
+    float lastOutput = 0.0f;
     double phase = 0.0;
     double currentSampleRate = 44100.0;
     std::atomic<float>* rateParam  = nullptr;

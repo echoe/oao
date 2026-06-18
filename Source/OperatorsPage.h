@@ -25,7 +25,7 @@ struct CompactOperatorGroup : public juce::Component
         setupSlider (foldSlider, foldLabel, "Fold", true);
         setupSlider (attackSlider, attackLabel, "Attack", false);
         setupSlider (decaySlider, decayLabel, "Decay", false);
-        setupSlider (sustainSlider, sustainLabel, "Suspend", false);
+        setupSlider (sustainSlider, sustainLabel, "Sustain", false);
         setupSlider (releaseSlider, releaseLabel, "Release", false);
         opHeaderLabel.setText ("OPERATOR " + opNum, juce::dontSendNotification);
         opHeaderLabel.setFont (juce::FontOptions (13.0f, juce::Font::bold));

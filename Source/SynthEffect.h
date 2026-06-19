@@ -54,6 +54,9 @@ public:
         for (auto& g : grains) {
             g.isActive = false;
         }
+        int numBins = freezeFFTSize / 2 + 1;
+        freezePhases.assign (numBins, 0.0f);
+        freezeSmoothedMagnitudes.assign (numBins, 0.0f);
     }
 
     void setSampleRate (double newSampleRate) 
@@ -1505,8 +1508,8 @@ public:
     }
 
     float processSampleSpectralFreeze (float input, float freeze, float blend,
-                                        float pitch, float blur,
-                                        double sampleRate)
+                                       float pitch, float blur,
+                                       double sampleRate)
     {
         // write input to ring buffer
         freezeInputBuffer[freezeInputWritePos] = input;
@@ -1522,29 +1525,42 @@ public:
             for (int i = 0; i < freezeFFTSize; ++i)
             {
                 int idx = (freezeInputWritePos + i) % freezeFFTSize;
-                freezeWorkBuffer[i * 2]     = freezeInputBuffer[idx] * freezeWindow[i];
-                freezeWorkBuffer[i * 2 + 1] = 0.0f; // imaginary = 0 for real input
+                freezeWorkBuffer[i] = freezeInputBuffer[idx] * freezeWindow[i];
             }
     
-            // Forward FFT — use RealOnly to get complex output with phase info
-            freezeFFT.performRealOnlyForwardTransform (freezeWorkBuffer.data());
-    
+            // Forward FFT 
+            freezeFFT.performRealOnlyForwardTransform (freezeWorkBuffer.data());   
+ 
+            int numBins = freezeFFTSize / 2 + 1;
+            
+            float blurCoeff = blur * 0.99f; 
+
+            // Continuously smooth the live magnitudes regardless of freeze state
+            for (int i = 0; i < numBins; ++i)
+            {
+                float re = freezeWorkBuffer[i * 2];
+                float im = freezeWorkBuffer[i * 2 + 1];
+                float currentMag = std::sqrt (re * re + im * im);
+                
+                // One-pole lowpass filter applied directly to the FFT bin magnitude
+                freezeSmoothedMagnitudes[i] = (currentMag * (1.0f - blurCoeff)) 
+                                              + (freezeSmoothedMagnitudes[i] * blurCoeff);
+            }
+
             // capture frozen frame when freeze first engages
             if (freeze > 0.5f && !freezeHasFrozenFrame)
             {
-                // Copy current complex spectrum into frozen frame
-                // Randomize phases for a more musical freeze
-                for (int i = 0; i < freezeFFTSize; ++i)
+                for (int i = 0; i < numBins; ++i)
                 {
-                    float re  = freezeWorkBuffer[i * 2];
-                    float im  = freezeWorkBuffer[i * 2 + 1];
-                    float mag = std::sqrt (re * re + im * im);
+                    // grab the heavily blurred magnitude from our integrator.
+                    float mag = freezeSmoothedMagnitudes[i];
     
-                    // Random phase to avoid comb effecting artifacts
-                    float phase = freezeRandom.nextFloat()
-                                  * juce::MathConstants<float>::twoPi;
+                    // Assign a random starting phase
+                    float phase = freezeRandom.nextFloat() * juce::MathConstants<float>::twoPi;
+                    
                     freezeFrozenFrame[i * 2]     = mag * std::cos (phase);
                     freezeFrozenFrame[i * 2 + 1] = mag * std::sin (phase);
+                    freezePhases[i] = freezeRandom.nextFloat() * juce::MathConstants<float>::twoPi;
                 }
                 freezeHasFrozenFrame = true;
             }
@@ -1552,27 +1568,20 @@ public:
             {
                 freezeHasFrozenFrame = false;
             }
-            // 4. BUILD SYNTHESIS FRAME
+	    // 4. BUILD SYNTHESIS FRAME
             if (freezeHasFrozenFrame)
             {
-                // Convert semitones to a linear pitch ratio
-                // pitch = 0 means no shift, +12 = one octave up, -12 = one octave down
                 float pitchRatio = std::pow (2.0f, pitch / 12.0f);
-            
-                // Clear the synthesis frame first
                 std::fill (freezeSynthFrame.begin(), freezeSynthFrame.end(), 0.0f);
-            
-                int numBins = freezeFFTSize / 2 + 1; // only positive frequencies matter
+                int numBins = freezeFFTSize / 2 + 1; 
             
                 for (int i = 0; i < numBins; ++i)
                 {
-                    // Find the source bin in the frozen frame for this output bin
                     float sourceBinF = static_cast<float> (i) / pitchRatio;
                     int   sourceBin  = static_cast<int> (sourceBinF);
             
                     if (sourceBin >= numBins) break;
             
-                    // Interpolate magnitude between adjacent bins for smoother shifting
                     float frac    = sourceBinF - static_cast<float> (sourceBin);
                     int   nextBin = std::min (sourceBin + 1, numBins - 1);
             
@@ -1583,17 +1592,25 @@ public:
             
                     float mag0 = std::sqrt (re0 * re0 + im0 * im0);
                     float mag1 = std::sqrt (re1 * re1 + im1 * im1);
-                    float mag  = mag0 + frac * (mag1 - mag0); // linear interp
+                    float mag  = mag0 + frac * (mag1 - mag0); 
             
-                    // Random phase per hop — same as your existing approach
-                    float randomPhase = freezeRandom.nextFloat()
-                                        * juce::MathConstants<float>::twoPi;
-            
-                    freezeSynthFrame[i * 2]     = mag * std::cos (randomPhase);
-                    freezeSynthFrame[i * 2 + 1] = mag * std::sin (randomPhase);
+                    float phaseAdvance = juce::MathConstants<float>::twoPi 
+                                         * static_cast<float> (i) 
+                                         * static_cast<float> (freezeHopSize) 
+                                         / static_cast<float> (freezeFFTSize);
+                    
+                    // Accumulate the phase for this bin
+                    freezePhases[i] += phaseAdvance;
+                    
+                    // Wrap the phase between 0 and 2PI to prevent floating point inaccuracies over time
+                    freezePhases[i] = std::fmod (freezePhases[i] + phaseAdvance, juce::MathConstants<float>::twoPi);           
+ 
+                    // Synthesize the complex bin using the continuous phase
+                    freezeSynthFrame[i * 2]     = mag * std::cos (freezePhases[i]);
+                    freezeSynthFrame[i * 2 + 1] = mag * std::sin (freezePhases[i]);
                 }
             }
-	    else
+            else
             {
                 // Pass through live spectrum unchanged
                 for (int i = 0; i < freezeFFTSize * 2; ++i)
@@ -1603,15 +1620,12 @@ public:
             freezeFFT.performRealOnlyInverseTransform (freezeSynthFrame.data());
     
             // 6. OVERLAP-ADD into output ring buffer
-            // Standard OLA normalization for Hann window with 75% overlap
-            // normFactor = hopSize / sum(window^2) ≈ 0.667 for Hann at 4x overlap
             float normFactor = static_cast<float> (freezeHopSize) / (freezeFFTSize * 0.375f);
     
             for (int i = 0; i < freezeFFTSize; ++i)
             {
                 int outIdx = (freezeOutputReadPos + i) % (freezeFFTSize * 2);
-                freezeOutputBuffer[outIdx] += freezeSynthFrame[i * 2]
-                                              * freezeWindow[i] * normFactor;
+                freezeOutputBuffer[outIdx] += freezeSynthFrame[i] * freezeWindow[i] * normFactor;
             }
         }
         // 7. READ ONE SAMPLE FROM OUTPUT BUFFER
@@ -2213,6 +2227,8 @@ protected:
     bool  freezeHasFrozenFrame = false;
     float freezeMix            = 0.0f;
     juce::Random freezeRandom; // dedicated RNG, not system random
+    std::vector<float> freezePhases;
+    std::vector<float> freezeSmoothedMagnitudes;
 
     // Filter + Drive State
     float fd_s1 = 0.0f;

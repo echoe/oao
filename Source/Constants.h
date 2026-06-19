@@ -48,7 +48,7 @@ namespace ProjectConfig
 	    case 22: return { "Type",      "Size",     "Speed",     "Depth"    }; // Scatter. More strange effects
 	    case 23: return { "Grain Size","Scatter",  "Damping",   "Feedback" }; // Granular
 	    case 24: return { "Drive",     "Shimmer",  "Tone",      "Decay"    }; // Color Bass
-            case 25: return { "Freeze On", "Blend",    "Pitch",     "Blur"     }; // Spectral Freeze
+            case 25: return { "Freeze On", "Phase Rand",    "Pitch",     "Blur"     }; // Spectral Freeze
 	    default: return { "A",         "B",        "C",         "D"        };
 	}
     }

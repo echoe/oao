@@ -46,17 +46,19 @@ public:
         sampleRate = newSampleRate > 0.0 ? newSampleRate : 44100.0;
         updateCoefficients();
 
-        // 10 Hz requires a huge buffer. Added margin for Hermite/Scatter math.
+        // comb buffer margin for Hermite/Scatter math.
         int requiredBufferSize = static_cast<int>(newSampleRate / 10.0) + 10;
         combBuffer.assign (static_cast<size_t>(requiredBufferSize), 0.0f);
         writePtr = 0;
-
+        //granules
         for (auto& g : grains) {
             g.isActive = false;
         }
+        //freeze
         int numBins = freezeFFTSize / 2 + 1;
         freezePhases.assign (numBins, 0.0f);
         freezeSmoothedMagnitudes.assign (numBins, 0.0f);
+        freezeBlurredMagnitudes.assign (numBins, 0.0f);
     }
 
     void setSampleRate (double newSampleRate) 
@@ -212,7 +214,6 @@ public:
         freezeOutputReadPos = 0;
         freezeHopCounter = 0;
         freezeHasFrozenFrame = false;
-        freezeMix = 0.0f;
         // effect + drive
 	fd_s1 = 0.0f; fd_s2 = 0.0f;
 	// 3-lane eq
@@ -1507,7 +1508,7 @@ public:
         return std::isfinite (output) ? std::tanh (output) : 0.0f;
     }
 
-    float processSampleSpectralFreeze (float input, float freeze, float blend,
+    float processSampleSpectralFreeze (float input, float freeze, float phaseRand,
                                        float pitch, float blur,
                                        double sampleRate)
     {
@@ -1534,7 +1535,7 @@ public:
             int numBins = freezeFFTSize / 2 + 1;
             
             float blurCoeff = blur * 0.99f; 
-
+ 
             // Continuously smooth the live magnitudes regardless of freeze state
             for (int i = 0; i < numBins; ++i)
             {
@@ -1546,7 +1547,7 @@ public:
                 freezeSmoothedMagnitudes[i] = (currentMag * (1.0f - blurCoeff)) 
                                               + (freezeSmoothedMagnitudes[i] * blurCoeff);
             }
-
+ 
             // capture frozen frame when freeze first engages
             if (freeze > 0.5f && !freezeHasFrozenFrame)
             {
@@ -1554,13 +1555,17 @@ public:
                 {
                     // grab the heavily blurred magnitude from our integrator.
                     float mag = freezeSmoothedMagnitudes[i];
-    
-                    // Assign a random starting phase
-                    float phase = freezeRandom.nextFloat() * juce::MathConstants<float>::twoPi;
-                    
+ 
+                    // Capture the bin's real phase. phaseRand is applied continuously
+                    // at synthesis time below, not here, so it stays audible for as
+                    // long as freeze is held rather than only affecting the first hop.
+                    float re = freezeWorkBuffer[i * 2];
+                    float im = freezeWorkBuffer[i * 2 + 1];
+                    float phase = std::atan2 (im, re);
+ 
                     freezeFrozenFrame[i * 2]     = mag * std::cos (phase);
                     freezeFrozenFrame[i * 2 + 1] = mag * std::sin (phase);
-                    freezePhases[i] = freezeRandom.nextFloat() * juce::MathConstants<float>::twoPi;
+                    freezePhases[i] = phase; // seed the running phase accumulator
                 }
                 freezeHasFrozenFrame = true;
             }
@@ -1571,6 +1576,38 @@ public:
 	    // 4. BUILD SYNTHESIS FRAME
             if (freezeHasFrozenFrame)
             {
+                // --- Spectral blur: smear frozen magnitudes across neighboring bins ---
+                // Runs every hop, for as long as freeze is held, so it stays audible
+                // for the whole life of the frozen frame (not just at capture time).
+                if (blur > 0.0f)
+                {
+                    int smearRadius = 1 + static_cast<int> (blur * 8.0f); // tune max width to taste
+                    for (int i = 0; i < numBins; ++i)
+                    {
+                        float sum = 0.0f;
+                        int count = 0;
+                        for (int k = -smearRadius; k <= smearRadius; ++k)
+                        {
+                            int idx = i + k;
+                            if (idx < 0 || idx >= numBins) continue;
+                            float re = freezeFrozenFrame[idx * 2];
+                            float im = freezeFrozenFrame[idx * 2 + 1];
+                            sum += std::sqrt (re * re + im * im);
+                            ++count;
+                        }
+                        freezeBlurredMagnitudes[i] = sum / static_cast<float> (count);
+                    }
+                }
+                else
+                {
+                    for (int i = 0; i < numBins; ++i)
+                    {
+                        float re = freezeFrozenFrame[i * 2];
+                        float im = freezeFrozenFrame[i * 2 + 1];
+                        freezeBlurredMagnitudes[i] = std::sqrt (re * re + im * im);
+                    }
+                }
+ 
                 float pitchRatio = std::pow (2.0f, pitch / 12.0f);
                 std::fill (freezeSynthFrame.begin(), freezeSynthFrame.end(), 0.0f);
                 int numBins = freezeFFTSize / 2 + 1; 
@@ -1585,25 +1622,26 @@ public:
                     float frac    = sourceBinF - static_cast<float> (sourceBin);
                     int   nextBin = std::min (sourceBin + 1, numBins - 1);
             
-                    float re0 = freezeFrozenFrame[sourceBin * 2];
-                    float im0 = freezeFrozenFrame[sourceBin * 2 + 1];
-                    float re1 = freezeFrozenFrame[nextBin * 2];
-                    float im1 = freezeFrozenFrame[nextBin * 2 + 1];
-            
-                    float mag0 = std::sqrt (re0 * re0 + im0 * im0);
-                    float mag1 = std::sqrt (re1 * re1 + im1 * im1);
+                    float mag0 = freezeBlurredMagnitudes[sourceBin];
+                    float mag1 = freezeBlurredMagnitudes[nextBin];
                     float mag  = mag0 + frac * (mag1 - mag0); 
             
                     float phaseAdvance = juce::MathConstants<float>::twoPi 
                                          * static_cast<float> (i) 
                                          * static_cast<float> (freezeHopSize) 
                                          / static_cast<float> (freezeFFTSize);
-                    
-                    // Accumulate the phase for this bin
-                    freezePhases[i] += phaseAdvance;
-                    
-                    // Wrap the phase between 0 and 2PI to prevent floating point inaccuracies over time
-                    freezePhases[i] = std::fmod (freezePhases[i] + phaseAdvance, juce::MathConstants<float>::twoPi);           
+ 
+                    // phaseRand injects a fresh random offset into this bin's phase
+                    // every hop, on top of the correct vocoder advance. At 0 the
+                    // reconstruction stays phase-coherent (clean/tonal); turning it
+                    // up smears bin-to-bin phase relationships continuously for as
+                    // long as freeze is held, producing a diffuse/grainy texture.
+                    float jitter = phaseRand * (freezeRandom.nextFloat() * 2.0f - 1.0f)
+                                   * juce::MathConstants<float>::pi;
+ 
+                    // Accumulate the phase for this bin, then wrap between 0 and 2PI
+                    // to prevent floating point inaccuracies from building up over time.
+                    freezePhases[i] = std::fmod (freezePhases[i] + phaseAdvance + jitter, juce::MathConstants<float>::twoPi);
  
                     // Synthesize the complex bin using the continuous phase
                     freezeSynthFrame[i * 2]     = mag * std::cos (freezePhases[i]);
@@ -1632,14 +1670,10 @@ public:
         float frozen = freezeOutputBuffer[freezeOutputReadPos];
         freezeOutputBuffer[freezeOutputReadPos] = 0.0f; // clear after read
         freezeOutputReadPos = (freezeOutputReadPos + 1) % (freezeFFTSize * 2);
-        // 8. SMOOTH MIX — 50ms ramp to prevent clicks
-        float targetMix = (freeze > 0.5f) ? blend : 0.0f;
-        float rampSpeed = 1.0f / (static_cast<float> (sampleRate) * 0.05f);
-        freezeMix = freezeMix + (targetMix - freezeMix) * rampSpeed;
-        freezeMix = juce::jlimit (0.0f, 1.0f, freezeMix);
-    
-        float output = frozen * freezeMix + input * (1.0f - freezeMix);
-        return std::isfinite (output) ? output : input;
+ 
+        // Wet/dry mixing is handled by the plugin's global mix knob upstream;
+        // this function just returns the frozen-or-live signal directly.
+        return std::isfinite (frozen) ? frozen : input;
     }
 
     float processSampleFilterDrive (float input, float cutoffNorm, float resonanceNorm, float driveNorm, float modeNorm, double sampleRate)
@@ -2225,10 +2259,10 @@ protected:
     int   freezeOutputReadPos  = 0;
     int   freezeHopCounter     = 0;
     bool  freezeHasFrozenFrame = false;
-    float freezeMix            = 0.0f;
     juce::Random freezeRandom; // dedicated RNG, not system random
     std::vector<float> freezePhases;
     std::vector<float> freezeSmoothedMagnitudes;
+    std::vector<float> freezeBlurredMagnitudes;
 
     // Filter + Drive State
     float fd_s1 = 0.0f;

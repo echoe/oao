@@ -83,7 +83,7 @@ Additional Notes:
 #### None
 - Options: It doesn't do anything
 - Use this as a passthrough! 
-###Filters
+## Filters
 #### SVF (Lowpass, Highpass, Bandpass)
 - Options: Cutoff, Resonance, Keytrack, Feedback
 - They're the normal filters of those kinds. The implementation here is JUCE-standard.
@@ -97,7 +97,7 @@ Additional Notes:
 #### Formant
 - Options: Vowel, Nasal, Vowel Mod, Drive
 - Note: Vowel Mod changes the amount of modulation coming in from the modulation matrix, if you are modulating it. So to hear it simply, you can self-modulate this operator, and then tweak the Vowel Mod, and it will change the sound then.
-###EQs
+## EQs
 #### Compressor
 - Options: Threshold, Ratio, Attack, Release
 - it's a compressor. Wowee.
@@ -115,7 +115,7 @@ Additional Notes:
 - saturation: saturates the signal
 - bias: biases the saturation. midway is nothing, left is harsh and bright, right is dull and soft.
 - For Bias to be heard saturation must be on at least a little bit, the bias biases the saturation.
-###Chorus/'normal' effects
+## Chorus/'normal' effects
 #### Chorus
 - Options: Rate (speed chorus moves), Depth (size of chorus), Spread (in the stereo field), Voices (1-8)
 - This is a modern chorus.
@@ -154,7 +154,7 @@ Additional Notes:
 #### Ambient Shimmer
 - Options: Time, Feedback, Shimmer, Diffusion
 - Note: This ambient shimmer delay has a 16 second (!!!) possible time. Shimmer is a one-octave-up duplication of the sound and the knob acts as a mix knob for that.
-###Using buffers of sound to make effects
+## Sound Buffers
 #### DJFX Delay
 - Options: Buffer, Speed, Loop On, Drift
 - Modeled after a famous DJ-style delay. (...)
@@ -205,7 +205,7 @@ Additional Notes:
 ## Extra Effects
 - Outside of the general Mod Matrix I wanted end of chain effects, so here we go!
 - Use any three of the effects that you want at the end of the chain. They always run in serial 1 > 2 > 3. You can target them in the extra modulation matrix.
-- These effects run in either dual mono (most effects) or stereo. The stereo effects are:
+- These effects run in either dual mono (most effects, including the looper) or stereo. The stereo effects are:
 -- both choruses
 -- allpass delay and reverb
 -- ambient delay
@@ -227,9 +227,8 @@ Additional Notes:
 - You can modulate any operator with any other operator. Doot de doot.
 - If you want to use the effects on other things, use the effects plugin :)
 
-## TODO
-- Review of all features.
-- Tempo Sync for effects is in progress ... I've added LFOs to the effects page and we'll see how that works long-term. Some effects don't have their knobs exposed in a way that makes it easy to actually modulate with the LFOs [IE knobs that go from 0 to 360] so we need to scale the LFO input/etc. up to resolve that, and that's still in progress.
+## TODO 
+- Relaxing.
 
 Pictures of the synth in use are provided in the pictures/ folder, and I've switched between themes for each picture so you can get an idea of the theme options. There are also build scripts in the main folder, and built vst3 and standalone builds for all three OS's in the release folder.
 This is mostly AI-coded, but I am actively using the synth myself and have read over all of the code in the releases and think I understand it (though how much can one understand code they haven't written themselves?). Your mileage, as always, may vary.

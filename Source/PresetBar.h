@@ -122,7 +122,7 @@ public:
                 if (auto* p = dynamic_cast<juce::RangedAudioParameter*> (param))
                 {
                     juce::String id = p->getParameterID();
-                    if (id.startsWith ("MOD_") || id.startsWith ("AUDIO_ROUTE_"))
+                    if (id.startsWith ("MOD_") || id.startsWith ("AUDIO_ROUTE_") || id.startsWith("OUT"))
                         p->setValueNotifyingHost (0.0f);
                 }
             }
@@ -136,8 +136,7 @@ public:
                 if (destOp == 0) 
                 {
                     // It's a carrier. Route to audio output. 
-                    // (Assuming 1-indexed names like "AUDIO_ROUTE_1")
-                    juce::String routeID = "AUDIO_ROUTE_" + juce::String (sourceOp);
+                    juce::String routeID = "OUT_" + juce::String (sourceOp);
                     setReal (routeID, 1.0f); // Max volume for active carriers
                 } 
                 else 

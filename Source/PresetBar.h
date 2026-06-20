@@ -122,8 +122,16 @@ public:
                 if (auto* p = dynamic_cast<juce::RangedAudioParameter*> (param))
                 {
                     juce::String id = p->getParameterID();
-                    if (id.startsWith ("MOD_") || id.startsWith ("AUDIO_ROUTE_") || id.startsWith("OUT"))
-                        p->setValueNotifyingHost (0.0f);
+                    if (id.startsWith ("MOD_") || id.startsWith ("AUDIO_ROUTE_") || id.startsWith ("OUT"))
+                    {
+                        if (id.startsWith ("MOD_TGT_"))
+                        {
+                            // Only disconnect this mod slot if it targets a matrix cell (46-81)
+                            int tgt = static_cast<int> (p->convertFrom0to1 (p->getValue()));
+                            if (tgt < 46 || tgt > 81) continue; // leave non-matrix targets alone
+                        }
+                        p->setValueNotifyingHost (p->convertTo0to1 (0.0f));
+                    }
                 }
             }
 
@@ -144,7 +152,7 @@ public:
                     // It's a modulator. Convert the indexes to grab the right mod target
                     juce::String modID = "MOD_" + juce::String (sourceOp -1) + "_" + juce::String (destOp -1);
 
-                    // Set a default modulation depth of 1.0
+                    // Set a default modulation depth of 2.0
                     setReal (modID, 2.0f); 
                 }
             }

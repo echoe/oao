@@ -49,9 +49,19 @@ struct ModMatrixSlot : public juce::Component
 	addAndMakeVisible (amountSlider);
 
         // Row label
-        rowLabel.setText ("S" + s, juce::dontSendNotification);
-        rowLabel.setJustificationType (juce::Justification::centred);
-	addAndMakeVisible (rowLabel);
+        rowSLabel.setText ("Src. " + s, juce::dontSendNotification);
+        rowSLabel.setJustificationType (juce::Justification::centred);
+	addAndMakeVisible (rowSLabel);
+
+        // Row label
+        rowTLabel.setText ("Tgt. " + s, juce::dontSendNotification);
+        rowTLabel.setJustificationType (juce::Justification::centred);
+        addAndMakeVisible (rowTLabel);
+
+        // Depth label
+        depthLabel.setText ("Depth", juce::dontSendNotification);
+        depthLabel.setJustificationType (juce::Justification::centred);
+        addAndMakeVisible (depthLabel);
 
         // Attach to APVTS — param IDs must match PluginProcessor exactly
         srcAttach = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (
@@ -62,12 +72,17 @@ struct ModMatrixSlot : public juce::Component
 
     void resized() override
     {
-        auto area = getLocalBounds().reduced (2, getHeight() * 0.25f);
-        int w = area.getWidth();
-        rowLabel.setBounds       (area.removeFromLeft (w * 0.08f));
-        sourceSelector.setBounds (area.removeFromLeft (w * 0.25f).reduced (2, 0));
-        targetSelector.setBounds (area.removeFromLeft (w * 0.35f).reduced (2, 0));
-        amountSlider.setBounds   (area.reduced (2, 0));
+        auto area  = getLocalBounds().reduced (2, 0);
+        auto tArea = area.removeFromTop (area.getHeight() / 3);
+        auto cArea = area.removeFromTop (area.getHeight());
+        auto bArea = cArea.removeFromTop (cArea.getHeight() /2);
+        int w = tArea.getWidth();
+        rowSLabel.setBounds       (tArea.removeFromLeft (w * 0.25f));
+        sourceSelector.setBounds (tArea.removeFromLeft (w * 0.50f).reduced (2, 0));
+        depthLabel.setBounds (tArea.removeFromLeft (w * 0.25f));
+        rowTLabel.setBounds       (bArea.removeFromLeft (w * 0.25f));
+        targetSelector.setBounds (bArea.removeFromLeft (w * 0.50f).reduced (2, 0));
+        amountSlider.setBounds   (cArea.removeFromRight (w * 0.25f));
     }
 
     void buildTargetMenu()
@@ -127,7 +142,9 @@ struct ModMatrixSlot : public juce::Component
         juce::Component::lookAndFeelChanged();
 
         // 3. Force the Row Label text color
-        rowLabel.setColour (juce::Label::textColourId, colors.text);
+        rowSLabel.setColour (juce::Label::textColourId, colors.text);
+        rowTLabel.setColour (juce::Label::textColourId, colors.text);
+        depthLabel.setColour (juce::Label::textColourId, colors.text);
 
         // 4. Force the ComboBox colors
         sourceSelector.setColour (juce::ComboBox::backgroundColourId, colors.surface);
@@ -141,7 +158,7 @@ struct ModMatrixSlot : public juce::Component
         amountSlider.setColour (juce::Slider::textBoxTextColourId, colors.text);
 
         // Nudge everything
-        rowLabel.sendLookAndFeelChange();
+        rowSLabel.sendLookAndFeelChange(); rowTLabel.sendLookAndFeelChange();
         sourceSelector.sendLookAndFeelChange();
         targetSelector.sendLookAndFeelChange();
         amountSlider.sendLookAndFeelChange();
@@ -149,7 +166,7 @@ struct ModMatrixSlot : public juce::Component
 
 private:
     OAOColors& colors;
-    juce::Label    rowLabel;
+    juce::Label    rowSLabel, rowTLabel, depthLabel;
     juce::ComboBox sourceSelector, targetSelector;
     juce::Slider   amountSlider;
 
@@ -415,7 +432,7 @@ private:
     int cellSize  = 90;
     float cachedW = 0.0f;
     float cachedH = 0.0f;
-    static constexpr float splitRatio = 0.60f;
+    static constexpr float splitRatio = 0.75f;
     juce::OwnedArray<juce::Slider>     matrixSliders;
     juce::OwnedArray<juce::AudioProcessorValueTreeState::SliderAttachment> matrixAttachments;
     std::vector<std::unique_ptr<ModMatrixSlot>> modSlots;

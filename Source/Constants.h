@@ -11,8 +11,8 @@ namespace ProjectConfig
     // EffectSlots, for EffectsPage
     static constexpr int numEffects = 3;
     // Base plugin size
-    static constexpr int pluginSizeX = 1000;
-    static constexpr int pluginSizeY = 700;
+    static constexpr int pluginSizeX = 900;
+    static constexpr int pluginSizeY = 800;
     // Effects list
     inline juce::StringArray getEffectTypeChoices()
     {

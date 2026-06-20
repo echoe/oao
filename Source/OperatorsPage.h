@@ -27,9 +27,14 @@ struct CompactOperatorGroup : public juce::Component
         setupSlider (decaySlider, decayLabel, "Decay", false);
         setupSlider (sustainSlider, sustainLabel, "Sustain", false);
         setupSlider (releaseSlider, releaseLabel, "Release", false);
+        // label operator
         opHeaderLabel.setText ("OPERATOR " + opNum, juce::dontSendNotification);
         opHeaderLabel.setFont (juce::FontOptions (13.0f, juce::Font::bold));
         addAndMakeVisible (opHeaderLabel);
+        // label env
+        envHeaderLabel.setText ("           ENV " + opNum, juce::dontSendNotification);
+        envHeaderLabel.setFont (juce::FontOptions (13.0f, juce::Font::bold));
+        addAndMakeVisible (envHeaderLabel);
         // Letting us swap oscillator mode for easier operator control
         freqModeSelector.addItemList ({ "Std", "Sync", "Hz", "LFO" }, 1);
         addAndMakeVisible (freqModeSelector);
@@ -100,16 +105,18 @@ struct CompactOperatorGroup : public juce::Component
 
     void resized() override
     {
-        auto area        = getLocalBounds().reduced (getWidth() * 0.02f);
+        auto area = getLocalBounds().reduced (static_cast<int> (getWidth() * 0.02f),
+                                              static_cast<int> (getHeight() * 0.02f));
         float w          = static_cast<float> (area.getWidth());
         float h          = static_cast<float> (area.getHeight());
     
         // --- TOP STRIP ---
-        auto topStrip = area.removeFromTop (h * 0.12f);
-        opHeaderLabel.setBounds (topStrip.removeFromLeft (w * 0.25f));
-	freqModeSelector.setBounds (topStrip.removeFromLeft (w * 0.18f).reduced (1));
-	modeSelector.setBounds  (topStrip.removeFromLeft (w * 0.25f).reduced (1));
-    
+        auto topStrip = area.removeFromTop (h * 0.20f);
+        opHeaderLabel.setBounds (topStrip.removeFromLeft (w * 0.13f));
+	freqModeSelector.setBounds (topStrip.removeFromLeft (w * 0.09f).reduced (1));
+	modeSelector.setBounds  (topStrip.removeFromLeft (w * 0.13f).reduced (1));
+        envHeaderLabel.setBounds (topStrip.removeFromRight (w * 0.50f));   
+ 
         if (effectTypeSelector.isVisible())
             effectTypeSelector.setBounds (topStrip.reduced (1));
         else if (loadSampleButton.isVisible())
@@ -118,63 +125,56 @@ struct CompactOperatorGroup : public juce::Component
             waveShapeSelector.setBounds  (topStrip.reduced (1));
     
         area.removeFromTop (h * 0.005f);
-        // Knob zone //
-        auto knobZone  = area.removeFromTop (area.getHeight() * 0.55f);
-        float labelH   = knobZone.getHeight() * 0.25f;
-        int   knobWidth = knobZone.getWidth() / 4;
+        // Knobs and Sliders in a row :D
+        float labelH   = area.getHeight() * 0.20f;
+        int Width = area.getWidth() / 8;
         
-        auto rArea = knobZone.removeFromLeft (knobWidth);
+        auto rArea = area.removeFromLeft (Width);
         ratioLabel.setBounds  (rArea.removeFromTop (labelH));
         ratioSlider.setBounds (rArea);
         
-        auto dArea = knobZone.removeFromLeft (knobWidth);
+        auto dArea = area.removeFromLeft (Width);
         detuneLabel.setBounds  (dArea.removeFromTop (labelH));
         detuneSlider.setBounds (dArea);
         
-        auto pArea = knobZone.removeFromLeft (knobWidth);
+        auto pArea = area.removeFromLeft (Width);
         phaseLabel.setBounds  (pArea.removeFromTop (labelH));
         phaseSlider.setBounds (pArea);
         
-        auto lArea = knobZone;
+        auto lArea = area.removeFromLeft (Width);
         foldLabel.setBounds  (lArea.removeFromTop (labelH));
         foldSlider.setBounds (lArea);
     
-        // --- ENVELOPE SLIDERS (bottom half) ---
-        float envLabelH  = area.getHeight() * 0.25f;
-        int   sliderWidth = area.getWidth() / 4;
+        // --- ENVELOPE SLIDERS ---
     
-        auto aArea = area.removeFromLeft (sliderWidth);
-        attackLabel.setBounds  (aArea.removeFromTop (envLabelH));
+        auto aArea = area.removeFromLeft (Width);
+        attackLabel.setBounds  (aArea.removeFromTop (labelH));
         attackSlider.setBounds (aArea);
     
-        auto decArea = area.removeFromLeft (sliderWidth);
-        decayLabel.setBounds  (decArea.removeFromTop (envLabelH));
+        auto decArea = area.removeFromLeft (Width);
+        decayLabel.setBounds  (decArea.removeFromTop (labelH));
         decaySlider.setBounds (decArea);
     
-        auto sArea = area.removeFromLeft (sliderWidth);
-        sustainLabel.setBounds  (sArea.removeFromTop (envLabelH));
+        auto sArea = area.removeFromLeft (Width);
+        sustainLabel.setBounds  (sArea.removeFromTop (labelH));
         sustainSlider.setBounds (sArea);
     
         auto relArea = area;
-        releaseLabel.setBounds  (relArea.removeFromTop (envLabelH));
+        releaseLabel.setBounds  (relArea.removeFromTop (labelH));
         releaseSlider.setBounds (relArea);
 
         // text labels //
-        int textBoxW = static_cast<int> (knobWidth * 0.8f);
-        int textBoxH = static_cast<int> (labelH * 0.6f);
+        int textBoxW = static_cast<int> (Width * 0.8f);
+        int textBoxH = static_cast<int> (labelH);
         
         ratioSlider.setTextBoxStyle  (juce::Slider::TextBoxBelow, false, textBoxW, textBoxH);
         detuneSlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, textBoxW, textBoxH);
         phaseSlider.setTextBoxStyle  (juce::Slider::TextBoxBelow, false, textBoxW, textBoxH);
         foldSlider.setTextBoxStyle   (juce::Slider::TextBoxBelow, false, textBoxW, textBoxH);
-    
-        int envTextBoxW = static_cast<int> (sliderWidth * 0.9f);
-        int envTextBoxH = static_cast<int> (area.getHeight() * 0.24f); // relative to full remaining area
-        
-        attackSlider.setTextBoxStyle  (juce::Slider::TextBoxBelow, false, envTextBoxW, envTextBoxH);
-        decaySlider.setTextBoxStyle   (juce::Slider::TextBoxBelow, false, envTextBoxW, envTextBoxH);
-        sustainSlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, envTextBoxW, envTextBoxH);
-        releaseSlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, envTextBoxW, envTextBoxH);    	
+        attackSlider.setTextBoxStyle  (juce::Slider::TextBoxBelow, false, textBoxW, textBoxH);
+        decaySlider.setTextBoxStyle   (juce::Slider::TextBoxBelow, false, textBoxW, textBoxH);
+        sustainSlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, textBoxW, textBoxH);
+        releaseSlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, textBoxW, textBoxH);    	
     }
 
     void lookAndFeelChanged() override
@@ -183,6 +183,7 @@ struct CompactOperatorGroup : public juce::Component
 
         // 1. Update Labels
         opHeaderLabel.setColour (juce::Label::textColourId, colors.text);
+        envHeaderLabel.setColour (juce::Label::textColourId, colors.text);
         ratioLabel.setColour    (juce::Label::textColourId, colors.text);
         detuneLabel.setColour   (juce::Label::textColourId, colors.text);
         phaseLabel.setColour    (juce::Label::textColourId, colors.text);
@@ -332,7 +333,7 @@ private:
     juce::Slider ratioSlider, detuneSlider, phaseSlider, foldSlider;
     juce::Slider attackSlider, decaySlider, sustainSlider, releaseSlider;
     
-    juce::Label opHeaderLabel;
+    juce::Label opHeaderLabel, envHeaderLabel;
     juce::Label ratioLabel, detuneLabel, phaseLabel, foldLabel;
     juce::Label attackLabel, decayLabel, sustainLabel, releaseLabel;
     
@@ -403,8 +404,8 @@ public:
     {
         auto area = getLocalBounds();
 
-        int rows = 2;
-        int cols = 3;
+        int rows = 6;
+        int cols = 1;
         int cellWidth = area.getWidth() / cols;
         int cellHeight = area.getHeight() / rows;
 

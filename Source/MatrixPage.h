@@ -73,16 +73,18 @@ struct ModMatrixSlot : public juce::Component
     void resized() override
     {
         auto area  = getLocalBounds().reduced (2, 0);
-        auto tArea = area.removeFromTop (area.getHeight() / 3);
-        auto cArea = area.removeFromTop (area.getHeight());
-        auto bArea = cArea.removeFromTop (cArea.getHeight() /2);
+        // right column for long depth slider
+        auto rightArea = area.removeFromRight(area.getWidth() * 0.25);
+        depthLabel.setBounds  (rightArea.removeFromTop (rightArea.getHeight() * 0.2f));
+        amountSlider.setBounds (rightArea.reduced (2, 0));        
+        // left column with source and target
+        auto tArea = area.removeFromTop (area.getHeight() /3); // in thirds
+        auto bArea = area.removeFromTop (area.getHeight() /2);
         int w = tArea.getWidth();
-        rowSLabel.setBounds       (tArea.removeFromLeft (w * 0.25f));
-        sourceSelector.setBounds (tArea.removeFromLeft (w * 0.50f).reduced (2, 0));
-        depthLabel.setBounds (tArea.removeFromLeft (w * 0.25f));
-        rowTLabel.setBounds       (bArea.removeFromLeft (w * 0.25f));
-        targetSelector.setBounds (bArea.removeFromLeft (w * 0.50f).reduced (2, 0));
-        amountSlider.setBounds   (cArea.removeFromRight (w * 0.25f));
+        rowSLabel.setBounds       (tArea.removeFromLeft (w * 0.3f));
+        sourceSelector.setBounds (tArea.removeFromLeft (w * 0.7f).reduced (2, 0));
+        rowTLabel.setBounds       (bArea.removeFromLeft (w * 0.3f));
+        targetSelector.setBounds (bArea.removeFromLeft (w * 0.7f).reduced (2, 0));
     }
 
     void buildTargetMenu()

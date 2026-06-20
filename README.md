@@ -83,6 +83,7 @@ Additional Notes:
 #### None
 - Options: It doesn't do anything
 - Use this as a passthrough! 
+###Filters
 #### SVF (Lowpass, Highpass, Bandpass)
 - Options: Cutoff, Resonance, Keytrack, Feedback
 - They're the normal filters of those kinds. The implementation here is JUCE-standard.
@@ -96,6 +97,7 @@ Additional Notes:
 #### Formant
 - Options: Vowel, Nasal, Vowel Mod, Drive
 - Note: Vowel Mod changes the amount of modulation coming in from the modulation matrix, if you are modulating it. So to hear it simply, you can self-modulate this operator, and then tweak the Vowel Mod, and it will change the sound then.
+###EQs
 #### Compressor
 - Options: Threshold, Ratio, Attack, Release
 - it's a compressor. Wowee.
@@ -113,6 +115,7 @@ Additional Notes:
 - saturation: saturates the signal
 - bias: biases the saturation. midway is nothing, left is harsh and bright, right is dull and soft.
 - For Bias to be heard saturation must be on at least a little bit, the bias biases the saturation.
+###Chorus/'normal' effects
 #### Chorus
 - Options: Rate (speed chorus moves), Depth (size of chorus), Spread (in the stereo field), Voices (1-8)
 - This is a modern chorus.
@@ -130,6 +133,7 @@ Additional Notes:
 #### Ring Mod
 - Options: Frequency (that rings out), Shape (of modulation), Depth (of modulation), Feedback (from modulation)
 - Modulate everything. Ring everything.
+## Reverb/Delay
 #### Allpass Reverb
 - Options: Size, Decay, Diffusion, Damping
 - Size: 0.0 = small room (20ms), 1.0 = large hall (500ms)
@@ -150,6 +154,7 @@ Additional Notes:
 #### Ambient Shimmer
 - Options: Time, Feedback, Shimmer, Diffusion
 - Note: This ambient shimmer delay has a 16 second (!!!) possible time. Shimmer is a one-octave-up duplication of the sound and the knob acts as a mix knob for that.
+###Using buffers of sound to make effects
 #### DJFX Delay
 - Options: Buffer, Speed, Loop On, Drift
 - Modeled after a famous DJ-style delay. (...)
@@ -172,10 +177,11 @@ Additional Notes:
 - Make your sound go (glittery noises)!
 #### Spectral Freeze
 - Options: Freeze, Blend, Pitch, Blur
-Take the incoming audio. Pause it. Twist it and reverse it.
+- Take the incoming audio. Pause it. Twist it and ... speed it. That's really it.
 #### Looper
-- Options: Stop/Play, Rec(/Clear)/Pass/Dub, Decay, Fade
-It's a looper! Do your favorite Dorian Concept haha.
+- Options: Stop/Play, Rec(Also clears the loop)/Pass/Dub, Decay, Fade
+- It's a looper! That's really it. No buttons, so it's a little weird, but it works!
+- Note: Decay starts at 0 (no decay) and goes up to full decay (the looper won't save anything from the previous loops at full decay).
 
 #### More?
  The process to add more effects is very easy:

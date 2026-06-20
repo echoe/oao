@@ -706,7 +706,17 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
                                 outArr[ch] = fxEffects[slot][ch].processSampleSpectralFreeze (inArr[ch], freeze, phaseRand, pitchRatio, blur, getSampleRate());
                                 outArr[ch] = std::isfinite (outArr[ch]) ? outArr[ch] : 0.0f;
                                 break;
-                            }                            
+                            }
+                            case 26: // Looper: Stop/Play | Rec/Pass/Overdub | Decay | Fade
+                            {
+                                float stopPlay   = juce::jlimit (0.0f, 1.0f, normalizedRatio);
+                                float recOverdub = juce::jlimit (0.0f, 1.0f, (detune + 50.0f) / 100.0f);
+                                float decay      = juce::jlimit (0.0f, 1.0f, phase / 360.0f);
+                                float fade        = juce::jlimit (0.0f, 1.0f, fold);
+                                outArr[ch]    = fxEffects[slot][ch].processSampleLooper (inArr[ch], stopPlay, recOverdub, decay, fade, getSampleRate());
+                                outArr[ch] = std::isfinite (outArr[ch]) ? outArr[ch] : 0.0f;
+                                break;
+                            }
                             default:
                                 outArr[ch] = inArr[ch];
                                 break;

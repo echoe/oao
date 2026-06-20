@@ -16,7 +16,7 @@ namespace ProjectConfig
     // Effects list
     inline juce::StringArray getEffectTypeChoices()
     {
-        return { "None", "Lowpass", "Highpass", "Bandpass", "Filter Drive", "Comb", "Formant", "Compressor", "3-bar EQ", "OTT", "Lofi", "Tape", "Chorus", "Old Chorus", "Distortion", "Bitcrush", "Ring Mod", "AP Reverb", "AP Delay", "Timeshift Delay", "Shimmer Delay", "DJFX Delay", "Scatter", "Granular", "Color Bass", "Spectral Freeze" };
+        return { "None", "Lowpass", "Highpass", "Bandpass", "Filter Drive", "Comb", "Formant", "Compressor", "3-bar EQ", "OTT", "Lofi", "Tape", "Chorus", "Old Chorus", "Distortion", "Bitcrush", "Ring Mod", "AP Reverb", "AP Delay", "Timeshift Delay", "Shimmer Delay", "DJFX Delay", "Scatter", "Granular", "Color Bass", "Spectral Freeze", "Looper" };
     }
     // Effects knobs list
     inline std::array<const char*, 4> getEffectKnobLabels (int effectTypeIndex)
@@ -48,7 +48,8 @@ namespace ProjectConfig
 	    case 22: return { "Type",      "Size",     "Speed",     "Depth"    }; // Scatter. More strange effects
 	    case 23: return { "Grain Size","Scatter",  "Damping",   "Feedback" }; // Granular
 	    case 24: return { "Drive",     "Shimmer",  "Tone",      "Decay"    }; // Color Bass
-            case 25: return { "Freeze On", "Phase Rand",    "Pitch",     "Blur"     }; // Spectral Freeze
+            case 25: return { "Freeze On", "Phase Rnd","Pitch",     "Blur"     }; // Spectral Freeze
+            case 26: return { "Stop/Play","Rec/Pass/Dub","Decay",   "Fade"     }; // Looper
 	    default: return { "A",         "B",        "C",         "D"        };
 	}
     }

@@ -59,6 +59,9 @@ public:
         freezePhases.assign (numBins, 0.0f);
         freezeSmoothedMagnitudes.assign (numBins, 0.0f);
         freezeBlurredMagnitudes.assign (numBins, 0.0f);
+	//looper
+	looperMaxLength = static_cast<int> (30.0 * sampleRate); // 30s cap — adjust if you want longer
+        looperBuffer.assign (looperMaxLength, 0.0f);
     }
 
     void setSampleRate (double newSampleRate) 
@@ -1868,6 +1871,87 @@ public:
         return std::isfinite (output) ? output : 0.0f;
     }
 
+    float processSampleLooper (float input, float stopPlayNorm, float recordOverdubNorm, float decayNorm, float fadeNorm, double sampleRate)
+    {
+        if (looperMaxLength <= 0) return 0.0f; // not prepared yet
+    
+        bool playBandActive = (stopPlayNorm >= 0.5f); // false = Stop, true = Play
+        int  recBand         = juce::jlimit (0, 2, static_cast<int> (recordOverdubNorm * 3.0f)); // 0=Record 1=Pass 2=Overdub
+    
+        bool currentlyRecording = playBandActive && (recBand == 0);
+    
+        // --- Edge-detect the combined recording state ---
+        if (currentlyRecording && !prevCurrentlyRecording)
+        {
+            // Rising edge: entering Record while running — clear and start fresh
+            looperPos     = 0;
+            looperHasLoop = false;
+        }
+        else if (!currentlyRecording && prevCurrentlyRecording)
+        {
+            // Falling edge: leaving Record — Stop, or knob2 moved to Pass/Overdub. Finalize either way.
+            looperLength  = juce::jmax (1, looperPos);
+            looperHasLoop = true;
+    
+            float fadeMs      = juce::jmap (fadeNorm, 0.0f, 1.0f, 1.0f, 50.0f);
+            int   fadeSamples = juce::jlimit (1, looperLength / 2, static_cast<int> (fadeMs / 1000.0f * sampleRate));
+    
+            for (int i = 0; i < fadeSamples; ++i)
+            {
+                float g = static_cast<float> (i) / static_cast<float> (fadeSamples);
+                looperBuffer[i]                    *= g; // fade in at head
+                looperBuffer[looperLength - 1 - i] *= g; // fade out at tail
+            }
+            looperPos = 0; // restart from the top for playback
+        }
+        prevCurrentlyRecording = currentlyRecording;
+    
+        float output = 0.0f; // no dry passthrough — chain Mix knob owns that
+    
+        if (currentlyRecording)
+        {
+            if (looperPos < looperMaxLength)
+            {
+                looperBuffer[looperPos] = input;
+                ++looperPos;
+            }
+            else
+            {
+                // Hit the buffer cap mid-recording — finalize early rather than overflow
+                looperLength  = looperMaxLength;
+                looperHasLoop = true;
+    
+                float fadeMs      = juce::jmap (fadeNorm, 0.0f, 1.0f, 1.0f, 50.0f);
+                int   fadeSamples = juce::jlimit (1, looperLength / 2, static_cast<int> (fadeMs / 1000.0f * sampleRate));
+                for (int i = 0; i < fadeSamples; ++i)
+                {
+                    float g = static_cast<float> (i) / static_cast<float> (fadeSamples);
+                    looperBuffer[i]                    *= g;
+                    looperBuffer[looperLength - 1 - i] *= g;
+                }
+                looperPos = 0;
+                prevCurrentlyRecording = false;
+            }
+            // output stays 0 — capture is silent
+        }
+        else if (playBandActive && looperHasLoop) // recBand is Pass(1) or Overdub(2) here — Record already handled above
+        {
+            float loopSample = looperBuffer[looperPos];
+            output = loopSample;
+    
+            if (recBand == 2) // Overdub only — Pass leaves the buffer untouched
+            {
+                float blended = std::tanh (loopSample * decayNorm + input);
+                looperBuffer[looperPos] = blended;
+            }
+    
+            looperPos = (looperPos + 1) % looperLength;
+        }
+        // Stop: output stays 0, position frozen, nothing read or written
+    
+        return std::isfinite (output) ? output : 0.0f;
+    }
+
     // TRUE STEREO EFFECTS
 
     StereoOutput processSampleStereoAllpassReverb (float inL, float inR, SynthEffect& rightCh, 
@@ -2331,6 +2415,15 @@ protected:
     static constexpr std::array<int, 4> primeDelays        = { 211, 347, 523, 701 };
     static constexpr std::array<int, 4> revPrimeDelays     = { 883, 1031, 1153, 1301 };
     static constexpr std::array<int, 4> ambientPrimeDelays = { 1511, 1699, 1861, 2029 };
+    // Looper
+    std::vector<float> looperBuffer;
+    int   looperMaxLength  = 0;   // set in prepare(), e.g. 30 seconds * sampleRate
+    int   looperLength      = 0;   // actual recorded length, set when recording stops
+    int   looperPos          = 0;   // write pos while recording, playback pos otherwise
+    int   prevModeBand      = -1;  // for edge detection
+    bool  looperHasLoop     = false;
+    bool  looperRecording   = false;
+    bool prevCurrentlyRecording  = false;
     // Parameters Cache
     double sampleRate { 44100.0 };
     float targetCutoff { 1000.0f };

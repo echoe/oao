@@ -116,7 +116,7 @@ public:
             const auto& selectedAlgo = algorithms[dxAlgoIndex];
             auto& parameters = audioProcessor.apvts.processor.getParameters();
 
-            // 1. Clear out the entire modulation and routing matrix
+            // Clear out the entire modulation and routing matrix
             for (auto* param : parameters)
             {
                 if (auto* p = dynamic_cast<juce::RangedAudioParameter*> (param))
@@ -127,7 +127,7 @@ public:
                 }
             }
 
-            // 2. Wire up the new connections using your setReal helper
+            // Wire up the new connections
             for (const auto& conn : selectedAlgo.connections)
             {
                 int sourceOp = conn.first;
@@ -141,13 +141,11 @@ public:
                 } 
                 else 
                 {
-                    // It's a modulator. Convert human 1-index to your 0-indexed parameter grid.
-                    int srcParamIdx  = sourceOp - 1;
-                    int destParamIdx = destOp - 1;
-                    juce::String modID = "MOD_" + juce::String (srcParamIdx) + "_" + juce::String (destParamIdx);
+                    // It's a modulator. Convert the indexes to grab the right mod target
+                    juce::String modID = "MOD_" + juce::String (sourceOp -1) + "_" + juce::String (destOp -1);
 
-                    // Set a solid default modulation depth (scaled out of your 10.0f max)
-                    setReal (modID, 5.0f); 
+                    // Set a default modulation depth of 1.0
+                    setReal (modID, 2.0f); 
                 }
             }
         };

@@ -3,8 +3,9 @@
 <img src=https://raw.githubusercontent.com/echoe/oao/refs/heads/main/pictures/operators.png width="450" height="300" />
 
 This is a six-operator FM synthesizer/effects unit, where the operators do everything. It's open source, written in C++ using the JUCE framework and a lot of AI help.
+(yes, it's really Phase Modulation, but look. You can do FM if you really want with the mod matrix. Anyways, it's close enough.)
 
-Thanks to both Six Sines and to the Korg Opsix for some of the inspiration behind this synth :) but I've sort of just liberally taken from stuff to make something approximating the VST of my dreams.
+Thanks to both Six Sines and to the Korg Opsix for some of the inspiration behind this synth :) I've sort of just liberally taken from stuff to make something approximating the VST of my dreams.
 
 ## Preset Bar
 
@@ -57,7 +58,6 @@ For SquarePWM and Pulse, instead of Phase there is a PWM option there ... follow
 Additional Notes:
 
 - Ratio goes down to 0.01 so you can have a waveform slow enough to reasonably be used as an LFO. I may add another operator mode for this in the future if this isn't slow enough for some cases, but it's been fine for me. YMMV.
-- If you want phase modulation, the phase is there to be modulated! Wow.
 - PLEASE NOTE: The gain for all operators is controlled in the Audio Matrix! If you don't hear one, go to the Audio Matrix and turn it up!
 
 ### Additive

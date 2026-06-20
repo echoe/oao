@@ -116,13 +116,14 @@ public:
             const auto& selectedAlgo = algorithms[dxAlgoIndex];
             auto& parameters = audioProcessor.apvts.processor.getParameters();
 
-            // Clear out the entire modulation and routing matrix (outside of purpose-routed ones)
+            // Clear out the modulation matrix (outside of purpose-routed ones)
+            // We leave the audio routed (AUDIO_ROUTE) in case you want to experiment
             for (auto* param : parameters)
             {
                 if (auto* p = dynamic_cast<juce::RangedAudioParameter*> (param))
                 {
                     juce::String id = p->getParameterID();
-                    if (id.startsWith ("MOD_") || id.startsWith ("AUDIO_ROUTE_") || id.startsWith ("OUT"))
+                    if (id.startsWith ("MOD_") || id.startsWith ("OUT"))
                     {
                         if (id.startsWith ("MOD_TGT_")|| id.startsWith ("MOD_SRC_") || id.startsWith ("MOD_AMT_"))
                         {

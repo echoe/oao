@@ -1276,10 +1276,9 @@ public:
         // Array of mutually prime numbers for smooth diffusion
         float diffCoeff = diffusion * 0.7f;
         float diffused  = input;
-
+    
         for (int i = 0; i < numApStages; ++i)
         {
-            // Pass the fixed prime number directly into the new 5-argument function
             diffused = processAllpass (diffused, diffCoeff,
                                        apStageBuffers[i], apStageWritePtrs[i],
                                        primeDelays[i]);
@@ -1291,14 +1290,32 @@ public:
                                  static_cast<int> (delayMs / 1000.0f * sampleRate));
     
         int   readPtr  = (ambientWritePtr - delaySamples + ambientBufferSize) % ambientBufferSize;
-        float delayed  = ambientBuffer[readPtr];
+        float mainTap  = ambientBuffer[readPtr];
+    
+        // --- Cloud bloom: extra short pre-echoes, fading in with diffusion. Read-only color, doesn't feed back. ---
+        constexpr int   maxBloomTaps   = 4;
+        constexpr float bloomRatios[maxBloomTaps]    = { 0.2f, 0.4f, 0.6f, 0.8f };
+        constexpr float bloomBaseGains[maxBloomTaps] = { 0.45f, 0.4f, 0.32f, 0.25f };
+    
+        int   activeBloomTaps = static_cast<int> (diffusion * maxBloomTaps + 0.5f);
+        float bloomSum = 0.0f;
+    
+        for (int t = 0; t < activeBloomTaps; ++t)
+        {
+            int tapSamples = juce::jlimit (1, ambientBufferSize - 1, static_cast<int> (delaySamples * bloomRatios[t]));
+            int tapReadPtr = (ambientWritePtr - tapSamples + ambientBufferSize) % ambientBufferSize;
+            bloomSum += ambientBuffer[tapReadPtr] * bloomBaseGains[t] * diffusion;
+        }
+    
+        float delayed = mainTap + bloomSum;   // bloom-inclusive — used for output/smear only
     
         // shimmer. uses a simple granular pitch shift — reads buffer at 2x speed
+        // NOTE: shimmer reads the main tap only, not the bloom — keeps the pitch-shifted layer clean
         float shimmered = 0.0f;
         if (shimmer > 0.001f)
         {
             // Write to shimmer buffer
-            shimmerBuffer[shimmerWritePtr] = delayed;
+            shimmerBuffer[shimmerWritePtr] = mainTap;
             shimmerWritePtr = (shimmerWritePtr + 1) % shimmerBufferSize;
     
             // Read at 2x speed for octave up
@@ -1316,8 +1333,9 @@ public:
         }
     
         // feedback with shimmer mixed in
+        // NOTE: feedback recirculates the main tap only — bloom taps stay a one-pass color layer, don't compound
         float feedbackAmt    = juce::jlimit (0.0f, 0.98f, feedback);
-        float feedbackSignal = delayed + shimmered * shimmer;
+        float feedbackSignal = mainTap + shimmered * shimmer;
         feedbackSignal       = std::tanh (feedbackSignal); // soft clip to prevent blowup
     
         // write to delay
@@ -1325,12 +1343,12 @@ public:
         ambientWritePtr = (ambientWritePtr + 1) % ambientBufferSize;
     
         //  smear the output into a wash
-        float output = delayed; // Avoid redefining 'output' if in the same scope
-        
+        float output = delayed; // bloom-inclusive — this is what gets heard
+    
         for (int i = numAmbientStages / 2; i < numAmbientStages; ++i)
         {
             int primeIndex = i - (numAmbientStages / 2);
-            
+    
             output = processAllpass (output, diffCoeff,
                                          ambientStageBuffers[i], ambientStageWritePtrs[i],
                                          ambientPrimeDelays[primeIndex]);
@@ -1913,7 +1931,7 @@ public:
     {
         float diffCoeff = diffusion * 0.7f;
         float diffL = inL; float diffR = inR;
-
+    
         for (int i = 0; i < numApStages; ++i)
         {
             diffL = processAllpass (diffL, diffCoeff, apStageBuffers[i], apStageWritePtrs[i], primeDelays[i]);
@@ -1925,16 +1943,39 @@ public:
     
         int readPtrL = (ambientWritePtr - delaySamples + ambientBufferSize) % ambientBufferSize;
         int readPtrR = (rightCh.ambientWritePtr - delaySamples + ambientBufferSize) % ambientBufferSize;
-        
-        float delayedL = ambientBuffer[readPtrL];
-        float delayedR = rightCh.ambientBuffer[readPtrR];
+    
+        float mainTapL = ambientBuffer[readPtrL];
+        float mainTapR = rightCh.ambientBuffer[readPtrR];
+    
+        // --- Cloud bloom: extra short pre-echoes, fading in with diffusion. Read-only color, doesn't feed back. ---
+        constexpr int   maxBloomTaps   = 4;
+        constexpr float bloomRatios[maxBloomTaps]    = { 0.2f, 0.4f, 0.6f, 0.8f };
+        constexpr float bloomBaseGains[maxBloomTaps] = { 0.45f, 0.4f, 0.32f, 0.25f };
+    
+        int   activeBloomTaps = static_cast<int> (diffusion * maxBloomTaps + 0.5f);
+        float bloomSumL = 0.0f, bloomSumR = 0.0f;
+    
+        for (int t = 0; t < activeBloomTaps; ++t)
+        {
+            int tapSamples = juce::jlimit (1, ambientBufferSize - 1, static_cast<int> (delaySamples * bloomRatios[t]));
+    
+            int tapPtrL = (ambientWritePtr - tapSamples + ambientBufferSize) % ambientBufferSize;
+            bloomSumL += ambientBuffer[tapPtrL] * bloomBaseGains[t] * diffusion;
+    
+            int tapPtrR = (rightCh.ambientWritePtr - tapSamples + ambientBufferSize) % ambientBufferSize;
+            bloomSumR += rightCh.ambientBuffer[tapPtrR] * bloomBaseGains[t] * diffusion;
+        }
+    
+        float delayedL = mainTapL + bloomSumL;   // bloom-inclusive — feeds output/smear only
+        float delayedR = mainTapR + bloomSumR;
     
         // Calculate Shimmer (Independent per channel to widen the pitch variance)
+        // NOTE: shimmer reads the main tap only, not the bloom — keeps the pitch-shifted layer clean
         float shimmeredL = 0.0f; float shimmeredR = 0.0f;
         if (shimmer > 0.001f)
         {
             // Left Shimmer
-            shimmerBuffer[shimmerWritePtr] = delayedL;
+            shimmerBuffer[shimmerWritePtr] = mainTapL;
             shimmerWritePtr = (shimmerWritePtr + 1) % shimmerBufferSize;
             shimmerReadPtr += 2.0f;
             if (shimmerReadPtr >= static_cast<float>(shimmerBufferSize)) shimmerReadPtr -= static_cast<float>(shimmerBufferSize);
@@ -1942,9 +1983,9 @@ public:
             shimmerPhase += 2.0f / static_cast<float> (shimmerBufferSize);
             if (shimmerPhase >= 1.0f) shimmerPhase -= 1.0f;
             shimmeredL *= 0.5f * (1.0f - std::cos (shimmerPhase * juce::MathConstants<float>::twoPi));
-
+    
             // Right Shimmer
-            rightCh.shimmerBuffer[rightCh.shimmerWritePtr] = delayedR;
+            rightCh.shimmerBuffer[rightCh.shimmerWritePtr] = mainTapR;
             rightCh.shimmerWritePtr = (rightCh.shimmerWritePtr + 1) % shimmerBufferSize;
             rightCh.shimmerReadPtr += 2.0f;
             if (rightCh.shimmerReadPtr >= static_cast<float>(shimmerBufferSize)) rightCh.shimmerReadPtr -= static_cast<float>(shimmerBufferSize);
@@ -1955,9 +1996,10 @@ public:
         }
     
         // PING-PONG CROSS-TALK: Feed Right delay into Left input, and Left into Right
+        // NOTE: feedback recirculates the main tap only — bloom taps stay a one-pass color layer, don't compound
         float feedbackAmt = juce::jlimit (0.0f, 0.98f, feedback);
-        float feedL = std::tanh(delayedR + shimmeredR * shimmer);
-        float feedR = std::tanh(delayedL + shimmeredL * shimmer);
+        float feedL = std::tanh(mainTapR + shimmeredR * shimmer);
+        float feedR = std::tanh(mainTapL + shimmeredL * shimmer);
     
         ambientBuffer[ambientWritePtr] = diffL + feedL * feedbackAmt;
         rightCh.ambientBuffer[rightCh.ambientWritePtr] = diffR + feedR * feedbackAmt;
@@ -1965,7 +2007,7 @@ public:
         ambientWritePtr = (ambientWritePtr + 1) % ambientBufferSize;
         rightCh.ambientWritePtr = (rightCh.ambientWritePtr + 1) % ambientBufferSize;
     
-        float outL = delayedL; float outR = delayedR;
+        float outL = delayedL; float outR = delayedR;   // bloom-inclusive — this is what gets heard
         for (int i = numAmbientStages / 2; i < numAmbientStages; ++i)
         {
             int pIdx = i - (numAmbientStages / 2);

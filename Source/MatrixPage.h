@@ -184,6 +184,7 @@ public:
                 juce::String id = paramPrefix + juce::String (src) + "_" + juce::String (dest);
                 matrixAttachments.add (
                     std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (apvts, id, *s));
+                matrixParams.add (apvts.getParameter (id));
             }
         }
 
@@ -216,6 +217,15 @@ public:
                         apvts, "OUT_" + juce::String (i + 1), *sl));
             }
         }
+
+        // Reset button — top left, zeroes out every cell in this page's matrix
+        addAndMakeVisible (resetButton);
+        resetButton.onClick = [this]()
+        {
+            for (auto* p : matrixParams)
+                if (p != nullptr)
+                    p->setValueNotifyingHost (p->convertTo0to1 (0.0f));
+        };
     }
 
     void recalcGeometry()
@@ -295,6 +305,11 @@ public:
         recalcGeometry();
         auto area        = getLocalBounds();
         area.removeFromTop (cachedH * 0.05f);
+
+        // Reset button — top left corner, small fixed-ish size relative to component
+        int btnW = juce::jlimit (50, 120, static_cast<int> (cachedW * 0.10f));
+        int btnH = juce::jlimit (16, 28,  static_cast<int> (cachedH * 0.035f));
+        resetButton.setBounds (4, 4, btnW, btnH);
     
         int totalW       = area.getWidth();
         auto gridArea    = area.removeFromLeft (static_cast<int> (totalW * splitRatio));
@@ -391,6 +406,10 @@ public:
                 label->sendLookAndFeelChange();
             }
         }
+
+        resetButton.setColour (juce::TextButton::buttonColourId, colors.surface);
+        resetButton.setColour (juce::TextButton::textColourOffId, colors.text);
+        resetButton.sendLookAndFeelChange();
     }
 
     void refreshColors()
@@ -416,7 +435,9 @@ private:
     float cachedW = 0.0f;
     float cachedH = 0.0f;
     static constexpr float splitRatio = 0.60f;
+    juce::TextButton resetButton { "Reset" };
     juce::OwnedArray<juce::Slider>     matrixSliders;
+    juce::Array<juce::RangedAudioParameter*> matrixParams; // parallel to matrixSliders, raw (non-owning)
     juce::OwnedArray<juce::AudioProcessorValueTreeState::SliderAttachment> matrixAttachments;
     std::vector<std::unique_ptr<ModMatrixSlot>> modSlots;
     juce::OwnedArray<juce::Slider>     outputSliders;

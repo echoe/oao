@@ -564,6 +564,17 @@ public:
                                                                             currentSampleRate);
                 outputSample = std::isfinite (output) ? output : 0.0f;
             }
+            else if (effectType == 26) // Looper
+            {
+                float stopPlay   = juce::jlimit (0.0f, 1.0f, (ratio - 0.01f) / (16.0f - 0.01f));
+                float recOverdub = juce::jlimit (0.0f, 1.0f, (detune + 50.0f) / 100.0f);
+                float decay      = juce::jlimit (0.0f, 1.0f, phaseKnob / 360.0f);
+                float fade        = juce::jlimit (0.0f, 1.0f, foldKnob);
+                float output  = internalEffect.processSampleLooper (audioInputSum, stopPlay,
+                                                                      recOverdub, decay,
+                                                                      fade, currentSampleRate);
+                outputSample = std::isfinite (output) ? output : 0.0f;
+            }
         }
         else // Here are our oscillators, Wave and Additive. They all need these:
         {

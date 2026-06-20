@@ -101,10 +101,20 @@ juce_add_console_app(OAO_TESTS PRODUCT_NAME "oao_tests")
 target_sources(OAO_TESTS PRIVATE
     Tests/OAOTests.cpp
     Source/FMVoice.cpp)
+
 target_include_directories(OAO_TESTS PRIVATE Source/)
+
 target_link_libraries(OAO_TESTS PRIVATE
     juce::juce_audio_basics
     juce::juce_audio_processors
     juce::juce_dsp)
+
+target_compile_features(OAO_TESTS PRIVATE cxx_std_17)
+
+target_compile_definitions(OAO_TESTS PRIVATE
+    JUCE_WEB_BROWSER=0
+    JUCE_USE_CURL=0
+    JUCE_VST3_CAN_REPLACE_VST2=0
+)
 
 juce_generate_juce_header(OAO_TESTS)

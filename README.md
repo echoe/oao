@@ -173,6 +173,9 @@ Additional Notes:
 #### Spectral Freeze
 - Options: Freeze, Blend, Pitch, Blur
 Take the incoming audio. Pause it. Twist it and reverse it.
+#### Looper
+- Options: Stop/Play, Rec(/Clear)/Pass/Dub, Decay, Fade
+It's a looper! Do your favorite Dorian Concept haha.
 
 #### More?
  The process to add more effects is very easy:

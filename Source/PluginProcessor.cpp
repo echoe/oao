@@ -696,17 +696,17 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
                                 outArr[ch] = std::isfinite (outArr[ch]) ? outArr[ch] : 0.0f;
                                 break;
                             }
-                            case 25: // Spectral Freeze: Freeze On | Blend | Pitch | Blur
+                            case 25: // Spectral Freeze: Freeze On | Phase Random | Pitch | Blur
                             {
                                 float freeze     = normalizedRatio;
-                                float blend      = juce::jlimit (0.0f, 1.0f, (detune + 50.0f) / 100.0f);
+                                float phaseRand   = juce::jlimit (0.0f, 1.0f, (detune + 50.0f) / 100.0f);
                                 float rawPitch   = juce::jlimit (0.0f, 1.0f, phase / 360.0f);
                                 float pitchRatio = std::pow (2.0f, (rawPitch - 0.5f) * 48.0f / 12.0f);
                                 float blur       = juce::jlimit (0.0f, 1.0f, fold);
-                                outArr[ch] = fxEffects[slot][ch].processSampleSpectralFreeze (inArr[ch], freeze, blend, pitchRatio, blur, getSampleRate());
+                                outArr[ch] = fxEffects[slot][ch].processSampleSpectralFreeze (inArr[ch], freeze, phaseRand, pitchRatio, blur, getSampleRate());
                                 outArr[ch] = std::isfinite (outArr[ch]) ? outArr[ch] : 0.0f;
                                 break;
-                            }
+                            }                            
                             default:
                                 outArr[ch] = inArr[ch];
                                 break;

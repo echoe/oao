@@ -554,13 +554,13 @@ public:
             }
             else if (effectType == 25) // Spectral Freeze
             {
-                float freeze = (ratio - 0.01f) / (16.0f - 0.01f);
-                float blend  = juce::jlimit (0.0f, 1.0f, (detune + 50.0f) / 100.0f);
-                float pitch  = phaseKnob / 360.0f;
-                float blur   = juce::jlimit (0.0f, 1.0f, foldKnob);
+                float freeze    = (ratio - 0.01f) / (16.0f - 0.01f);
+                float phaseRand = juce::jlimit (0.0f, 1.0f, (detune + 50.0f) / 100.0f);
+                float pitch     = juce::jlimit (0.0f, 1.0f, phaseKnob / 360.0f);
+                float blur      = juce::jlimit (0.0f, 1.0f, foldKnob);
             
                 float output = internalEffect.processSampleSpectralFreeze (audioInputSum, freeze,
-                                                                            blend, pitch, blur,
+                                                                            phaseRand, pitch, blur,
                                                                             currentSampleRate);
                 outputSample = std::isfinite (output) ? output : 0.0f;
             }

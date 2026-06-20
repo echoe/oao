@@ -116,18 +116,18 @@ public:
             const auto& selectedAlgo = algorithms[dxAlgoIndex];
             auto& parameters = audioProcessor.apvts.processor.getParameters();
 
-            // 1. Clear out the entire modulation and routing matrix
+            // Clear out the entire modulation and routing matrix
             for (auto* param : parameters)
             {
                 if (auto* p = dynamic_cast<juce::RangedAudioParameter*> (param))
                 {
                     juce::String id = p->getParameterID();
-                    if (id.startsWith ("MOD_") || id.startsWith ("AUDIO_ROUTE_"))
+                    if (id.startsWith ("MOD_") || id.startsWith ("AUDIO_ROUTE_") || id.startsWith("OUT"))
                         p->setValueNotifyingHost (0.0f);
                 }
             }
 
-            // 2. Wire up the new connections using your setReal helper
+            // Wire up the new connections
             for (const auto& conn : selectedAlgo.connections)
             {
                 int sourceOp = conn.first;
@@ -136,19 +136,16 @@ public:
                 if (destOp == 0) 
                 {
                     // It's a carrier. Route to audio output. 
-                    // (Assuming 1-indexed names like "AUDIO_ROUTE_1")
-                    juce::String routeID = "AUDIO_ROUTE_" + juce::String (sourceOp);
+                    juce::String routeID = "OUT_" + juce::String (sourceOp);
                     setReal (routeID, 1.0f); // Max volume for active carriers
                 } 
                 else 
                 {
-                    // It's a modulator. Convert human 1-index to your 0-indexed parameter grid.
-                    int srcParamIdx  = sourceOp - 1;
-                    int destParamIdx = destOp - 1;
-                    juce::String modID = "MOD_" + juce::String (srcParamIdx) + "_" + juce::String (destParamIdx);
+                    // It's a modulator. Convert the indexes to grab the right mod target
+                    juce::String modID = "MOD_" + juce::String (sourceOp -1) + "_" + juce::String (destOp -1);
 
-                    // Set a solid default modulation depth (scaled out of your 10.0f max)
-                    setReal (modID, 5.0f); 
+                    // Set a default modulation depth of 1.0
+                    setReal (modID, 2.0f); 
                 }
             }
         };

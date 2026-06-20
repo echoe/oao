@@ -116,7 +116,7 @@ public:
             const auto& selectedAlgo = algorithms[dxAlgoIndex];
             auto& parameters = audioProcessor.apvts.processor.getParameters();
 
-            // Clear out the entire modulation and routing matrix
+            // Clear out the entire modulation and routing matrix (outside of purpose-routed ones)
             for (auto* param : parameters)
             {
                 if (auto* p = dynamic_cast<juce::RangedAudioParameter*> (param))
@@ -124,11 +124,9 @@ public:
                     juce::String id = p->getParameterID();
                     if (id.startsWith ("MOD_") || id.startsWith ("AUDIO_ROUTE_") || id.startsWith ("OUT"))
                     {
-                        if (id.startsWith ("MOD_TGT_"))
+                        if (id.startsWith ("MOD_TGT_")|| id.startsWith ("MOD_SRC_") || id.startsWith ("MOD_AMT_"))
                         {
-                            // Only disconnect this mod slot if it targets a matrix cell (46-81)
-                            int tgt = static_cast<int> (p->convertFrom0to1 (p->getValue()));
-                            if (tgt < 46 || tgt > 81) continue; // leave non-matrix targets alone
+                            continue; // leave the six non-matrix targets alone
                         }
                         p->setValueNotifyingHost (p->convertTo0to1 (0.0f));
                     }

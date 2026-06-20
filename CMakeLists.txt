@@ -95,3 +95,16 @@ target_link_libraries(OAO_FX PRIVATE
 )
 
 juce_generate_juce_header(OAO_FX)
+
+# Target 3: Tests
+juce_add_console_app(OAO_TESTS PRODUCT_NAME "oao_tests")
+target_sources(OAO_TESTS PRIVATE
+    Tests/OAOTests.cpp
+    Source/FMVoice.cpp)
+target_include_directories(OAO_TESTS PRIVATE Source/)
+target_link_libraries(OAO_TESTS PRIVATE
+    juce::juce_audio_basics
+    juce::juce_audio_processors
+    juce::juce_dsp)
+
+juce_generate_juce_header(OAO_TESTS)

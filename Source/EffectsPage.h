@@ -180,7 +180,7 @@ public:
         effectSelector.setSelectedId (1, juce::dontSendNotification);
         addAndMakeVisible (effectSelector);
         
-        mixSlider.setSliderStyle (juce::Slider::LinearHorizontal);
+        mixSlider.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
         mixSlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 0, 0);
         addAndMakeVisible (mixSlider);
         mixLabel.setText ("Mix", juce::dontSendNotification);
@@ -189,7 +189,7 @@ public:
         
         for (int i = 0; i < 4; ++i)
         {
-            knobs[i].setSliderStyle (juce::Slider::LinearHorizontal);
+            knobs[i].setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
             knobs[i].setTextBoxStyle (juce::Slider::TextBoxBelow, false, 0, 0);
             addAndMakeVisible (knobs[i]);
             addAndMakeVisible (knobLabels[i]);
@@ -268,23 +268,23 @@ public:
 
         area.removeFromLeft (juce::roundToInt (getWidth() * 0.01f)); // small gap before knobs
 
-        int textBoxW  = juce::jmax (32, juce::roundToInt (getWidth()  * 0.16f));
-        int textBoxH  = juce::jmax (12, juce::roundToInt (getHeight() * 0.18f));
-        int labelH    = juce::jmax (10, juce::roundToInt (getHeight() * 0.16f));
-        int trackH    = juce::jlimit (4, 18, area.getHeight() - labelH - textBoxH);
+        // Knobs get the full remaining slot height — label strip below, knob fills the rest
+        int textBoxH = juce::jmax (12, juce::roundToInt (getHeight() * 0.12f));
+        int textBoxW = juce::jmax (32, juce::roundToInt (getWidth()  * 0.1f));
+        int labelH   = juce::jmax (10, juce::roundToInt (getHeight() * 0.14f));
 
         auto mixArea = area.removeFromLeft (juce::roundToInt (area.getWidth() * 0.16f));
-        mixLabel.setBounds (mixArea.removeFromTop (labelH));
+        mixLabel.setBounds (mixArea.removeFromBottom (labelH));
         mixSlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, textBoxW, textBoxH);
-        mixSlider.setBounds (mixArea.removeFromTop (trackH + textBoxH).reduced (2, 0));
+        mixSlider.setBounds (mixArea);
 
         int knobW = area.getWidth() / 4;
         for (int i = 0; i < 4; ++i)
         {
             auto knobArea = area.removeFromLeft (knobW);
-            knobLabels[i].setBounds (knobArea.removeFromTop (labelH));
+            knobLabels[i].setBounds (knobArea.removeFromBottom (labelH));
             knobs[i].setTextBoxStyle (juce::Slider::TextBoxBelow, false, textBoxW, textBoxH);
-            knobs[i].setBounds (knobArea.removeFromTop (trackH + textBoxH).reduced (2, 0));
+            knobs[i].setBounds (knobArea);
         }
     }
 

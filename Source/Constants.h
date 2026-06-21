@@ -4,15 +4,17 @@
 
 namespace ProjectConfig
 {
-    // Operator count
+    // Operator count, mod slots, effects, operator parameters, effect parameters
     static constexpr int numOperators = 6;
-    // ModSlots, for FMVoice and FMOperator
+    static constexpr int numOpParams = 5;
+    static constexpr int numFxParams = 5;
     static constexpr int numModSlots = 6;
-    // EffectSlots, for EffectsPage
-    static constexpr int numEffects = 3;
+    static constexpr int numEffects = 6;
+    // Number of voices
+    static constexpr int numVoices = 8;
     // Base plugin size
-    static constexpr int pluginSizeX = 900;
-    static constexpr int pluginSizeY = 800;
+    static constexpr int pluginSizeX = 1000;
+    static constexpr int pluginSizeY = 700;
     // Effects list
     inline juce::StringArray getEffectTypeChoices()
     {
@@ -59,14 +61,14 @@ namespace ModChoices // Choices for LFOs
 {
     inline juce::StringArray sources()
     {
-        return { "None", "Op 1", "Op 2", "Op 3", "Op 4", "Op 5", "Op 6", "FX LFO 1", "FX LFO 2", "FX LFO 3", "Velocity", "Mod Wheel" };
+        return { "None", "Op 1", "Op 2", "Op 3", "Op 4", "Op 5", "Op 6", "FX LFO 1", "FX LFO 2", "FX LFO 3", "FX LFO 4", "FX LFO 5", "FX LFO 6", "Velocity", "Mod Wheel" };
     }
 
     inline juce::StringArray targets()
     {
         juce::StringArray t;
         t.add("None");                                          // 0
-        for (int op = 0; op < 6; ++op)                         // 1-30
+        for (int op = 0; op < ProjectConfig::numOperators; ++op)                         // 1-30
         {
             t.add("Op " + juce::String(op+1) + " Knob A");
             t.add("Op " + juce::String(op+1) + " Knob B");
@@ -74,7 +76,7 @@ namespace ModChoices // Choices for LFOs
             t.add("Op " + juce::String(op+1) + " Knob D");
             t.add("Op " + juce::String(op+1) + " Level");
         }
-        for (int fx = 0; fx < 3; ++fx)                         // 31-45
+        for (int fx = 0; fx < ProjectConfig::numEffects; ++fx)                         // 31-60
         {
             t.add("FX " + juce::String(fx+1) + " Knob A");
             t.add("FX " + juce::String(fx+1) + " Knob B");
@@ -82,19 +84,24 @@ namespace ModChoices // Choices for LFOs
             t.add("FX " + juce::String(fx+1) + " Knob D");
             t.add("FX " + juce::String(fx+1) + " Mix");
         }
-        for (int src = 0; src < 6; ++src)                      // 46-81
-            for (int dst = 0; dst < 6; ++dst)
+        for (int src = 0; src < ProjectConfig::numOperators; ++src)                      // 46-81
+            for (int dst = 0; dst < ProjectConfig::numOperators; ++dst)
                 t.add("Op " + juce::String(src+1) + " → Op " + juce::String(dst+1));
         return t;
     }
 
     inline juce::StringArray fxtargets()
     {
-        return {
-            "None",
-            "FX 1 Knob A", "FX 1 Knob B", "FX 1 Knob C", "FX 1 Knob D", "FX 1 Mix",
-            "FX 2 Knob A", "FX 2 Knob B", "FX 2 Knob C", "FX 2 Knob D", "FX 2 Mix",
-            "FX 3 Knob A", "FX 3 Knob B", "FX 3 Knob C", "FX 3 Knob D", "FX 3 Mix",
-        };
+        juce::StringArray fxt;
+	fxt.add("None");
+        for (int fx = 0; fx < ProjectConfig::numEffects; ++fx)                         // 31-60
+        {
+            fxt.add("FX " + juce::String(fx+1) + " Knob A");
+            fxt.add("FX " + juce::String(fx+1) + " Knob B");
+            fxt.add("FX " + juce::String(fx+1) + " Knob C");
+            fxt.add("FX " + juce::String(fx+1) + " Knob D");
+            fxt.add("FX " + juce::String(fx+1) + " Mix");
+        }
+	return fxt;
     }
 }

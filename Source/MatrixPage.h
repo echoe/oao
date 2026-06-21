@@ -94,7 +94,7 @@ struct ModMatrixSlot : public juce::Component
     
         // Operator params — nested by operator
         juce::PopupMenu opMenu;
-        for (int op = 0; op < 6; ++op)
+        for (int op = 0; op < ProjectConfig::numOperators; ++op)
         {
             juce::PopupMenu sub;
             int base = op * 5 + 2; // offset by 1 for None, +1 for ComboBox 1-indexing
@@ -109,7 +109,7 @@ struct ModMatrixSlot : public juce::Component
     
         // FX params — nested by slot
         juce::PopupMenu fxMenu;
-        for (int fx = 0; fx < 3; ++fx)
+        for (int fx = 0; fx < ProjectConfig::numEffects; ++fx)
         {
             juce::PopupMenu sub;
             int base = fx * 5 + 32;
@@ -124,10 +124,10 @@ struct ModMatrixSlot : public juce::Component
     
         // FM Matrix — nested by source operator
         juce::PopupMenu matrixMenu;
-        for (int src = 0; src < 6; ++src)
+        for (int src = 0; src < ProjectConfig::numOperators; ++src)
         {
             juce::PopupMenu sub;
-            for (int dst = 0; dst < 6; ++dst)
+            for (int dst = 0; dst < ProjectConfig::numOperators; ++dst)
             {
                 int id = 47 + src * 6 + dst; // 46 entries before this + 1 for 1-indexing
                 sub.addItem(id, "Op " + juce::String(dst + 1));
@@ -453,7 +453,7 @@ private:
     int cellSize  = 90;
     float cachedW = 0.0f;
     float cachedH = 0.0f;
-    static constexpr float splitRatio = 0.60f;
+    static constexpr float splitRatio = 0.70f;
     juce::TextButton resetButton { "Reset" };
     juce::OwnedArray<juce::Slider>     matrixSliders;
     juce::Array<juce::RangedAudioParameter*> matrixParams; // parallel to matrixSliders, raw (non-owning)

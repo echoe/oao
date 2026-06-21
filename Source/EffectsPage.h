@@ -1,3 +1,4 @@
+//EffectsPage.h
 #pragma once
 #include <JuceHeader.h>
 #include "PluginProcessor.h"
@@ -37,11 +38,11 @@ public:
         addAndMakeVisible (syncButton);
 
         // Rate knob
-        rateSlider.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
+        rateSlider.setSliderStyle (juce::Slider::LinearHorizontal);
         rateSlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 0, 0);
         addAndMakeVisible (rateSlider);
         // Second Rate knob for if it's synced
-        rateSyncSlider.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
+        rateSyncSlider.setSliderStyle (juce::Slider::LinearHorizontal);
         rateSyncSlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 0, 0);
         addAndMakeVisible (rateSyncSlider);
         
@@ -51,7 +52,7 @@ public:
         addAndMakeVisible (rateLabel);
 
         // Depth knob
-        depthSlider.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
+        depthSlider.setSliderStyle (juce::Slider::LinearHorizontal);
         depthSlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 0, 0);
         addAndMakeVisible (depthSlider);
         depthLabel.setText ("Depth", juce::dontSendNotification);
@@ -120,36 +121,35 @@ public:
 
     void resized() override
     {
-        auto area = getLocalBounds().reduced (getWidth() * 0.02f);
+        auto area = getLocalBounds().reduced (juce::roundToInt (getWidth() * 0.02f),
+                                               juce::roundToInt (getHeight() * 0.03f));
 
         // Top row: label | wave selector | sync button
-        auto topRow = area.removeFromTop (getHeight() * 0.17f);
-        label.setBounds        (topRow.removeFromLeft  (topRow.getWidth() * 0.20f));
-        syncButton.setBounds   (topRow.removeFromRight (topRow.getWidth() * 0.22f).reduced (2));
+        auto topRow = area.removeFromTop (juce::roundToInt (getHeight() * 0.24f));
+        label.setBounds        (topRow.removeFromLeft  (juce::roundToInt (topRow.getWidth() * 0.20f)));
+        syncButton.setBounds   (topRow.removeFromRight (juce::roundToInt (topRow.getWidth() * 0.28f)).reduced (2));
         waveSelector.setBounds (topRow.reduced (2));
 
-        area.removeFromTop (getHeight() * 0.02f);
+        // Middle row: target selector (full width) — no separate gap row, just a small inset
+        targetSelector.setBounds (area.removeFromTop (juce::roundToInt (getHeight() * 0.24f)).reduced (2, 1));
 
-        // Middle row: target selector (full width)
-        targetSelector.setBounds (area.removeFromTop (getHeight() * 0.17f).reduced (2));
-
-        area.removeFromTop (getHeight() * 0.02f);
-
-        // Bottom row: Rate knob | Depth knob
-        int textBoxH = (int)(getHeight() * 0.12f);
-        int textBoxW = (int)(getWidth()  * 0.18f);
+        // Bottom row: Rate slider | Depth slider, label-above, value-below each
+        int textBoxW = juce::jmax (30, juce::roundToInt (getWidth()  * 0.4f));
+        int textBoxH = juce::jmax (12, juce::roundToInt (getHeight() * 0.2f));
+        int labelH   = juce::jmax (10, juce::roundToInt (getHeight() * 0.16f));
+        int trackH   = juce::jmin (18, area.getHeight() - labelH - textBoxH);
         int knobW    = area.getWidth() / 2;
 
         auto rateArea = area.removeFromLeft (knobW);
-        rateLabel.setBounds (rateArea.removeFromBottom (getHeight() * 0.15f));
+        rateLabel.setBounds (rateArea.removeFromTop (labelH));
         rateSlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, textBoxW, textBoxH);
-        rateSlider.setBounds (rateArea);
+        rateSlider.setBounds (rateArea.removeFromTop (trackH + textBoxH).reduced (2, 0));
         rateSyncSlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, textBoxW, textBoxH);
-        rateSyncSlider.setBounds (rateArea); //put in the same place
+        rateSyncSlider.setBounds (rateSlider.getBounds()); //put in the same place
 
-        depthLabel.setBounds (area.removeFromBottom (getHeight() * 0.15f));
+        depthLabel.setBounds (area.removeFromTop (labelH));
         depthSlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, textBoxW, textBoxH);
-        depthSlider.setBounds (area);
+        depthSlider.setBounds (area.removeFromTop (trackH + textBoxH).reduced (2, 0));
     }
 
 private:
@@ -180,7 +180,7 @@ public:
         effectSelector.setSelectedId (1, juce::dontSendNotification);
         addAndMakeVisible (effectSelector);
         
-        mixSlider.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
+        mixSlider.setSliderStyle (juce::Slider::LinearHorizontal);
         mixSlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 0, 0);
         addAndMakeVisible (mixSlider);
         mixLabel.setText ("Mix", juce::dontSendNotification);
@@ -189,7 +189,7 @@ public:
         
         for (int i = 0; i < 4; ++i)
         {
-            knobs[i].setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
+            knobs[i].setSliderStyle (juce::Slider::LinearHorizontal);
             knobs[i].setTextBoxStyle (juce::Slider::TextBoxBelow, false, 0, 0);
             addAndMakeVisible (knobs[i]);
             addAndMakeVisible (knobLabels[i]);
@@ -253,29 +253,31 @@ public:
 
     void resized() override
     {
-        auto area = getLocalBounds().reduced (getWidth() * 0.02f);
+        auto area = getLocalBounds().reduced (juce::roundToInt (getWidth() * 0.015f),
+                                               juce::roundToInt (getHeight() * 0.03f));
 
-        auto topRow = area.removeFromTop (getHeight() * 0.18f);
-        slotLabel.setBounds      (topRow.removeFromLeft (topRow.getWidth() * 0.10f));
+        // Top row: tiny slot tag + effect selector (selector gets nearly all the width)
+        auto topRow = area.removeFromTop (juce::roundToInt (getHeight() * 0.26f));
+        slotLabel.setBounds      (topRow.removeFromLeft (juce::roundToInt (topRow.getWidth() * 0.09f)));
         effectSelector.setBounds (topRow.reduced (2));
-        area.removeFromTop (getHeight() * 0.005f);
 
-        int textBoxH = (int)(getHeight() * 0.12f);
-        int textBoxW = (int)(getWidth()  * 0.1f);
+        int textBoxW  = juce::jmax (32, juce::roundToInt (getWidth()  * 0.16f));
+        int textBoxH  = juce::jmax (12, juce::roundToInt (getHeight() * 0.18f));
+        int labelH    = juce::jmax (10, juce::roundToInt (getHeight() * 0.16f));
+        int trackH    = juce::jmin (18, area.getHeight() - labelH - textBoxH);
 
-        auto mixArea = area.removeFromLeft (area.getWidth() * 0.12f);
-        mixLabel.setBounds (mixArea.removeFromBottom (getHeight() * 0.22f));
+        auto mixArea = area.removeFromLeft (juce::roundToInt (area.getWidth() * 0.16f));
+        mixLabel.setBounds (mixArea.removeFromTop (labelH));
         mixSlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, textBoxW, textBoxH);
-        mixSlider.setBounds (mixArea);
-        area.removeFromLeft (area.getWidth() * 0.01f);
+        mixSlider.setBounds (mixArea.removeFromTop (trackH + textBoxH).reduced (2, 0));
 
         int knobW = area.getWidth() / 4;
         for (int i = 0; i < 4; ++i)
         {
             auto knobArea = area.removeFromLeft (knobW);
-            knobLabels[i].setBounds (knobArea.removeFromBottom (getHeight() * 0.15f));
+            knobLabels[i].setBounds (knobArea.removeFromTop (labelH));
             knobs[i].setTextBoxStyle (juce::Slider::TextBoxBelow, false, textBoxW, textBoxH);
-            knobs[i].setBounds (knobArea);
+            knobs[i].setBounds (knobArea.removeFromTop (trackH + textBoxH).reduced (2, 0));
         }
     }
 
@@ -317,14 +319,14 @@ public:
 
         // Flow arrows between FX slots
         g.setColour (colors.text.withAlpha (0.3f));
-        g.setFont (getHeight() * 0.03f);
+        g.setFont (juce::jmax (9.0f, getHeight() * 0.018f));
         int slotH = (int)(getHeight() / ProjectConfig::numEffects);
         // Draw dividers
         for (int i = 0; i < (ProjectConfig::numEffects - 1); ++i)
         {
             int arrowY = slotH * (i + 1);
             g.drawText (juce::String (juce::CharPointer_UTF8 ("\xe2\x86\x93")),
-                        (int)(splitX * 0.5f) - 10, arrowY - 12, 20, 20,
+                        (int)(splitX * 0.5f) - 8, arrowY - 8, 16, 16,
                         juce::Justification::centred);
         }
         g.setColour (colors.text.withAlpha (0.15f));
@@ -346,7 +348,7 @@ public:
     {
         float h = getHeight();
         float w = getWidth();
-        float arrowH  = h * 0.03f;
+        float arrowH  = juce::jmax (4.0f, h * 0.012f);
         float padding = h * 0.01f;
 
         auto full    = getLocalBounds().reduced (w * 0.005f, padding);
@@ -354,17 +356,17 @@ public:
         auto lfoArea = full;
 
         // FX slots
-        int slotH = (int)((fxArea.getHeight() - 2 * arrowH) / ProjectConfig::numEffects);
+        int slotH = (int)((fxArea.getHeight() - (ProjectConfig::numEffects - 1) * arrowH) / ProjectConfig::numEffects);
         for (int i = 0; i < ProjectConfig::numEffects; ++i)
         {
-            slots[i]->setBounds (fxArea.removeFromTop (slotH).reduced (0, (int)(h * 0.005f)));
+            slots[i]->setBounds (fxArea.removeFromTop (slotH).reduced (0, (int)(h * 0.002f)));
             if (i < (ProjectConfig::numEffects - 1)) fxArea.removeFromTop ((int)arrowH);
         }
 
         // LFO sidebar
         int lfoH = lfoArea.getHeight() / ProjectConfig::numEffects;
         for (int i = 0; i < ProjectConfig::numEffects; ++i)
-            lfoSlots[i]->setBounds (lfoArea.removeFromTop (lfoH).reduced (2, (int)(h * 0.005f)));
+            lfoSlots[i]->setBounds (lfoArea.removeFromTop (lfoH).reduced (2, (int)(h * 0.002f)));
     }
 
 private:

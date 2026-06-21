@@ -527,7 +527,7 @@ struct FMAlgorithm
         auto  typeChoices = ProjectConfig::getEffectTypeChoices();
         int   numTypes    = typeChoices.size();
 
-        for (int slot = 1; slot <= 3; ++slot)
+        for (int slot = 1; slot <= ProjectConfig::numEffects; ++slot)
         {
             juce::String s = juce::String (slot);
 

@@ -1,3 +1,4 @@
+//OAOColors.h
 #pragma once
 #include <JuceHeader.h>
 
@@ -10,6 +11,7 @@ struct OAOColors
     juce::Colour surface     { 0xFF1A1A2E }; // slightly lighter background
     juce::Colour text        { 0xFFE0E0FF }; // soft white-blue
     juce::Colour textDim     { 0xFF6060A0 }; // dimmed text
+    juce::Colour panelGap    { 0xFF06060F }; // space between cards/panels, darker than background
     // scale
     float scale = 1.0f;
     void saveToFile() // for saving current settings automatically
@@ -26,6 +28,7 @@ struct OAOColors
         prefs.setValue ("surface",     surface.toString());
         prefs.setValue ("text",        text.toString());
         prefs.setValue ("textDim",     textDim.toString());
+        prefs.setValue ("panelGap",    panelGap.toString());
         prefs.saveIfNeeded();
     }
 
@@ -45,6 +48,10 @@ struct OAOColors
             surface    = juce::Colour::fromString (prefs.getValue ("surface"));
             text       = juce::Colour::fromString (prefs.getValue ("text"));
             textDim    = juce::Colour::fromString (prefs.getValue ("textDim"));
+            // panelGap may not exist in settings files saved before this was added
+            panelGap   = prefs.containsKey ("panelGap")
+                             ? juce::Colour::fromString (prefs.getValue ("panelGap"))
+                             : background.darker (0.3f);
         }
     }
 
@@ -57,6 +64,7 @@ struct OAOColors
         surface    = juce::Colour (0xFF1A1A2E);
         text       = juce::Colour (0xFFE0E0FF);
         textDim    = juce::Colour (0xFF6060A0);
+        panelGap   = juce::Colour (0xFF06060F);
     }
 
     void setIndustrial()
@@ -67,6 +75,7 @@ struct OAOColors
         surface    = juce::Colour (0xFF1E1E1E);
         text       = juce::Colour (0xFFDDDDDD);
         textDim    = juce::Colour (0xFF666666);
+        panelGap   = juce::Colour (0xFF0A0A0A);
     }
 
     void setMinimal()
@@ -77,6 +86,7 @@ struct OAOColors
         surface    = juce::Colour (0xFF141414);
         text       = juce::Colour (0xFFFFFFFF);
         textDim    = juce::Colour (0xFF555555);
+        panelGap   = juce::Colour (0xFF000000);
     }
 
     void setWarmAnalog()
@@ -87,6 +97,7 @@ struct OAOColors
         surface    = juce::Colour (0xFF261500);
         text       = juce::Colour (0xFFFFE8CC);
         textDim    = juce::Colour (0xFF806040);
+        panelGap   = juce::Colour (0xFF100900);
     }
 
     void setMintyBreeze()
@@ -97,6 +108,7 @@ struct OAOColors
         surface    = juce::Colour (0xFFE3F6F5);
         text       = juce::Colour (0xFF272643);
         textDim    = juce::Colour (0xFF667788);
+        panelGap   = juce::Colour (0xFFDCEFEF);
     }
 
     void setPeachBlossom()
@@ -107,6 +119,7 @@ struct OAOColors
         surface    = juce::Colour (0xFFFFE3E1);
         text       = juce::Colour (0xFF5C3D2E);
         textDim    = juce::Colour (0xFF997766);
+        panelGap   = juce::Colour (0xFFF5E6D3);
     }
 
     void setLavenderHaze()
@@ -117,6 +130,7 @@ struct OAOColors
         surface    = juce::Colour (0xFFE5D4FF);
         text       = juce::Colour (0xFF4A306D);
         textDim    = juce::Colour (0xFF8866AA);
+        panelGap   = juce::Colour (0xFFE6D6F7);
     }
 
     void setNordicMorning()
@@ -127,5 +141,6 @@ struct OAOColors
         surface    = juce::Colour (0xFFD9E2EC);
         text       = juce::Colour (0xFF102A43);
         textDim    = juce::Colour (0xFF667788);
+        panelGap   = juce::Colour (0xFFE3E9EF);
     }
 };

@@ -92,11 +92,12 @@ struct CompactOperatorGroup : public juce::Component
 
     void paint (juce::Graphics& g) override
     {
-        g.setColour (colors.text.withAlpha (0.15f));
-        g.drawRoundedRectangle (getLocalBounds().toFloat().reduced (2.0f), 4.0f, 1.0f);
+        auto bounds = getLocalBounds().toFloat();
+        g.setColour (colors.background);
+        g.fillRoundedRectangle (bounds, 4.0f);
 
-        g.setColour (colors.text.withAlpha (0.02f));
-        g.fillRoundedRectangle (getLocalBounds().toFloat().reduced (2.0f), 4.0f);
+        g.setColour (colors.text.withAlpha (0.15f));
+        g.drawRoundedRectangle (bounds.reduced (1.0f), 4.0f, 1.0f);
     }
 
     void resized() override
@@ -105,23 +106,25 @@ struct CompactOperatorGroup : public juce::Component
                                               static_cast<int> (getHeight() * 0.02f));
         float w          = static_cast<float> (area.getWidth());
         float h          = static_cast<float> (area.getHeight());
-    
-        // --- LEFT COLUMN: header label + stacked dropdowns ---
-        auto leftCol = area.removeFromLeft (w * 0.16f);
-        opHeaderLabel.setBounds (leftCol.removeFromTop (h * 0.20f));
 
-        int dropdownH = static_cast<int> (h * 0.20f);
-        freqModeSelector.setBounds (leftCol.removeFromTop (dropdownH).reduced (1));
-        modeSelector.setBounds     (leftCol.removeFromTop (dropdownH).reduced (1));
+        // --- LEFT COLUMN: header label + 3 stacked selectors ---
+        int leftColW  = juce::jmax (90, juce::roundToInt (w * 0.16f));
+        auto leftCol  = area.removeFromLeft (leftColW);
+
+        opHeaderLabel.setBounds (leftCol.removeFromTop (juce::jmax (14, juce::roundToInt (h * 0.16f))));
+
+        int selectorH = juce::jmax (16, juce::roundToInt (h * 0.20f));
+        freqModeSelector.setBounds (leftCol.removeFromTop (selectorH).reduced (1));
+        modeSelector.setBounds     (leftCol.removeFromTop (selectorH).reduced (1));
 
         if (effectTypeSelector.isVisible())
-            effectTypeSelector.setBounds (leftCol.removeFromTop (dropdownH).reduced (1));
+            effectTypeSelector.setBounds (leftCol.removeFromTop (selectorH).reduced (1));
         else if (loadSampleButton.isVisible())
-            loadSampleButton.setBounds (leftCol.removeFromTop (dropdownH).reduced (1));
+            loadSampleButton.setBounds (leftCol.removeFromTop (selectorH).reduced (1));
         else
-            waveShapeSelector.setBounds  (leftCol.removeFromTop (dropdownH).reduced (1));
+            waveShapeSelector.setBounds (leftCol.removeFromTop (selectorH).reduced (1));
 
-        area.removeFromLeft (w * 0.01f); // small gutter between dropdown column and knobs
+        area.removeFromLeft (static_cast<int> (w * 0.01f)); // small gap before knobs
 
         // Knobs and Sliders in a row :D
         float labelH   = area.getHeight() * 0.20f;
@@ -379,6 +382,11 @@ public:
         }
     }
 
+    void paint (juce::Graphics& g) override
+    {
+        g.fillAll (colors.panelGap);
+    }
+
     void lookAndFeelChanged() override
     {
         juce::Component::lookAndFeelChanged();
@@ -403,6 +411,7 @@ public:
 
         int rows = 6;
         int cols = 1;
+        int gap  = juce::jmax (2, juce::roundToInt (getHeight() * 0.006f));
         int cellWidth = area.getWidth() / cols;
         int cellHeight = area.getHeight() / rows;
 
@@ -413,7 +422,8 @@ public:
                 int index = (r * cols) + c;
                 if (index < static_cast<int>(opModules.size()))
                 {
-                    opModules[index]->setBounds (c * cellWidth, r * cellHeight, cellWidth, cellHeight);
+                    auto cellBounds = juce::Rectangle<int> (c * cellWidth, r * cellHeight, cellWidth, cellHeight);
+                    opModules[index]->setBounds (cellBounds.reduced (gap, gap));
                 }
             }
         }

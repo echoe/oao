@@ -1,3 +1,4 @@
+//SettingsPage.h
 #pragma once
 #include <JuceHeader.h>
 #include "OAOColors.h"
@@ -108,6 +109,13 @@ public:
         setupColorSection (secondarySection,  "Secondary",   colors.secondary);
         setupColorSection (surfaceSection,    "Surface",     colors.surface);
         setupColorSection (textSection, "Text", colors.text);
+        setupColorSection (panelGapSection, "Panel Gap", colors.panelGap);
+
+        // Theme preset save/load — shareable .oaotheme XML files
+        setupPreset (saveThemeBtn, "Save Theme");
+        setupPreset (loadThemeBtn, "Load Theme");
+        saveThemeBtn.onClick = [this] { saveThemePreset(); };
+        loadThemeBtn.onClick = [this] { loadThemePreset(); };
     }
 
     void paint (juce::Graphics& g) override
@@ -152,17 +160,26 @@ public:
         lavenderBtn.setBounds (presetRow2.removeFromLeft (btnW2).reduced (2));
         nordicBtn.setBounds   (presetRow2.reduced (2));
     
+        area.removeFromTop (getHeight() * 0.01f); // small gap
+
+        // Save/Load theme preset buttons
+        auto themeRow = area.removeFromTop (getHeight() * 0.07f);
+        int  themeBtnW = themeRow.getWidth() / 2;
+        saveThemeBtn.setBounds (themeRow.removeFromLeft (themeBtnW).reduced (2));
+        loadThemeBtn.setBounds (themeRow.reduced (2));
+
         area.removeFromTop (getHeight() * 0.03f); // gap
     
         // Color pickers
         auto colorRow = area; // takes all remaining space
-        int  sectionW = colorRow.getWidth() / 5;
+        int  sectionW = colorRow.getWidth() / 6;
     
         layoutSection (backgroundSection, colorRow.removeFromLeft (sectionW));
         layoutSection (primarySection,    colorRow.removeFromLeft (sectionW));
         layoutSection (secondarySection,  colorRow.removeFromLeft (sectionW));
         layoutSection (surfaceSection,    colorRow.removeFromLeft (sectionW));
-        layoutSection (textSection,       colorRow);
+        layoutSection (textSection,       colorRow.removeFromLeft (sectionW));
+        layoutSection (panelGapSection,   colorRow);
     }
 
     void refreshAll() //refreshes colors
@@ -172,12 +189,14 @@ public:
         secondarySection.previewBox.color  = colors.secondary;
         surfaceSection.previewBox.color    = colors.surface;
         textSection.previewBox.color       = colors.text;
+        panelGapSection.previewBox.color   = colors.panelGap;
 
         backgroundSection.nameLabel.setColour (juce::Label::textColourId, colors.text);
         primarySection.nameLabel.setColour    (juce::Label::textColourId, colors.text);
         secondarySection.nameLabel.setColour  (juce::Label::textColourId, colors.text);
         surfaceSection.nameLabel.setColour    (juce::Label::textColourId, colors.text);
         textSection.nameLabel.setColour       (juce::Label::textColourId, colors.text);
+        panelGapSection.nameLabel.setColour   (juce::Label::textColourId, colors.text);
 
         scaleLabel.setColour (juce::Label::textColourId, colors.text);
         scaleSelector.setColour (juce::ComboBox::backgroundColourId, colors.surface);
@@ -244,6 +263,105 @@ private:
         section.previewBox.setBounds (area.removeFromTop (previewH));
     }
 
+    void saveThemePreset()
+    {
+        juce::File startDir = juce::File::getSpecialLocation (juce::File::userDocumentsDirectory);
+
+        fileChooser = std::make_unique<juce::FileChooser> (
+            "Save Theme Preset", startDir.getChildFile ("My Theme"), "*.oaotheme");
+
+        fileChooser->launchAsync (
+            juce::FileBrowserComponent::saveMode | juce::FileBrowserComponent::canSelectFiles,
+            [this] (const juce::FileChooser& chooser)
+            {
+                auto file = chooser.getResult();
+                if (file == juce::File())
+                    return;
+
+                if (file.getFileExtension().toLowerCase() != ".oaotheme")
+                    file = file.withFileExtension ("oaotheme");
+
+                juce::XmlElement xml ("OAOThemePreset");
+                xml.setAttribute ("background", colors.background.toString());
+                xml.setAttribute ("primary",     colors.primary.toString());
+                xml.setAttribute ("secondary",   colors.secondary.toString());
+                xml.setAttribute ("surface",     colors.surface.toString());
+                xml.setAttribute ("text",        colors.text.toString());
+                xml.setAttribute ("textDim",     colors.textDim.toString());
+                xml.setAttribute ("panelGap",    colors.panelGap.toString());
+                xml.setAttribute ("scale",       colors.scale);
+                xml.setAttribute ("fontName",    lookAndFeel.currentFontName);
+
+                xml.writeTo (file);
+            });
+    }
+
+    void loadThemePreset()
+    {
+        juce::File startDir = juce::File::getSpecialLocation (juce::File::userDocumentsDirectory);
+
+        fileChooser = std::make_unique<juce::FileChooser> (
+            "Load Theme Preset", startDir, "*.oaotheme");
+
+        fileChooser->launchAsync (
+            juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles,
+            [this] (const juce::FileChooser& chooser)
+            {
+                auto file = chooser.getResult();
+                if (! file.existsAsFile())
+                    return;
+
+                std::unique_ptr<juce::XmlElement> xml (juce::XmlDocument::parse (file));
+                if (xml == nullptr || ! xml->hasTagName ("OAOThemePreset"))
+                    return;
+
+                // Colors fall back to their current value if a field is missing,
+                // so a hand-edited or partial file degrades gracefully rather than zeroing out.
+                auto loadColour = [&] (const char* attr, juce::Colour fallback)
+                {
+                    return xml->hasAttribute (attr)
+                               ? juce::Colour::fromString (xml->getStringAttribute (attr))
+                               : fallback;
+                };
+
+                colors.background = loadColour ("background", colors.background);
+                colors.primary    = loadColour ("primary",    colors.primary);
+                colors.secondary  = loadColour ("secondary",  colors.secondary);
+                colors.surface    = loadColour ("surface",    colors.surface);
+                colors.text       = loadColour ("text",       colors.text);
+                colors.textDim    = loadColour ("textDim",    colors.textDim);
+                colors.panelGap   = loadColour ("panelGap",   colors.panelGap);
+
+                float loadedScale = (float) xml->getDoubleAttribute ("scale", colors.scale);
+                juce::String loadedFont = xml->getStringAttribute ("fontName", lookAndFeel.currentFontName);
+
+                lookAndFeel.currentFontName = loadedFont;
+
+                // Reflect the loaded font in the selector (falls back to "Default" if not found)
+                int fontItemId = 1; // Default
+                for (int i = 0; i < fontSelector.getNumItems(); ++i)
+                {
+                    if (fontSelector.getItemText (i) == loadedFont)
+                    {
+                        fontItemId = fontSelector.getItemId (i);
+                        break;
+                    }
+                }
+                fontSelector.setSelectedId (fontItemId, juce::dontSendNotification);
+
+                // Snap the scale selector to the nearest valid 25%-step option and notify
+                // the editor so the whole window actually resizes to match.
+                int nearestPercent = juce::jlimit (50, 200, juce::roundToInt (loadedScale * 100.0f / 25.0f) * 25);
+                int scaleItemId    = ((nearestPercent - 50) / 25) + 1;
+                scaleSelector.setSelectedId (scaleItemId, juce::dontSendNotification);
+                colors.scale = nearestPercent / 100.0f;
+                if (onScaleChanged)
+                    onScaleChanged (colors.scale);
+
+                refreshAll();
+            });
+    }
+
     void changeListenerCallback (juce::ChangeBroadcaster* source) override
     {
         if (auto* cs = dynamic_cast<juce::ColourSelector*> (source))
@@ -256,6 +374,7 @@ private:
             if (pickerName == "Secondary")  colors.secondary = newColor;
             if (pickerName == "Surface")    colors.surface = newColor;
             if (pickerName == "Text")       colors.text = newColor;
+            if (pickerName == "Panel Gap")  colors.panelGap = newColor;
 
             refreshAll(); 
         }
@@ -268,10 +387,13 @@ private:
     juce::Label       scaleLabel, fontLabel, oversamplingLabel, polyphonyLabel;
 
     juce::TextButton  synthwaveBtn, industrialBtn, minimalBtn, warmBtn, mintBtn, peachBtn, lavenderBtn, nordicBtn;
+    juce::TextButton  saveThemeBtn, loadThemeBtn;
+    std::unique_ptr<juce::FileChooser> fileChooser;
 
     ColorSection backgroundSection;
     ColorSection primarySection;
     ColorSection secondarySection;
     ColorSection surfaceSection;
     ColorSection textSection;
+    ColorSection panelGapSection;
 };

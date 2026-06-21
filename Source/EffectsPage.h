@@ -137,7 +137,7 @@ public:
         int textBoxW = juce::jmax (30, juce::roundToInt (getWidth()  * 0.4f));
         int textBoxH = juce::jmax (12, juce::roundToInt (getHeight() * 0.2f));
         int labelH   = juce::jmax (10, juce::roundToInt (getHeight() * 0.16f));
-        int trackH   = juce::jmin (18, area.getHeight() - labelH - textBoxH);
+        int trackH   = juce::jlimit (4, 18, area.getHeight() - labelH - textBoxH);
         int knobW    = area.getWidth() / 2;
 
         auto rateArea = area.removeFromLeft (knobW);
@@ -256,15 +256,22 @@ public:
         auto area = getLocalBounds().reduced (juce::roundToInt (getWidth() * 0.015f),
                                                juce::roundToInt (getHeight() * 0.03f));
 
-        // Top row: tiny slot tag + effect selector (selector gets nearly all the width)
-        auto topRow = area.removeFromTop (juce::roundToInt (getHeight() * 0.26f));
-        slotLabel.setBounds      (topRow.removeFromLeft (juce::roundToInt (topRow.getWidth() * 0.09f)));
-        effectSelector.setBounds (topRow.reduced (2));
+        // Left block: tiny slot tag on top, effect selector underneath — sized to its own
+        // content rather than the full slot height. Everything else sits to its right.
+        int leftBlockW = juce::jmax (60, juce::roundToInt (getWidth() * 0.16f));
+        int tagH       = juce::jmax (10, juce::roundToInt (getHeight() * 0.16f));
+        int selectorH  = juce::jmax (16, juce::roundToInt (getHeight() * 0.26f));
+
+        auto leftBlock = area.removeFromLeft (leftBlockW);
+        slotLabel.setBounds      (leftBlock.removeFromTop (tagH));
+        effectSelector.setBounds (leftBlock.removeFromTop (selectorH).reduced (2));
+
+        area.removeFromLeft (juce::roundToInt (getWidth() * 0.01f)); // small gap before knobs
 
         int textBoxW  = juce::jmax (32, juce::roundToInt (getWidth()  * 0.16f));
         int textBoxH  = juce::jmax (12, juce::roundToInt (getHeight() * 0.18f));
         int labelH    = juce::jmax (10, juce::roundToInt (getHeight() * 0.16f));
-        int trackH    = juce::jmin (18, area.getHeight() - labelH - textBoxH);
+        int trackH    = juce::jlimit (4, 18, area.getHeight() - labelH - textBoxH);
 
         auto mixArea = area.removeFromLeft (juce::roundToInt (area.getWidth() * 0.16f));
         mixLabel.setBounds (mixArea.removeFromTop (labelH));
@@ -317,18 +324,6 @@ public:
     {
         float splitX = getWidth() * splitRatio;
 
-        // Flow arrows between FX slots
-        g.setColour (colors.text.withAlpha (0.3f));
-        g.setFont (juce::jmax (9.0f, getHeight() * 0.018f));
-        int slotH = (int)(getHeight() / ProjectConfig::numEffects);
-        // Draw dividers
-        for (int i = 0; i < (ProjectConfig::numEffects - 1); ++i)
-        {
-            int arrowY = slotH * (i + 1);
-            g.drawText (juce::String (juce::CharPointer_UTF8 ("\xe2\x86\x93")),
-                        (int)(splitX * 0.5f) - 8, arrowY - 8, 16, 16,
-                        juce::Justification::centred);
-        }
         g.setColour (colors.text.withAlpha (0.15f));
         g.drawVerticalLine ((int)splitX, getHeight() * 0.01f, getHeight() * 0.99f);
     }
@@ -348,7 +343,7 @@ public:
     {
         float h = getHeight();
         float w = getWidth();
-        float arrowH  = juce::jmax (4.0f, h * 0.012f);
+        float gapH    = juce::jmax (2.0f, h * 0.006f);
         float padding = h * 0.01f;
 
         auto full    = getLocalBounds().reduced (w * 0.005f, padding);
@@ -356,11 +351,11 @@ public:
         auto lfoArea = full;
 
         // FX slots
-        int slotH = (int)((fxArea.getHeight() - (ProjectConfig::numEffects - 1) * arrowH) / ProjectConfig::numEffects);
+        int slotH = (int)((fxArea.getHeight() - (ProjectConfig::numEffects - 1) * gapH) / ProjectConfig::numEffects);
         for (int i = 0; i < ProjectConfig::numEffects; ++i)
         {
             slots[i]->setBounds (fxArea.removeFromTop (slotH).reduced (0, (int)(h * 0.002f)));
-            if (i < (ProjectConfig::numEffects - 1)) fxArea.removeFromTop ((int)arrowH);
+            if (i < (ProjectConfig::numEffects - 1)) fxArea.removeFromTop ((int)gapH);
         }
 
         // LFO sidebar

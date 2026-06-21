@@ -31,10 +31,6 @@ struct CompactOperatorGroup : public juce::Component
         opHeaderLabel.setText ("OPERATOR " + opNum, juce::dontSendNotification);
         opHeaderLabel.setFont (juce::FontOptions (13.0f, juce::Font::bold));
         addAndMakeVisible (opHeaderLabel);
-        // label env
-        envHeaderLabel.setText ("           ENV " + opNum, juce::dontSendNotification);
-        envHeaderLabel.setFont (juce::FontOptions (13.0f, juce::Font::bold));
-        addAndMakeVisible (envHeaderLabel);
         // Letting us swap oscillator mode for easier operator control
         freqModeSelector.addItemList ({ "Std", "Sync", "Hz", "LFO" }, 1);
         addAndMakeVisible (freqModeSelector);
@@ -110,21 +106,23 @@ struct CompactOperatorGroup : public juce::Component
         float w          = static_cast<float> (area.getWidth());
         float h          = static_cast<float> (area.getHeight());
     
-        // --- TOP STRIP ---
-        auto topStrip = area.removeFromTop (h * 0.20f);
-        opHeaderLabel.setBounds (topStrip.removeFromLeft (w * 0.13f));
-	freqModeSelector.setBounds (topStrip.removeFromLeft (w * 0.09f).reduced (1));
-	modeSelector.setBounds  (topStrip.removeFromLeft (w * 0.13f).reduced (1));
-        envHeaderLabel.setBounds (topStrip.removeFromRight (w * 0.50f));   
- 
+        // --- LEFT COLUMN: header label + stacked dropdowns ---
+        auto leftCol = area.removeFromLeft (w * 0.16f);
+        opHeaderLabel.setBounds (leftCol.removeFromTop (h * 0.20f));
+
+        int dropdownH = static_cast<int> (h * 0.20f);
+        freqModeSelector.setBounds (leftCol.removeFromTop (dropdownH).reduced (1));
+        modeSelector.setBounds     (leftCol.removeFromTop (dropdownH).reduced (1));
+
         if (effectTypeSelector.isVisible())
-            effectTypeSelector.setBounds (topStrip.reduced (1));
+            effectTypeSelector.setBounds (leftCol.removeFromTop (dropdownH).reduced (1));
         else if (loadSampleButton.isVisible())
-            loadSampleButton.setBounds (topStrip.reduced (1));
+            loadSampleButton.setBounds (leftCol.removeFromTop (dropdownH).reduced (1));
         else
-            waveShapeSelector.setBounds  (topStrip.reduced (1));
-    
-        area.removeFromTop (h * 0.005f);
+            waveShapeSelector.setBounds  (leftCol.removeFromTop (dropdownH).reduced (1));
+
+        area.removeFromLeft (w * 0.01f); // small gutter between dropdown column and knobs
+
         // Knobs and Sliders in a row :D
         float labelH   = area.getHeight() * 0.20f;
         int Width = area.getWidth() / 8;
@@ -183,7 +181,6 @@ struct CompactOperatorGroup : public juce::Component
 
         // 1. Update Labels
         opHeaderLabel.setColour (juce::Label::textColourId, colors.text);
-        envHeaderLabel.setColour (juce::Label::textColourId, colors.text);
         ratioLabel.setColour    (juce::Label::textColourId, colors.text);
         detuneLabel.setColour   (juce::Label::textColourId, colors.text);
         phaseLabel.setColour    (juce::Label::textColourId, colors.text);
@@ -333,7 +330,7 @@ private:
     juce::Slider ratioSlider, detuneSlider, phaseSlider, foldSlider;
     juce::Slider attackSlider, decaySlider, sustainSlider, releaseSlider;
     
-    juce::Label opHeaderLabel, envHeaderLabel;
+    juce::Label opHeaderLabel;
     juce::Label ratioLabel, detuneLabel, phaseLabel, foldLabel;
     juce::Label attackLabel, decayLabel, sustainLabel, releaseLabel;
     

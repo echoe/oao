@@ -116,14 +116,21 @@ public:
             const auto& selectedAlgo = algorithms[dxAlgoIndex];
             auto& parameters = audioProcessor.apvts.processor.getParameters();
 
-            // Clear out the entire modulation and routing matrix
+            // Clear out the modulation matrix (outside of purpose-routed ones)
+            // We leave the audio routed (AUDIO_ROUTE) in case you want to experiment
             for (auto* param : parameters)
             {
                 if (auto* p = dynamic_cast<juce::RangedAudioParameter*> (param))
                 {
                     juce::String id = p->getParameterID();
-                    if (id.startsWith ("MOD_") || id.startsWith ("AUDIO_ROUTE_") || id.startsWith("OUT"))
-                        p->setValueNotifyingHost (0.0f);
+                    if (id.startsWith ("MOD_") || id.startsWith ("OUT"))
+                    {
+                        if (id.startsWith ("MOD_TGT_")|| id.startsWith ("MOD_SRC_") || id.startsWith ("MOD_AMT_"))
+                        {
+                            continue; // leave the six non-matrix targets alone
+                        }
+                        p->setValueNotifyingHost (p->convertTo0to1 (0.0f));
+                    }
                 }
             }
 
@@ -144,7 +151,7 @@ public:
                     // It's a modulator. Convert the indexes to grab the right mod target
                     juce::String modID = "MOD_" + juce::String (sourceOp -1) + "_" + juce::String (destOp -1);
 
-                    // Set a default modulation depth of 1.0
+                    // Set a default modulation depth of 2.0
                     setReal (modID, 2.0f); 
                 }
             }

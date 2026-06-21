@@ -83,6 +83,7 @@ Additional Notes:
 #### None
 - Options: It doesn't do anything
 - Use this as a passthrough! 
+## Filters
 #### SVF (Lowpass, Highpass, Bandpass)
 - Options: Cutoff, Resonance, Keytrack, Feedback
 - They're the normal filters of those kinds. The implementation here is JUCE-standard.
@@ -96,6 +97,7 @@ Additional Notes:
 #### Formant
 - Options: Vowel, Nasal, Vowel Mod, Drive
 - Note: Vowel Mod changes the amount of modulation coming in from the modulation matrix, if you are modulating it. So to hear it simply, you can self-modulate this operator, and then tweak the Vowel Mod, and it will change the sound then.
+## EQs
 #### Compressor
 - Options: Threshold, Ratio, Attack, Release
 - it's a compressor. Wowee.
@@ -113,6 +115,7 @@ Additional Notes:
 - saturation: saturates the signal
 - bias: biases the saturation. midway is nothing, left is harsh and bright, right is dull and soft.
 - For Bias to be heard saturation must be on at least a little bit, the bias biases the saturation.
+## Chorus/'normal' effects
 #### Chorus
 - Options: Rate (speed chorus moves), Depth (size of chorus), Spread (in the stereo field), Voices (1-8)
 - This is a modern chorus.
@@ -130,6 +133,7 @@ Additional Notes:
 #### Ring Mod
 - Options: Frequency (that rings out), Shape (of modulation), Depth (of modulation), Feedback (from modulation)
 - Modulate everything. Ring everything.
+## Reverb/Delay
 #### Allpass Reverb
 - Options: Size, Decay, Diffusion, Damping
 - Size: 0.0 = small room (20ms), 1.0 = large hall (500ms)
@@ -150,6 +154,7 @@ Additional Notes:
 #### Ambient Shimmer
 - Options: Time, Feedback, Shimmer, Diffusion
 - Note: This ambient shimmer delay has a 16 second (!!!) possible time. Shimmer is a one-octave-up duplication of the sound and the knob acts as a mix knob for that.
+## Sound Buffers
 #### DJFX Delay
 - Options: Buffer, Speed, Loop On, Drift
 - Modeled after a famous DJ-style delay. (...)
@@ -172,7 +177,11 @@ Additional Notes:
 - Make your sound go (glittery noises)!
 #### Spectral Freeze
 - Options: Freeze, Blend, Pitch, Blur
-Take the incoming audio. Pause it. Twist it and reverse it.
+- Take the incoming audio. Pause it. Twist it and ... speed it. That's really it.
+#### Looper
+- Options: Stop/Play, Rec(Also clears the loop)/Pass/Dub, Decay, Fade
+- It's a looper! That's really it. No buttons, so it's a little weird, but it works!
+- Note: Decay starts at 0 (no decay) and goes up to full decay (the looper won't save anything from the previous loops at full decay).
 
 #### More?
  The process to add more effects is very easy:
@@ -196,7 +205,7 @@ Take the incoming audio. Pause it. Twist it and reverse it.
 ## Extra Effects
 - Outside of the general Mod Matrix I wanted end of chain effects, so here we go!
 - Use any three of the effects that you want at the end of the chain. They always run in serial 1 > 2 > 3. You can target them in the extra modulation matrix.
-- These effects run in either dual mono (most effects) or stereo. The stereo effects are:
+- These effects run in either dual mono (most effects, including the looper) or stereo. The stereo effects are:
 -- both choruses
 -- allpass delay and reverb
 -- ambient delay
@@ -218,9 +227,8 @@ Take the incoming audio. Pause it. Twist it and reverse it.
 - You can modulate any operator with any other operator. Doot de doot.
 - If you want to use the effects on other things, use the effects plugin :)
 
-## TODO
-- Review of all features.
-- Tempo Sync for effects is in progress ... I've added LFOs to the effects page and we'll see how that works long-term. Some effects don't have their knobs exposed in a way that makes it easy to actually modulate with the LFOs [IE knobs that go from 0 to 360] so we need to scale the LFO input/etc. up to resolve that, and that's still in progress.
+## TODO 
+- Relaxing.
 
 Pictures of the synth in use are provided in the pictures/ folder, and I've switched between themes for each picture so you can get an idea of the theme options. There are also build scripts in the main folder, and built vst3 and standalone builds for all three OS's in the release folder.
 This is mostly AI-coded, but I am actively using the synth myself and have read over all of the code in the releases and think I understand it (though how much can one understand code they haven't written themselves?). Your mileage, as always, may vary.

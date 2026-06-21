@@ -59,6 +59,9 @@ public:
         freezePhases.assign (numBins, 0.0f);
         freezeSmoothedMagnitudes.assign (numBins, 0.0f);
         freezeBlurredMagnitudes.assign (numBins, 0.0f);
+	//looper
+	looperMaxLength = static_cast<int> (30.0 * sampleRate); // 30s cap — adjust if you want longer
+        looperBuffer.assign (looperMaxLength, 0.0f);
     }
 
     void setSampleRate (double newSampleRate) 
@@ -1276,10 +1279,9 @@ public:
         // Array of mutually prime numbers for smooth diffusion
         float diffCoeff = diffusion * 0.7f;
         float diffused  = input;
-
+    
         for (int i = 0; i < numApStages; ++i)
         {
-            // Pass the fixed prime number directly into the new 5-argument function
             diffused = processAllpass (diffused, diffCoeff,
                                        apStageBuffers[i], apStageWritePtrs[i],
                                        primeDelays[i]);
@@ -1291,14 +1293,32 @@ public:
                                  static_cast<int> (delayMs / 1000.0f * sampleRate));
     
         int   readPtr  = (ambientWritePtr - delaySamples + ambientBufferSize) % ambientBufferSize;
-        float delayed  = ambientBuffer[readPtr];
+        float mainTap  = ambientBuffer[readPtr];
+    
+        // --- Cloud bloom: extra short pre-echoes, fading in with diffusion. Read-only color, doesn't feed back. ---
+        constexpr int   maxBloomTaps   = 4;
+        constexpr float bloomRatios[maxBloomTaps]    = { 0.2f, 0.4f, 0.6f, 0.8f };
+        constexpr float bloomBaseGains[maxBloomTaps] = { 0.45f, 0.4f, 0.32f, 0.25f };
+    
+        int   activeBloomTaps = static_cast<int> (diffusion * maxBloomTaps + 0.5f);
+        float bloomSum = 0.0f;
+    
+        for (int t = 0; t < activeBloomTaps; ++t)
+        {
+            int tapSamples = juce::jlimit (1, ambientBufferSize - 1, static_cast<int> (delaySamples * bloomRatios[t]));
+            int tapReadPtr = (ambientWritePtr - tapSamples + ambientBufferSize) % ambientBufferSize;
+            bloomSum += ambientBuffer[tapReadPtr] * bloomBaseGains[t] * diffusion;
+        }
+    
+        float delayed = mainTap + bloomSum;   // bloom-inclusive — used for output/smear only
     
         // shimmer. uses a simple granular pitch shift — reads buffer at 2x speed
+        // NOTE: shimmer reads the main tap only, not the bloom — keeps the pitch-shifted layer clean
         float shimmered = 0.0f;
         if (shimmer > 0.001f)
         {
             // Write to shimmer buffer
-            shimmerBuffer[shimmerWritePtr] = delayed;
+            shimmerBuffer[shimmerWritePtr] = mainTap;
             shimmerWritePtr = (shimmerWritePtr + 1) % shimmerBufferSize;
     
             // Read at 2x speed for octave up
@@ -1316,8 +1336,9 @@ public:
         }
     
         // feedback with shimmer mixed in
+        // NOTE: feedback recirculates the main tap only — bloom taps stay a one-pass color layer, don't compound
         float feedbackAmt    = juce::jlimit (0.0f, 0.98f, feedback);
-        float feedbackSignal = delayed + shimmered * shimmer;
+        float feedbackSignal = mainTap + shimmered * shimmer;
         feedbackSignal       = std::tanh (feedbackSignal); // soft clip to prevent blowup
     
         // write to delay
@@ -1325,12 +1346,12 @@ public:
         ambientWritePtr = (ambientWritePtr + 1) % ambientBufferSize;
     
         //  smear the output into a wash
-        float output = delayed; // Avoid redefining 'output' if in the same scope
-        
+        float output = delayed; // bloom-inclusive — this is what gets heard
+    
         for (int i = numAmbientStages / 2; i < numAmbientStages; ++i)
         {
             int primeIndex = i - (numAmbientStages / 2);
-            
+    
             output = processAllpass (output, diffCoeff,
                                          ambientStageBuffers[i], ambientStageWritePtrs[i],
                                          ambientPrimeDelays[primeIndex]);
@@ -1850,6 +1871,87 @@ public:
         return std::isfinite (output) ? output : 0.0f;
     }
 
+    float processSampleLooper (float input, float stopPlayNorm, float recordOverdubNorm, float decayNorm, float fadeNorm, double sampleRate)
+    {
+        if (looperMaxLength <= 0) return 0.0f; // not prepared yet
+    
+        bool playBandActive = (stopPlayNorm >= 0.5f); // false = Stop, true = Play
+        int  recBand         = juce::jlimit (0, 2, static_cast<int> (recordOverdubNorm * 3.0f)); // 0=Record 1=Pass 2=Overdub
+    
+        bool currentlyRecording = playBandActive && (recBand == 0);
+    
+        // --- Edge-detect the combined recording state ---
+        if (currentlyRecording && !prevCurrentlyRecording)
+        {
+            // Rising edge: entering Record while running — clear and start fresh
+            looperPos     = 0;
+            looperHasLoop = false;
+        }
+        else if (!currentlyRecording && prevCurrentlyRecording)
+        {
+            // Falling edge: leaving Record — Stop, or knob2 moved to Pass/Overdub. Finalize either way.
+            looperLength  = juce::jmax (1, looperPos);
+            looperHasLoop = true;
+    
+            float fadeMs      = juce::jmap (fadeNorm, 0.0f, 1.0f, 1.0f, 50.0f);
+            int   fadeSamples = juce::jlimit (1, looperLength / 2, static_cast<int> (fadeMs / 1000.0f * sampleRate));
+    
+            for (int i = 0; i < fadeSamples; ++i)
+            {
+                float g = static_cast<float> (i) / static_cast<float> (fadeSamples);
+                looperBuffer[i]                    *= g; // fade in at head
+                looperBuffer[looperLength - 1 - i] *= g; // fade out at tail
+            }
+            looperPos = 0; // restart from the top for playback
+        }
+        prevCurrentlyRecording = currentlyRecording;
+    
+        float output = 0.0f; // no dry passthrough — chain Mix knob owns that
+    
+        if (currentlyRecording)
+        {
+            if (looperPos < looperMaxLength)
+            {
+                looperBuffer[looperPos] = input;
+                ++looperPos;
+            }
+            else
+            {
+                // Hit the buffer cap mid-recording — finalize early rather than overflow
+                looperLength  = looperMaxLength;
+                looperHasLoop = true;
+    
+                float fadeMs      = juce::jmap (fadeNorm, 0.0f, 1.0f, 1.0f, 50.0f);
+                int   fadeSamples = juce::jlimit (1, looperLength / 2, static_cast<int> (fadeMs / 1000.0f * sampleRate));
+                for (int i = 0; i < fadeSamples; ++i)
+                {
+                    float g = static_cast<float> (i) / static_cast<float> (fadeSamples);
+                    looperBuffer[i]                    *= g;
+                    looperBuffer[looperLength - 1 - i] *= g;
+                }
+                looperPos = 0;
+                prevCurrentlyRecording = false;
+            }
+            // output stays 0 — capture is silent
+        }
+        else if (playBandActive && looperHasLoop) // recBand is Pass(1) or Overdub(2) here — Record already handled above
+        {
+            float loopSample = looperBuffer[looperPos];
+            output = loopSample;
+    
+            if (recBand == 2) // Overdub only — Pass leaves the buffer untouched
+            {
+                float blended = std::tanh (loopSample * decayNorm + input);
+                looperBuffer[looperPos] = blended;
+            }
+    
+            looperPos = (looperPos + 1) % looperLength;
+        }
+        // Stop: output stays 0, position frozen, nothing read or written
+    
+        return std::isfinite (output) ? output : 0.0f;
+    }
+
     // TRUE STEREO EFFECTS
 
     StereoOutput processSampleStereoAllpassReverb (float inL, float inR, SynthEffect& rightCh, 
@@ -1913,7 +2015,7 @@ public:
     {
         float diffCoeff = diffusion * 0.7f;
         float diffL = inL; float diffR = inR;
-
+    
         for (int i = 0; i < numApStages; ++i)
         {
             diffL = processAllpass (diffL, diffCoeff, apStageBuffers[i], apStageWritePtrs[i], primeDelays[i]);
@@ -1925,16 +2027,39 @@ public:
     
         int readPtrL = (ambientWritePtr - delaySamples + ambientBufferSize) % ambientBufferSize;
         int readPtrR = (rightCh.ambientWritePtr - delaySamples + ambientBufferSize) % ambientBufferSize;
-        
-        float delayedL = ambientBuffer[readPtrL];
-        float delayedR = rightCh.ambientBuffer[readPtrR];
+    
+        float mainTapL = ambientBuffer[readPtrL];
+        float mainTapR = rightCh.ambientBuffer[readPtrR];
+    
+        // --- Cloud bloom: extra short pre-echoes, fading in with diffusion. Read-only color, doesn't feed back. ---
+        constexpr int   maxBloomTaps   = 4;
+        constexpr float bloomRatios[maxBloomTaps]    = { 0.2f, 0.4f, 0.6f, 0.8f };
+        constexpr float bloomBaseGains[maxBloomTaps] = { 0.45f, 0.4f, 0.32f, 0.25f };
+    
+        int   activeBloomTaps = static_cast<int> (diffusion * maxBloomTaps + 0.5f);
+        float bloomSumL = 0.0f, bloomSumR = 0.0f;
+    
+        for (int t = 0; t < activeBloomTaps; ++t)
+        {
+            int tapSamples = juce::jlimit (1, ambientBufferSize - 1, static_cast<int> (delaySamples * bloomRatios[t]));
+    
+            int tapPtrL = (ambientWritePtr - tapSamples + ambientBufferSize) % ambientBufferSize;
+            bloomSumL += ambientBuffer[tapPtrL] * bloomBaseGains[t] * diffusion;
+    
+            int tapPtrR = (rightCh.ambientWritePtr - tapSamples + ambientBufferSize) % ambientBufferSize;
+            bloomSumR += rightCh.ambientBuffer[tapPtrR] * bloomBaseGains[t] * diffusion;
+        }
+    
+        float delayedL = mainTapL + bloomSumL;   // bloom-inclusive — feeds output/smear only
+        float delayedR = mainTapR + bloomSumR;
     
         // Calculate Shimmer (Independent per channel to widen the pitch variance)
+        // NOTE: shimmer reads the main tap only, not the bloom — keeps the pitch-shifted layer clean
         float shimmeredL = 0.0f; float shimmeredR = 0.0f;
         if (shimmer > 0.001f)
         {
             // Left Shimmer
-            shimmerBuffer[shimmerWritePtr] = delayedL;
+            shimmerBuffer[shimmerWritePtr] = mainTapL;
             shimmerWritePtr = (shimmerWritePtr + 1) % shimmerBufferSize;
             shimmerReadPtr += 2.0f;
             if (shimmerReadPtr >= static_cast<float>(shimmerBufferSize)) shimmerReadPtr -= static_cast<float>(shimmerBufferSize);
@@ -1942,9 +2067,9 @@ public:
             shimmerPhase += 2.0f / static_cast<float> (shimmerBufferSize);
             if (shimmerPhase >= 1.0f) shimmerPhase -= 1.0f;
             shimmeredL *= 0.5f * (1.0f - std::cos (shimmerPhase * juce::MathConstants<float>::twoPi));
-
+    
             // Right Shimmer
-            rightCh.shimmerBuffer[rightCh.shimmerWritePtr] = delayedR;
+            rightCh.shimmerBuffer[rightCh.shimmerWritePtr] = mainTapR;
             rightCh.shimmerWritePtr = (rightCh.shimmerWritePtr + 1) % shimmerBufferSize;
             rightCh.shimmerReadPtr += 2.0f;
             if (rightCh.shimmerReadPtr >= static_cast<float>(shimmerBufferSize)) rightCh.shimmerReadPtr -= static_cast<float>(shimmerBufferSize);
@@ -1955,9 +2080,10 @@ public:
         }
     
         // PING-PONG CROSS-TALK: Feed Right delay into Left input, and Left into Right
+        // NOTE: feedback recirculates the main tap only — bloom taps stay a one-pass color layer, don't compound
         float feedbackAmt = juce::jlimit (0.0f, 0.98f, feedback);
-        float feedL = std::tanh(delayedR + shimmeredR * shimmer);
-        float feedR = std::tanh(delayedL + shimmeredL * shimmer);
+        float feedL = std::tanh(mainTapR + shimmeredR * shimmer);
+        float feedR = std::tanh(mainTapL + shimmeredL * shimmer);
     
         ambientBuffer[ambientWritePtr] = diffL + feedL * feedbackAmt;
         rightCh.ambientBuffer[rightCh.ambientWritePtr] = diffR + feedR * feedbackAmt;
@@ -1965,7 +2091,7 @@ public:
         ambientWritePtr = (ambientWritePtr + 1) % ambientBufferSize;
         rightCh.ambientWritePtr = (rightCh.ambientWritePtr + 1) % ambientBufferSize;
     
-        float outL = delayedL; float outR = delayedR;
+        float outL = delayedL; float outR = delayedR;   // bloom-inclusive — this is what gets heard
         for (int i = numAmbientStages / 2; i < numAmbientStages; ++i)
         {
             int pIdx = i - (numAmbientStages / 2);
@@ -2289,6 +2415,15 @@ protected:
     static constexpr std::array<int, 4> primeDelays        = { 211, 347, 523, 701 };
     static constexpr std::array<int, 4> revPrimeDelays     = { 883, 1031, 1153, 1301 };
     static constexpr std::array<int, 4> ambientPrimeDelays = { 1511, 1699, 1861, 2029 };
+    // Looper
+    std::vector<float> looperBuffer;
+    int   looperMaxLength  = 0;   // set in prepare(), e.g. 30 seconds * sampleRate
+    int   looperLength      = 0;   // actual recorded length, set when recording stops
+    int   looperPos          = 0;   // write pos while recording, playback pos otherwise
+    int   prevModeBand      = -1;  // for edge detection
+    bool  looperHasLoop     = false;
+    bool  looperRecording   = false;
+    bool prevCurrentlyRecording  = false;
     // Parameters Cache
     double sampleRate { 44100.0 };
     float targetCutoff { 1000.0f };

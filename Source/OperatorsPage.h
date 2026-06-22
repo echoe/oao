@@ -407,23 +407,43 @@ public:
 
     void resized() override
     {
-        auto area = getLocalBounds();
+        auto area = getLocalBounds().reduced (
+            juce::roundToInt (getWidth()  * ProjectConfig::outerMargin),
+            juce::roundToInt (getHeight() * ProjectConfig::outerMargin));
 
         int rows = 6;
         int cols = 1;
-        int gap  = juce::jmax (2, juce::roundToInt (getHeight() * 0.006f));
+        int gap     = juce::jmax (2, juce::roundToInt (getHeight() * 0.006f));
+        int halfGap = juce::jmax (1, gap / 2);
         int cellWidth = area.getWidth() / cols;
         int cellHeight = area.getHeight() / rows;
 
+        // Walk top-down with removeFromTop, giving the last row whatever remains of
+        // 'area' exactly — avoids integer-division leftover piling up as an extra
+        // gutter below the last row that the other pages don't have.
+        auto remaining = area;
         for (int r = 0; r < rows; ++r)
         {
+            bool isLastRow = (r == rows - 1);
+            auto rowBounds = remaining.removeFromTop (isLastRow ? remaining.getHeight() : cellHeight);
+
             for (int c = 0; c < cols; ++c)
             {
                 int index = (r * cols) + c;
                 if (index < static_cast<int>(opModules.size()))
                 {
-                    auto cellBounds = juce::Rectangle<int> (c * cellWidth, r * cellHeight, cellWidth, cellHeight);
-                    opModules[index]->setBounds (cellBounds.reduced (gap, gap));
+                    auto cellBounds = rowBounds.withX (rowBounds.getX() + c * cellWidth).withWidth (cellWidth);
+
+                    // Only inset the sides that actually face a neighboring card, so the
+                    // first/last row sit flush against the page's outer margin — matching
+                    // EffectsPage/MatrixPage, which don't add anything beyond outerMargin.
+                    // With cols == 1 there's never a horizontal neighbor, so no horizontal inset at all.
+                    int top    = (r == 0)       ? 0 : halfGap;
+                    int bottom = isLastRow       ? 0 : halfGap;
+                    cellBounds.removeFromTop (top);
+                    cellBounds.removeFromBottom (bottom);
+
+                    opModules[index]->setBounds (cellBounds);
                 }
             }
         }

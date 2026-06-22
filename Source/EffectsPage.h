@@ -87,9 +87,12 @@ public:
 
     void paint (juce::Graphics& g) override
     {
-        g.fillAll (colors.background);
-        g.setColour (colors.text.withAlpha (0.1f));
-        g.drawRect (getLocalBounds(), 1);
+        auto bounds = getLocalBounds().toFloat();
+        g.setColour (colors.background);
+        g.fillRoundedRectangle (bounds, 4.0f);
+
+        g.setColour (colors.text.withAlpha (0.15f));
+        g.drawRoundedRectangle (bounds.reduced (1.0f), 4.0f, 1.0f);
     }
 
     void lookAndFeelChanged() override
@@ -221,9 +224,12 @@ public:
 
     void paint (juce::Graphics& g) override
     {
-        g.fillAll (colors.background);
-        g.setColour (colors.text.withAlpha (0.1f));
-        g.drawRect (getLocalBounds(), 1);
+        auto bounds = getLocalBounds().toFloat();
+        g.setColour (colors.background);
+        g.fillRoundedRectangle (bounds, 4.0f);
+
+        g.setColour (colors.text.withAlpha (0.15f));
+        g.drawRoundedRectangle (bounds.reduced (1.0f), 4.0f, 1.0f);
     }
 
     void lookAndFeelChanged() override
@@ -322,6 +328,8 @@ public:
 
     void paint (juce::Graphics& g) override
     {
+        g.fillAll (colors.panelGap);
+
         float splitX = getWidth() * splitRatio;
 
         g.setColour (colors.text.withAlpha (0.15f));
@@ -344,24 +352,33 @@ public:
         float h = getHeight();
         float w = getWidth();
         float gapH    = juce::jmax (2.0f, h * 0.006f);
-        float padding = h * 0.01f;
 
-        auto full    = getLocalBounds().reduced (w * 0.005f, padding);
+        auto full    = getLocalBounds().reduced (
+            juce::roundToInt (w * ProjectConfig::outerMargin),
+            juce::roundToInt (h * ProjectConfig::outerMargin));
         auto fxArea  = full.removeFromLeft ((int)(full.getWidth() * splitRatio));
         auto lfoArea = full;
 
-        // FX slots
+        // FX slots — the last slot gets whatever's left of fxArea exactly, rather than
+        // the same truncated slotH as the others, so integer-division leftover doesn't
+        // pile up as an uneven extra gutter at the bottom.
         int slotH = (int)((fxArea.getHeight() - (ProjectConfig::numEffects - 1) * gapH) / ProjectConfig::numEffects);
         for (int i = 0; i < ProjectConfig::numEffects; ++i)
         {
-            slots[i]->setBounds (fxArea.removeFromTop (slotH).reduced (0, (int)(h * 0.002f)));
-            if (i < (ProjectConfig::numEffects - 1)) fxArea.removeFromTop ((int)gapH);
+            bool isLast = (i == ProjectConfig::numEffects - 1);
+            slots[i]->setBounds (fxArea.removeFromTop (isLast ? fxArea.getHeight() : slotH));
+            if (! isLast) fxArea.removeFromTop ((int)gapH);
         }
 
-        // LFO sidebar
-        int lfoH = lfoArea.getHeight() / ProjectConfig::numEffects;
+        // LFO sidebar — same fix applied identically, so both columns' bottom edges
+        // land flush with the page's outer margin, matching the top edge exactly.
+        int lfoH = (int)((lfoArea.getHeight() - (ProjectConfig::numEffects - 1) * gapH) / ProjectConfig::numEffects);
         for (int i = 0; i < ProjectConfig::numEffects; ++i)
-            lfoSlots[i]->setBounds (lfoArea.removeFromTop (lfoH).reduced (2, (int)(h * 0.002f)));
+        {
+            bool isLast = (i == ProjectConfig::numEffects - 1);
+            lfoSlots[i]->setBounds (lfoArea.removeFromTop (isLast ? lfoArea.getHeight() : lfoH));
+            if (! isLast) lfoArea.removeFromTop ((int)gapH);
+        }
     }
 
 private:

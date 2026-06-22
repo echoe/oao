@@ -1,6 +1,7 @@
 //SettingsPage.h
 #pragma once
 #include <JuceHeader.h>
+#include "Constants.h"
 #include "OAOColors.h"
 #include "OAOLookAndFeel.h"
 
@@ -120,20 +121,22 @@ public:
 
     void paint (juce::Graphics& g) override
     {
-        g.fillAll (colors.background);
-        g.setColour (colors.text);
-        g.setFont (lookAndFeel.getCustomFont (getHeight() * 0.05f));
-        g.drawText ("Settings", getLocalBounds().removeFromTop (getHeight() * 0.05f),
-                    juce::Justification::centred);
+        g.fillAll (colors.panelGap);
 
-        g.setColour (colors.primary.withAlpha (0.3f));
-        g.drawHorizontalLine (getHeight()*0.06f, 8.0f, static_cast<float> (getWidth()) - 8.0f); // line under settings title
+        // Card behind all the actual controls — same uniform outer margin on all
+        // four sides as every other page, no extra top-only deduction
+        auto cardArea = getLocalBounds().reduced (juce::roundToInt (getWidth() * ProjectConfig::outerMargin));
+        auto cardBounds = cardArea.toFloat();
+
+        g.setColour (colors.background);
+        g.fillRoundedRectangle (cardBounds, 4.0f);
+        g.setColour (colors.text.withAlpha (0.15f));
+        g.drawRoundedRectangle (cardBounds.reduced (1.0f), 4.0f, 1.0f);
     }
 
     void resized() override
     {
-        auto area = getLocalBounds().reduced (getWidth() * 0.02f);
-        area.removeFromTop (getHeight() * 0.08f); // title area
+        auto area = getLocalBounds().reduced (getWidth() * ProjectConfig::outerMargin);
     
         // UI Scale and Font Selection
         auto scaleRow = area.removeFromTop (getHeight() * 0.05f);

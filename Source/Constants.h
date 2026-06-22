@@ -15,7 +15,7 @@ namespace ProjectConfig
     // Base plugin size/visual tweaks
     static constexpr int pluginSizeX = 1000;
     static constexpr int pluginSizeY = 700;
-    static constexpr float outerMargin = 0.01f;
+    static constexpr float outerMargin = 0.005f;
     // Effects list
     inline juce::StringArray getEffectTypeChoices()
     {

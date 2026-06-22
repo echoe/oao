@@ -1,3 +1,4 @@
+//PresetBar.h
 #pragma once
 #include <JuceHeader.h>
 #include "PluginProcessor.h"
@@ -160,7 +161,6 @@ public:
 
     void paint (juce::Graphics& g) override
     {
-        g.drawHorizontalLine (getHeight() - 1, 0.0f, static_cast<float> (getWidth()));
     }
 
     void resized() override // we have like 70% of the bar or so.
@@ -527,7 +527,7 @@ struct FMAlgorithm
         auto  typeChoices = ProjectConfig::getEffectTypeChoices();
         int   numTypes    = typeChoices.size();
 
-        for (int slot = 1; slot <= ProjectConfig::numEffects; ++slot)
+        for (int slot = 1; slot <= 3; ++slot)
         {
             juce::String s = juce::String (slot);
 

@@ -125,7 +125,9 @@ public:
 
         // Card behind all the actual controls — same uniform outer margin on all
         // four sides as every other page, no extra top-only deduction
-        auto cardArea = getLocalBounds().reduced (juce::roundToInt (getWidth() * ProjectConfig::outerMargin));
+        auto cardArea = getLocalBounds().reduced (
+            juce::roundToInt (getWidth()  * ProjectConfig::outerMargin),
+            juce::roundToInt (getHeight() * ProjectConfig::outerMargin));
         auto cardBounds = cardArea.toFloat();
 
         g.setColour (colors.background);
@@ -136,7 +138,9 @@ public:
 
     void resized() override
     {
-        auto area = getLocalBounds().reduced (getWidth() * ProjectConfig::outerMargin);
+        auto area = getLocalBounds().reduced (
+            juce::roundToInt (getWidth()  * ProjectConfig::outerMargin),
+            juce::roundToInt (getHeight() * ProjectConfig::outerMargin));
     
         // UI Scale and Font Selection
         auto scaleRow = area.removeFromTop (getHeight() * 0.05f);

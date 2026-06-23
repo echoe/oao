@@ -1,4 +1,3 @@
-//EffectsPage.h
 #pragma once
 #include <JuceHeader.h>
 #include "PluginProcessor.h"
@@ -274,23 +273,40 @@ public:
 
         area.removeFromLeft (juce::roundToInt (getWidth() * 0.01f)); // small gap before knobs
 
-        // Knobs get the full remaining slot height — label strip below, knob fills the rest
-        int textBoxH = juce::jmax (12, juce::roundToInt (getHeight() * 0.12f));
-        int textBoxW = juce::jmax (32, juce::roundToInt (getWidth()  * 0.1f));
-        int labelH   = juce::jmax (10, juce::roundToInt (getHeight() * 0.14f));
+        // Shared text box / label sizing, derived from sharedKnobTarget (not this slot's
+        // own getHeight(), which is only 1/6th of the page) so every page's knob row
+        // — label position, label height, text box — matches exactly.
+        int textBoxW = juce::roundToInt (sharedKnobTarget * ProjectConfig::textBoxWidthFraction);
+        int textBoxH = juce::jlimit (12, 70, juce::roundToInt (sharedKnobTarget * ProjectConfig::textBoxHeightFraction));
+        int labelH   = juce::jmax (10, juce::roundToInt (sharedKnobTarget * ProjectConfig::textBoxHeightFraction));
 
+        // Shared knob diameter target, matching OperatorsPage/MatrixPage. The slider's
+        // box must be diameter+8 wide (LookAndFeel reserves 4px each side) and that same
+        // amount plus textBoxH tall (TextBoxBelow eats into the bottom of the box).
+        // sharedKnobTarget comes from EffectsPage (the true page dimensions), not
+        // computed from this slot's own getWidth()/getHeight(), which is only 1/6th
+        // of the page height.
+        int targetBoxSize = sharedKnobTarget + 8;
+        auto clampKnob = [targetBoxSize, textBoxH] (juce::Rectangle<int> box)
+        {
+            int w = juce::jmin (box.getWidth(),  targetBoxSize);
+            int h = juce::jmin (box.getHeight(), targetBoxSize + textBoxH);
+            return box.withSizeKeepingCentre (w, h);
+        };
+
+        // Label sits ABOVE the knob, matching OperatorsPage's layout exactly.
         auto mixArea = area.removeFromLeft (juce::roundToInt (area.getWidth() * 0.16f));
-        mixLabel.setBounds (mixArea.removeFromBottom (labelH));
+        mixLabel.setBounds (mixArea.removeFromTop (labelH));
         mixSlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, textBoxW, textBoxH);
-        mixSlider.setBounds (mixArea);
+        mixSlider.setBounds (clampKnob (mixArea));
 
         int knobW = area.getWidth() / 4;
         for (int i = 0; i < 4; ++i)
         {
             auto knobArea = area.removeFromLeft (knobW);
-            knobLabels[i].setBounds (knobArea.removeFromBottom (labelH));
+            knobLabels[i].setBounds (knobArea.removeFromTop (labelH));
             knobs[i].setTextBoxStyle (juce::Slider::TextBoxBelow, false, textBoxW, textBoxH);
-            knobs[i].setBounds (knobArea);
+            knobs[i].setBounds (clampKnob (knobArea));
         }
     }
 
@@ -306,6 +322,14 @@ private:
     std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> effectAttach;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>   mixAttach;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>   knobAttachments[4];
+
+public:
+    // Set from EffectsPage::resized(), which knows the true page dimensions — this
+    // slot's own getWidth()/getHeight() is only 1/6th of the page height, far too
+    // small to derive a sensible shared knob target from directly.
+    void setSharedKnobTarget (int targetDiameter) { sharedKnobTarget = targetDiameter; }
+private:
+    int sharedKnobTarget = 90;
 };
 
 
@@ -359,6 +383,11 @@ public:
         auto fxArea  = full.removeFromLeft ((int)(full.getWidth() * splitRatio));
         auto lfoArea = full;
 
+        // Computed from the true page dimensions (this component, not a per-slot card)
+        // and pushed down to each slot, since a slot's own height is only 1/6th of
+        // this and far too small to derive a sensible shared knob target from.
+        int sharedKnobTarget = juce::roundToInt (juce::jmin (w, h) * ProjectConfig::knobDiameterFraction);
+
         // FX slots — the last slot gets whatever's left of fxArea exactly, rather than
         // the same truncated slotH as the others, so integer-division leftover doesn't
         // pile up as an uneven extra gutter at the bottom.
@@ -366,6 +395,9 @@ public:
         for (int i = 0; i < ProjectConfig::numEffects; ++i)
         {
             bool isLast = (i == ProjectConfig::numEffects - 1);
+            // Must be set before setBounds, since setBounds synchronously triggers
+            // the slot's own resized() which reads this value.
+            slots[i]->setSharedKnobTarget (sharedKnobTarget);
             slots[i]->setBounds (fxArea.removeFromTop (isLast ? fxArea.getHeight() : slotH));
             if (! isLast) fxArea.removeFromTop ((int)gapH);
         }

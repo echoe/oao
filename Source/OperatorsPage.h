@@ -127,47 +127,66 @@ struct CompactOperatorGroup : public juce::Component
         area.removeFromLeft (static_cast<int> (w * 0.01f)); // small gap before knobs
 
         // Knobs and Sliders in a row :D
-        float labelH   = area.getHeight() * 0.20f;
         int Width = area.getWidth() / 8;
+
+        // Shared text box / label sizing, derived from sharedKnobTarget (not this card's
+        // own area.getHeight(), which is only 1/6th of the page) so every page's knob
+        // row — label height, text box — matches EffectsPage/MatrixPage exactly.
+        int textBoxW = juce::roundToInt (sharedKnobTarget * ProjectConfig::textBoxWidthFraction);
+        int textBoxH = juce::jlimit (12, 70, juce::roundToInt (sharedKnobTarget * ProjectConfig::textBoxHeightFraction));
+        int labelH   = juce::jmax (10, juce::roundToInt (sharedKnobTarget * ProjectConfig::textBoxHeightFraction));
+
+        // Clamp each knob's box to the shared target diameter (centered within its column),
+        // so these knobs match MatrixPage/EffectsPage even though this row's own available
+        // space may be larger or smaller than theirs. The box must be diameter+8 wide
+        // (LookAndFeel reserves 4px each side) and that plus textBoxH tall, since
+        // TextBoxBelow eats into the bottom of whatever box the slider is given.
+        // sharedKnobTarget comes from OperatorsPage (the true page dimensions), not
+        // computed from this card's own w/h, which is only 1/6th of the page height.
+        int targetBoxSize = sharedKnobTarget + 8;
+        int knobAreaH     = area.getHeight() - labelH;
+        int knobBoxW      = juce::jmin (Width, targetBoxSize);
+        int knobBoxH       = juce::jmin (knobAreaH, targetBoxSize + textBoxH);
+
+        auto clampKnob = [knobBoxW, knobBoxH] (juce::Rectangle<int> box)
+        {
+            return box.withSizeKeepingCentre (knobBoxW, knobBoxH);
+        };
         
         auto rArea = area.removeFromLeft (Width);
         ratioLabel.setBounds  (rArea.removeFromTop (labelH));
-        ratioSlider.setBounds (rArea);
+        ratioSlider.setBounds (clampKnob (rArea));
         
         auto dArea = area.removeFromLeft (Width);
         detuneLabel.setBounds  (dArea.removeFromTop (labelH));
-        detuneSlider.setBounds (dArea);
+        detuneSlider.setBounds (clampKnob (dArea));
         
         auto pArea = area.removeFromLeft (Width);
         phaseLabel.setBounds  (pArea.removeFromTop (labelH));
-        phaseSlider.setBounds (pArea);
+        phaseSlider.setBounds (clampKnob (pArea));
         
         auto lArea = area.removeFromLeft (Width);
         foldLabel.setBounds  (lArea.removeFromTop (labelH));
-        foldSlider.setBounds (lArea);
+        foldSlider.setBounds (clampKnob (lArea));
     
         // --- ENVELOPE SLIDERS ---
     
         auto aArea = area.removeFromLeft (Width);
         attackLabel.setBounds  (aArea.removeFromTop (labelH));
-        attackSlider.setBounds (aArea);
+        attackSlider.setBounds (clampKnob (aArea));
     
         auto decArea = area.removeFromLeft (Width);
         decayLabel.setBounds  (decArea.removeFromTop (labelH));
-        decaySlider.setBounds (decArea);
+        decaySlider.setBounds (clampKnob (decArea));
     
         auto sArea = area.removeFromLeft (Width);
         sustainLabel.setBounds  (sArea.removeFromTop (labelH));
-        sustainSlider.setBounds (sArea);
+        sustainSlider.setBounds (clampKnob (sArea));
     
         auto relArea = area;
         releaseLabel.setBounds  (relArea.removeFromTop (labelH));
-        releaseSlider.setBounds (relArea);
+        releaseSlider.setBounds (clampKnob (relArea));
 
-        // text labels //
-        int textBoxW = static_cast<int> (Width * 0.8f);
-        int textBoxH = static_cast<int> (labelH);
-        
         ratioSlider.setTextBoxStyle  (juce::Slider::TextBoxBelow, false, textBoxW, textBoxH);
         detuneSlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, textBoxW, textBoxH);
         phaseSlider.setTextBoxStyle  (juce::Slider::TextBoxBelow, false, textBoxW, textBoxH);
@@ -350,6 +369,14 @@ private:
     std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> freqModeAttach;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> ratioAttach, detuneAttach, phaseAttach, foldAttach;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> attackAttach, decayAttach, sustainAttach, releaseAttach;
+
+public:
+    // Set from OperatorsPage::resized(), which knows the true page dimensions —
+    // this card's own getWidth()/getHeight() are just one of six rows, far too
+    // small to derive a sensible shared knob target from directly.
+    void setSharedKnobTarget (int targetDiameter) { sharedKnobTarget = targetDiameter; }
+private:
+    int sharedKnobTarget = 90;
 };
 
 // --- THE PARENT VIEW MANAGER CLASS ---
@@ -418,6 +445,12 @@ public:
         int cellWidth = area.getWidth() / cols;
         int cellHeight = area.getHeight() / rows;
 
+        // Computed from the true page dimensions (this component, not a per-row card)
+        // and pushed down to each card, since a card's own height is only 1/6th of
+        // this and far too small to derive a sensible shared knob target from.
+        int sharedKnobTarget = juce::roundToInt (
+            juce::jmin (getWidth(), getHeight()) * ProjectConfig::knobDiameterFraction);
+
         // Walk top-down with removeFromTop, giving the last row whatever remains of
         // 'area' exactly — avoids integer-division leftover piling up as an extra
         // gutter below the last row that the other pages don't have.
@@ -443,6 +476,9 @@ public:
                     cellBounds.removeFromTop (top);
                     cellBounds.removeFromBottom (bottom);
 
+                    // Must be set before setBounds, since setBounds synchronously
+                    // triggers the card's own resized() which reads this value.
+                    opModules[index]->setSharedKnobTarget (sharedKnobTarget);
                     opModules[index]->setBounds (cellBounds);
                 }
             }

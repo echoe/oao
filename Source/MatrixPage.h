@@ -1,4 +1,3 @@
-//MatrixPage.h
 #pragma once
 #include <JuceHeader.h>
 #include "Constants.h"
@@ -75,26 +74,48 @@ struct ModMatrixSlot : public juce::Component
     {
         auto area = getLocalBounds().reduced (2, 0);
 
-        // Right block: Depth knob, roughly square, vertically centered in the row
-        int knobSize = juce::jmin (area.getHeight(), juce::roundToInt (area.getWidth() * 0.32f));
+        // --- Right block: Depth Knob & Label ---
         auto rightArea = area.removeFromRight (juce::roundToInt (area.getWidth() * 0.28f));
+
+        // 1. Fix the TextBox visibility!
+        // We set the style here instead of the constructor because we finally have non-zero bounds.
+        int textBoxW = static_cast<int> (rightArea.getWidth() * 0.8f);
+        int textBoxH = juce::jlimit (12, 20, static_cast<int> (area.getHeight() * 0.2f));
+        amountSlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, textBoxW, textBoxH);
+
+        // 2. Center the knob block directly in the area so it matches the grid's vertical center exactly.
+        int knobSize = juce::jmin (area.getHeight(), rightArea.getWidth());
         auto knobBlock = rightArea.withSizeKeepingCentre (rightArea.getWidth(), knobSize);
-        depthLabel.setBounds  (knobBlock.removeFromTop (juce::jmax (10, knobBlock.getHeight() / 6)));
         amountSlider.setBounds (knobBlock);
 
-        // Left block: Source/Target stacked compactly, vertically centered in the row
-        // (rather than each spanning a full third/half of the row height)
-        int rowH       = juce::jmax (16, juce::roundToInt (area.getHeight() * 0.38f));
+        // 3. Float the "Depth" label in the empty space above the knob.
+        // By taking the space from rightArea.getY() to knobBlock.getY(), the label
+        // doesn't push the knob off-center.
+        int labelHeight = knobBlock.getY() - rightArea.getY();
+        depthLabel.setBounds (rightArea.getX(), rightArea.getY(), rightArea.getWidth(), labelHeight);
+
+        // --- Left block: Source/Target ---
+        // (Keep the updated dropdown sizing logic from the previous step here)
+        int rowH       = juce::jmax (20, juce::roundToInt (area.getHeight() * 0.25f));
         int stackH     = rowH * 2;
         auto leftBlock = area.withSizeKeepingCentre (area.getWidth(), juce::jmin (area.getHeight(), stackH));
 
         auto tArea = leftBlock.removeFromTop (rowH);
         auto bArea = leftBlock.removeFromTop (rowH);
         int w = tArea.getWidth();
-        rowSLabel.setBounds       (tArea.removeFromLeft (w * 0.3f));
-        sourceSelector.setBounds (tArea.removeFromLeft (w * 0.7f).reduced (2, 0));
-        rowTLabel.setBounds       (bArea.removeFromLeft (w * 0.3f));
-        targetSelector.setBounds (bArea.removeFromLeft (w * 0.7f).reduced (2, 0));
+
+        int labelH = juce::jmax (14, juce::roundToInt (rowH * 0.8f));
+        int comboHeight = juce::jmax (16, juce::roundToInt (rowH * 0.65f));
+
+        auto sLabelArea = tArea.removeFromLeft (w * 0.3f);
+        rowSLabel.setBounds (sLabelArea.withSizeKeepingCentre (sLabelArea.getWidth(), labelH));
+        auto sComboArea = tArea.removeFromLeft (w * 0.7f).reduced (2, 0);
+        sourceSelector.setBounds (sComboArea.withSizeKeepingCentre (sComboArea.getWidth(), comboHeight));
+
+        auto tLabelArea = bArea.removeFromLeft (w * 0.3f);
+        rowTLabel.setBounds (tLabelArea.withSizeKeepingCentre (tLabelArea.getWidth(), labelH));
+        auto tComboArea = bArea.removeFromLeft (w * 0.7f).reduced (2, 0);
+        targetSelector.setBounds (tComboArea.withSizeKeepingCentre (tComboArea.getWidth(), comboHeight));
     }
 
     void buildTargetMenu()
@@ -206,7 +227,7 @@ public:
                 auto* s = matrixSliders.add (new juce::Slider());
                 s->setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
                 s->setTextBoxStyle (juce::Slider::TextBoxBelow, false,
-                    (int)(knobSize * 0.85f), (int)(knobSize * 0.22f));
+                    (int)(knobSize * ProjectConfig::textBoxWidthFraction), (int)(knobSize * ProjectConfig::textBoxHeightFraction));
 		addAndMakeVisible (s);
 
                 // e.g. "AUDIO_ROUTE_0_1" or "MOD_0_1" depending on which page this is
@@ -233,7 +254,7 @@ public:
                 auto* sl = outputSliders.add (new juce::Slider());
                 sl->setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
                 sl->setTextBoxStyle (juce::Slider::TextBoxBelow, false,
-                    (int)(knobSize * 0.45f), (int)(knobSize * 0.22f));
+                    (int)(knobSize * 0.45f), (int)(knobSize * ProjectConfig::textBoxHeightFraction));
 		addAndMakeVisible (sl);
 
                 auto* lb = outputLabels.add (new juce::Label());
@@ -262,6 +283,11 @@ public:
         cachedW = static_cast<float> (getWidth());
         cachedH = static_cast<float> (getHeight());
     
+        // Shared outer margin, same value the card itself is drawn with in paint() —
+        // stored here so resized() (e.g. the Reset button) can align to it exactly.
+        outerW = cachedW * ProjectConfig::outerMargin;
+        outerH = cachedH * ProjectConfig::outerMargin;
+
         int labelLeft = static_cast<int> (cachedW * 0.055f);
         int labelTop  = static_cast<int> (cachedH * 0.05f);
     
@@ -273,7 +299,10 @@ public:
         // bounding box can be a wide rectangle even though each knob stays round.
         cellW    = availableW / ProjectConfig::numOperators;
         cellH    = availableH / ProjectConfig::numOperators;
-        knobSize = std::min (cellW, cellH);
+        // Clamp toward the shared knob target so this page's knobs match
+        // OperatorsPage/EffectsPage even as layouts evolve independently.
+        int sharedTarget = juce::roundToInt (juce::jmin (cachedW, cachedH) * ProjectConfig::knobDiameterFraction);
+        knobSize = juce::jmin (std::min (cellW, cellH), sharedTarget);
         gridX    = labelLeft;
         gridY    = labelTop;
         labelH   = knobSize * 0.26f;
@@ -289,8 +318,6 @@ public:
         float splitX = getWidth() * splitRatio;
         float cardGap = juce::jmax (2.0f, cachedH * 0.006f);
         float halfCardGap = juce::jmax (1.0f, cardGap * 0.5f);
-        float outerW = getWidth()  * ProjectConfig::outerMargin;
-        float outerH = getHeight() * ProjectConfig::outerMargin;
 
         // Card behind the grid region — extended left/up to also cover the row/column
         // label strips and the Reset button corner, not just the cell bounds themselves
@@ -306,13 +333,15 @@ public:
         g.setColour (colors.text.withAlpha (0.15f));
         g.drawRoundedRectangle (gridCard.reduced (1.0f), 4.0f, 1.0f);
 
+        // Calculate the exact bottom of the grid so the sidebar can match it
+        float gridBottom = (float)(gridY + ProjectConfig::numOperators * cellH);
         // Card behind the sidebar region — insets only half the gap from the shared
         // split line so the visible gap between the two cards isn't doubled
         juce::Rectangle<float> sidebarCard (
             splitX + halfCardGap,
             outerH,
             (float) getWidth() - splitX - halfCardGap - outerW,
-            cachedH - outerH * 2.0f);
+            gridBottom);
         g.setColour (colors.background);
         g.fillRoundedRectangle (sidebarCard, 4.0f);
         g.setColour (colors.text.withAlpha (0.15f));
@@ -360,10 +389,16 @@ public:
         auto area        = getLocalBounds();
 
         // Reset button — sits in the empty corner where row labels (left) and
-        // column labels (top) meet, instead of occupying its own separate strip
-        int btnW = juce::jlimit (10, juce::jmax (10, gridX - 4), static_cast<int> (cachedW * 0.06f));
-        int btnH = juce::jlimit (10, juce::jmax (10, static_cast<int> (labelH) - 2), static_cast<int> (labelH * 0.8f));
-        resetButton.setBounds (2, gridY - static_cast<int> (labelH) + 1, btnW, btnH);
+        // column labels (top) meet, instead of occupying its own separate strip.
+        // Anchored to outerW/outerH (the same margin the card itself is drawn with
+        // in paint()) so it sits flush inside the card edge instead of poking past it.
+        int btnX = juce::roundToInt (outerW) + 2;
+        int btnY = gridY - static_cast<int> (labelH) + 1;
+        int btnMaxW = juce::jmax (10, gridX - btnX - 2);
+        int btnMaxH = juce::jmax (10, static_cast<int> (labelH) - 4);
+        int btnW = juce::jlimit (10, btnMaxW, static_cast<int> (cachedW * 0.05f));
+        int btnH = juce::jlimit (10, btnMaxH, static_cast<int> (labelH * 0.7f));
+        resetButton.setBounds (btnX +10, btnY, btnW, btnH);
     
         int totalW       = area.getWidth();
         auto gridArea    = area.removeFromLeft (static_cast<int> (totalW * splitRatio));
@@ -374,9 +409,9 @@ public:
         auto sidebarArea = sidebarAreaFull;
         sidebarArea.removeFromTop (gridY);
 
-        // Textbox sizing — legible relative to knob size
-        int textBoxW = static_cast<int> (knobSize * 0.85f);
-        int textBoxH = juce::jlimit (12, 70, static_cast<int> (knobSize * 0.22f));
+        // Textbox sizing — legible relative to knob size, shared with OperatorsPage/EffectsPage
+        int textBoxW = static_cast<int> (knobSize * ProjectConfig::textBoxWidthFraction);
+        int textBoxH = juce::jlimit (12, 70, static_cast<int> (knobSize * ProjectConfig::textBoxHeightFraction));
     
         int idx = 0;
         for (int src = 0; src < ProjectConfig::numOperators; ++src)
@@ -384,10 +419,10 @@ public:
                 if (auto* s = matrixSliders[idx++])
                 {
                     s->setTextBoxStyle (juce::Slider::TextBoxBelow, false, textBoxW, textBoxH);
-                    // Cell pitch (cellW x cellH) can be a wide rectangle, but the knob
-                    // itself stays round — sized to knobSize and centered in its cell.
-                    juce::Rectangle<int> cell (gridX + dest * cellW, gridY + src * cellH, cellW, cellH);
-                    s->setBounds (cell.withSizeKeepingCentre (knobSize - 4, knobSize - 2));
+                    //Make it a rectangle so the whole screen is filled
+		    juce::Rectangle<int> cell (gridX + dest * cellW, gridY + src * cellH, cellW, cellH);
+                    int boxH = juce::jmin (cellH, knobSize - 2 + textBoxH);
+                    s->setBounds (cell.withSizeKeepingCentre (knobSize - 4, boxH));
                 }
     
         if (paramPrefix == "MOD_")
@@ -405,8 +440,8 @@ public:
                 if (auto* lb = outputLabels[i])
                 {
                     auto labelCell = cell.removeFromLeft (labelW);
-                    int  outLabelH = juce::jlimit (14, static_cast<int> (cellH * 0.6f),
-                                                   static_cast<int> (cellH * 0.45f));
+                    int  outLabelH = juce::jlimit (12, static_cast<int> (cellH * 0.3f),
+                                                   static_cast<int> (cellH * 0.22f));
                     lb->setBounds (labelCell.withSizeKeepingCentre (labelCell.getWidth(), outLabelH));
                 }
                 if (auto* sl = outputSliders[i])
@@ -496,6 +531,8 @@ private:
     float labelH  = 18.0f; // height of the column-label strip above the grid
     float cachedW = 0.0f;
     float cachedH = 0.0f;
+    float outerW  = 0.0f; // shared outer margin (matches the card edge in paint())
+    float outerH  = 0.0f;
     static constexpr float splitRatio = 0.70f;
     juce::TextButton resetButton { "Reset" };
     juce::OwnedArray<juce::Slider>     matrixSliders;

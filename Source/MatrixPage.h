@@ -227,7 +227,7 @@ public:
                 auto* s = matrixSliders.add (new juce::Slider());
                 s->setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
                 s->setTextBoxStyle (juce::Slider::TextBoxBelow, false,
-                    (int)(knobSize * ProjectConfig::textBoxWidthFraction), (int)(knobSize * ProjectConfig::textBoxHeightFraction));
+                    (int)(knobSize * ProjectConfig::textBoxWidthFraction), (int)(knobSize * colors.textBoxHeightFraction));
 		addAndMakeVisible (s);
 
                 // e.g. "AUDIO_ROUTE_0_1" or "MOD_0_1" depending on which page this is
@@ -254,7 +254,7 @@ public:
                 auto* sl = outputSliders.add (new juce::Slider());
                 sl->setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
                 sl->setTextBoxStyle (juce::Slider::TextBoxBelow, false,
-                    (int)(knobSize * ProjectConfig::textBoxWidthFraction), (int)(knobSize * ProjectConfig::textBoxHeightFraction));
+                    (int)(knobSize * ProjectConfig::textBoxWidthFraction), (int)(knobSize * colors.textBoxHeightFraction));
 		addAndMakeVisible (sl);
 
                 auto* lb = outputLabels.add (new juce::Label());
@@ -300,11 +300,11 @@ public:
         cellH    = availableH / ProjectConfig::numOperators;
         // Clamp toward the shared knob target so this page's knobs match
         // OperatorsPage/EffectsPage even as layouts evolve independently.
-        int sharedTarget = juce::roundToInt (juce::jmin (cachedW, cachedH) * ProjectConfig::knobDiameterFraction);
+        int sharedTarget = juce::roundToInt (juce::jmin (cachedW, cachedH) * colors.knobDiameterFraction);
         knobSize = juce::jmin (std::min (cellW, cellH), sharedTarget);
         gridX    = labelLeft;
         gridY    = labelTop;
-	labelH = juce::roundToInt(knobSize * ProjectConfig::textBoxHeightFraction);
+	labelH = juce::roundToInt(knobSize * colors.textBoxHeightFraction);
     }
 
     void paint (juce::Graphics& g) override
@@ -410,7 +410,7 @@ public:
 
         // Textbox sizing — legible relative to knob size, shared with OperatorsPage/EffectsPage
         int textBoxW = juce::roundToInt (knobSize * ProjectConfig::textBoxWidthFraction);
-        int textBoxH = juce::jlimit (12, 70, juce::roundToInt (knobSize * ProjectConfig::textBoxHeightFraction));
+        int textBoxH = juce::jlimit (12, 70, juce::roundToInt (knobSize * colors.textBoxHeightFraction));
 
         int idx = 0;
         for (int src = 0; src < ProjectConfig::numOperators; ++src)
@@ -439,7 +439,7 @@ public:
 		if (auto* lb = outputLabels[i])
                 {
 		    auto labelCell = cell.removeFromLeft (labelW);
-		    int outLabelH = juce::jlimit (12, juce::roundToInt (cellH * 0.3f), juce::roundToInt (knobSize * ProjectConfig::textBoxHeightFraction));
+		    int outLabelH = juce::jlimit (12, juce::roundToInt (cellH * 0.3f), juce::roundToInt (knobSize * colors.textBoxHeightFraction));
                     lb->setBounds (labelCell.withSizeKeepingCentre (labelCell.getWidth(), outLabelH));
                 }
                 if (auto* sl = outputSliders[i])

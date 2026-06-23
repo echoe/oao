@@ -16,11 +16,8 @@ namespace ProjectConfig
     static constexpr int pluginSizeX = 900;
     static constexpr int pluginSizeY = 720;
     static constexpr float outerMargin = 0.005f;
-    //static constexpr float knobDiameterFraction = 0.100f;
-    static constexpr float knobDiameterFraction = 0.090f;
-    static constexpr float textBoxWidthFraction  = 1.0f;
-    //static constexpr float textBoxHeightFraction = 0.30f;
-    static constexpr float textBoxHeightFraction = 0.40f;
+    static constexpr float textBoxWidthFraction  = 1.0f; // Generally meaningless with our design.
+    //knobDiameter and textboxheight live in OAOColors.h now so end users can change them
     // Effects list
     inline juce::StringArray getEffectTypeChoices()
     {

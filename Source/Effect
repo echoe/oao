@@ -113,7 +113,7 @@ struct CompactOperatorGroup : public juce::Component
 
         opHeaderLabel.setBounds (leftCol.removeFromTop (juce::jmax (14, juce::roundToInt (h * 0.16f))));
 
-        int selectorH = juce::jmax (16, juce::roundToInt (h * 0.24f));
+        int selectorH = juce::jmax (16, juce::roundToInt (h * 0.20f));
         freqModeSelector.setBounds (leftCol.removeFromTop (selectorH).reduced (1));
         modeSelector.setBounds     (leftCol.removeFromTop (selectorH).reduced (1));
 

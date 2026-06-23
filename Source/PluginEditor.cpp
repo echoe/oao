@@ -20,20 +20,6 @@ FMPluginAudioProcessorEditor::FMPluginAudioProcessorEditor (FMPluginAudioProcess
     effectsPage.lookAndFeelChanged();
     settingsPage.refreshAll(); //update settingsPage boxes
 
-// Settings page callbacks
-    settingsPage.onColorsChanged = [this]
-    {
-        oaoLookAndFeel.applyColors();
-#ifndef OAO_FX_ONLY
-        opsPage.lookAndFeelChanged();
-        matrixPage.lookAndFeelChanged();
-        audioMatrixPage.lookAndFeelChanged();
-#endif
-        effectsPage.lookAndFeelChanged();
-        this->lookAndFeelChanged();
-        repaint();
-    };
-
 #ifndef OAO_FX_ONLY
     // Wire the sample-load callback from the operators page to the processor
     opsPage.onLoadSample = [&p] (int opIndex, juce::File file)
@@ -57,6 +43,7 @@ FMPluginAudioProcessorEditor::FMPluginAudioProcessorEditor (FMPluginAudioProcess
     addAndMakeVisible (effectsPage);
     addAndMakeVisible (settingsPage);
 
+    //settingsPage callbacks
     settingsPage.onScaleChanged = [this] (float scale)
     {
         // Update scale, then run resized.
@@ -75,6 +62,30 @@ FMPluginAudioProcessorEditor::FMPluginAudioProcessorEditor (FMPluginAudioProcess
         audioMatrixPage.refreshColors();
 #endif
         oaoColors.saveToFile();
+        repaint();
+    };
+
+    settingsPage.onColorsChanged = [this]
+    {
+        oaoLookAndFeel.applyColors();
+#ifndef OAO_FX_ONLY
+        opsPage.lookAndFeelChanged();
+        matrixPage.lookAndFeelChanged();
+        audioMatrixPage.lookAndFeelChanged();
+#endif
+        effectsPage.lookAndFeelChanged();
+        this->lookAndFeelChanged();
+        repaint();
+    };
+    settingsPage.onLayoutChanged = [this]
+    {
+        effectsPage.resized();
+    #ifndef OAO_FX_ONLY
+        opsPage.resized();
+        matrixPage.resized();
+        audioMatrixPage.resized();
+    #endif
+        settingsPage.resized();
         repaint();
     };
 

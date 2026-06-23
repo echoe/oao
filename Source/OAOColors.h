@@ -12,8 +12,10 @@ struct OAOColors
     juce::Colour text        { 0xFFE0E0FF }; // soft white-blue
     juce::Colour textDim     { 0xFF6060A0 }; // dimmed text
     juce::Colour panelGap    { 0xFF06060F }; // space between cards/panels, darker than background
-    // scale
-    float scale = 1.0f;
+    float scale = 1.0f; //scale
+    float knobDiameterFraction  = 0.100f; // fraction of min(width,height) used for knob diameter
+    float textBoxHeightFraction = 0.30f;  // fraction of knob diameter used for label/textbox height
+
     void saveToFile() // for saving current settings automatically
     {
         juce::PropertiesFile::Options options;
@@ -29,6 +31,8 @@ struct OAOColors
         prefs.setValue ("text",        text.toString());
         prefs.setValue ("textDim",     textDim.toString());
         prefs.setValue ("panelGap",    panelGap.toString());
+        prefs.setValue ("knobDiameterFraction",  knobDiameterFraction);
+        prefs.setValue ("textBoxHeightFraction", textBoxHeightFraction);
         prefs.saveIfNeeded();
     }
 
@@ -53,6 +57,12 @@ struct OAOColors
                              ? juce::Colour::fromString (prefs.getValue ("panelGap"))
                              : background.darker (0.3f);
         }
+
+        // knobDiameterFraction/textBoxHeightFraction may not exist in settings files
+        // saved before this was added, so fall back to the existing default rather
+        // than zeroing out (which would collapse every knob/label to nothing).
+        knobDiameterFraction  = (float) prefs.getDoubleValue ("knobDiameterFraction",  knobDiameterFraction);
+        textBoxHeightFraction = (float) prefs.getDoubleValue ("textBoxHeightFraction", textBoxHeightFraction);
     }
 
     // Built-in color presets

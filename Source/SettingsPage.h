@@ -26,10 +26,10 @@ struct ColorPreviewButton : public juce::Component
 class SettingsPage : public juce::Component, public juce::ChangeListener
 {
 public:
+    //Callbacks for main editors
     std::function<void()> onColorsChanged;
-    
-    // Added the callback for the main editor
     std::function<void(float)> onScaleChanged;
+    std::function<void()> onLayoutChanged;
 
     SettingsPage (OAOColors& c, OAOLookAndFeel& laf) 
         : colors (c), lookAndFeel (laf)
@@ -99,10 +99,46 @@ public:
         {
             lookAndFeel.currentFontName = fontSelector.getText();
             refreshAll(); 
-            // Note: Since this changes fonts globally, you might also need 
-            // to trigger a repaint on your parent editor component if 
-            // refreshAll() doesn't catch components outside the settings page.
         };
+
+        // Knob Size / Label Size — runtime-tweakable mostly-global knob and label sizes
+        knobSizeLabel.setText ("Knob Size:", juce::dontSendNotification);
+        knobSizeLabel.setJustificationType (juce::Justification::centredRight);
+        addAndMakeVisible (knobSizeLabel);
+
+        knobSizeSlider.setSliderStyle (juce::Slider::LinearHorizontal);
+        knobSizeSlider.setTextBoxStyle (juce::Slider::TextBoxRight, false, 50, 18);
+        knobSizeSlider.setRange (0.05, 0.18, 0.001); // 5%-18% of min(width,height)
+        knobSizeSlider.setValue (colors.knobDiameterFraction, juce::dontSendNotification);
+        knobSizeSlider.setDoubleClickReturnValue (true, 0.100);
+	addAndMakeVisible (knobSizeSlider);
+
+        knobSizeSlider.onValueChange = [this]
+        {
+            colors.knobDiameterFraction = (float) knobSizeSlider.getValue();
+            refreshAll();
+            if (onLayoutChanged)
+                onLayoutChanged();
+        };
+
+        labelSizeLabel.setText ("Label Size:", juce::dontSendNotification);
+        labelSizeLabel.setJustificationType (juce::Justification::centredRight);
+        addAndMakeVisible (labelSizeLabel);
+
+        labelSizeSlider.setSliderStyle (juce::Slider::LinearHorizontal);
+        labelSizeSlider.setTextBoxStyle (juce::Slider::TextBoxRight, false, 50, 18);
+        labelSizeSlider.setRange (0.15, 0.50, 0.001); // 15%-50% of knob diameter
+        labelSizeSlider.setValue (colors.textBoxHeightFraction, juce::dontSendNotification);
+        labelSizeSlider.setDoubleClickReturnValue (true, 0.30);
+        addAndMakeVisible (labelSizeSlider);
+
+        labelSizeSlider.onValueChange = [this]
+        {
+            colors.textBoxHeightFraction = (float) labelSizeSlider.getValue();
+            refreshAll();
+            if (onLayoutChanged)
+                onLayoutChanged();
+	};
 
         // HSB sliders for each color
         setupColorSection (backgroundSection, "Background",  colors.background);
@@ -144,12 +180,15 @@ public:
     
         area.reduce (10, 10);
     
-        // 1. Derive our standard sizing entirely from Constants.h
-        // This matches the 'knobSize' logic from your MatrixPage
-        float baseUnit = juce::jmin (getWidth(), getHeight()) * ProjectConfig::knobDiameterFraction;
+        // 1. Derive our standard sizing from OAOColors, which now owns these as
+        // runtime-tweakable values (see Knob Size / Label Size sliders above) rather
+        // than the fixed ProjectConfig constants. This matches the 'knobSize' logic
+        // from MatrixPage, and means this page's own row height breathes along with
+        // the sliders too — immediate visual feedback that they're doing something.
+        float baseUnit = juce::jmin (getWidth(), getHeight()) * colors.knobDiameterFraction;
         
-        // 2. Use your global text box fraction to size the rows perfectly!
-        int rowH = juce::roundToInt (baseUnit * ProjectConfig::textBoxHeightFraction * 2.0f);
+        // 2. Use the same runtime text box fraction to size the rows perfectly!
+        int rowH = juce::roundToInt (baseUnit * colors.textBoxHeightFraction * 2.0f);
         int gap  = juce::roundToInt (rowH * 0.5f); // Gaps scale relative to the row height
     
         // UI Scale and Font Selection
@@ -160,6 +199,15 @@ public:
         fontSelector.setBounds  (scaleRow.reduced (2));
         
         area.removeFromTop (gap); 
+
+        // Knob Size and Label Size sliders — same row shape as the scale/font row above
+        auto sizeRow = area.removeFromTop (rowH);
+        knobSizeLabel.setBounds  (sizeRow.removeFromLeft (sizeRow.getWidth() * 0.15f));
+        knobSizeSlider.setBounds (sizeRow.removeFromLeft (sizeRow.getWidth() * 0.35f).reduced (2));
+        labelSizeLabel.setBounds (sizeRow.removeFromLeft (sizeRow.getWidth() * 0.23f));
+        labelSizeSlider.setBounds(sizeRow.reduced (2));
+
+        area.removeFromTop (gap);
     
         // Preset Buttons Row 1
         auto presetRow1 = area.removeFromTop (rowH);
@@ -229,6 +277,15 @@ public:
         fontSelector.setColour (juce::ComboBox::arrowColourId, colors.text);
         fontSelector.sendLookAndFeelChange();
 
+        knobSizeLabel.setColour (juce::Label::textColourId, colors.text);
+        labelSizeLabel.setColour (juce::Label::textColourId, colors.text);
+        knobSizeSlider.setColour (juce::Slider::textBoxBackgroundColourId, colors.surface);
+        knobSizeSlider.setColour (juce::Slider::textBoxTextColourId, colors.text);
+        labelSizeSlider.setColour (juce::Slider::textBoxBackgroundColourId, colors.surface);
+        labelSizeSlider.setColour (juce::Slider::textBoxTextColourId, colors.text);
+        knobSizeSlider.sendLookAndFeelChange();
+        labelSizeSlider.sendLookAndFeelChange();
+
 	// general refreshes
         lookAndFeel.applyColors();
         colors.saveToFile();
@@ -275,9 +332,9 @@ private:
     {
         area.reduce (4, 0);
         
-        // Grab the constants again for this specific column
-        float baseUnit = juce::jmin (getWidth(), getHeight()) * ProjectConfig::knobDiameterFraction;
-        int rowH = juce::roundToInt (baseUnit * ProjectConfig::textBoxHeightFraction);
+        // Grab the runtime sizing fields again for this specific column
+        float baseUnit = juce::jmin (getWidth(), getHeight()) * colors.knobDiameterFraction;
+        int rowH = juce::roundToInt (baseUnit * colors.textBoxHeightFraction);
         
         // The label height matches a standard text box row, we multiply so it's bigger
         section.nameLabel.setBounds (area.removeFromTop (rowH * 2));
@@ -317,6 +374,8 @@ private:
                 xml.setAttribute ("panelGap",    colors.panelGap.toString());
                 xml.setAttribute ("scale",       colors.scale);
                 xml.setAttribute ("fontName",    lookAndFeel.currentFontName);
+                xml.setAttribute ("knobDiameterFraction",  colors.knobDiameterFraction);
+                xml.setAttribute ("textBoxHeightFraction", colors.textBoxHeightFraction);
 
                 xml.writeTo (file);
             });
@@ -360,6 +419,11 @@ private:
 
                 float loadedScale = (float) xml->getDoubleAttribute ("scale", colors.scale);
                 juce::String loadedFont = xml->getStringAttribute ("fontName", lookAndFeel.currentFontName);
+
+                colors.knobDiameterFraction  = (float) xml->getDoubleAttribute ("knobDiameterFraction",  colors.knobDiameterFraction);
+                colors.textBoxHeightFraction = (float) xml->getDoubleAttribute ("textBoxHeightFraction", colors.textBoxHeightFraction);
+                knobSizeSlider.setValue (colors.knobDiameterFraction, juce::dontSendNotification);
+                labelSizeSlider.setValue (colors.textBoxHeightFraction, juce::dontSendNotification);
 
                 lookAndFeel.currentFontName = loadedFont;
 
@@ -411,6 +475,9 @@ private:
 
     juce::ComboBox    scaleSelector, fontSelector, oversamplingSelector, polyphonySelector;
     juce::Label       scaleLabel, fontLabel, oversamplingLabel, polyphonyLabel;
+
+    juce::Label       knobSizeLabel, labelSizeLabel;
+    juce::Slider      knobSizeSlider, labelSizeSlider;
 
     juce::TextButton  synthwaveBtn, industrialBtn, minimalBtn, warmBtn, mintBtn, peachBtn, lavenderBtn, nordicBtn;
     juce::TextButton  saveThemeBtn, loadThemeBtn;

@@ -1,3 +1,4 @@
+//EffectsPage.h
 #pragma once
 #include <JuceHeader.h>
 #include "PluginProcessor.h"
@@ -277,8 +278,8 @@ public:
         // own getHeight(), which is only 1/6th of the page) so every page's knob row
         // — label position, label height, text box — matches exactly.
         int textBoxW = juce::roundToInt (sharedKnobTarget * ProjectConfig::textBoxWidthFraction);
-        int textBoxH = juce::jlimit (12, 70, juce::roundToInt (sharedKnobTarget * ProjectConfig::textBoxHeightFraction));
-        int labelH   = juce::jmax (10, juce::roundToInt (sharedKnobTarget * ProjectConfig::textBoxHeightFraction));
+        int textBoxH = juce::jlimit (12, 70, juce::roundToInt (sharedKnobTarget * colors.textBoxHeightFraction));
+        int labelH   = juce::jmax (10, juce::roundToInt (sharedKnobTarget * colors.textBoxHeightFraction));
 
         // Shared knob diameter target, matching OperatorsPage/MatrixPage. The slider's
         // box must be diameter+8 wide (LookAndFeel reserves 4px each side) and that same
@@ -384,7 +385,7 @@ public:
 	auto lfoArea = full;
 
         // Computed from the true page dimensions (this component, not a per-slot card)
-        int sharedKnobTarget = juce::roundToInt (juce::jmin (w, h) * ProjectConfig::knobDiameterFraction);
+        int sharedKnobTarget = juce::roundToInt (juce::jmin (w, h) * colors.knobDiameterFraction);
 
         // FX slots 
         int slotH = juce::roundToInt ((fxArea.getHeight() - (ProjectConfig::numEffects - 1) * gapH) / (float)ProjectConfig::numEffects);

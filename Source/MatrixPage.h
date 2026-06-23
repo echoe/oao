@@ -79,9 +79,9 @@ struct ModMatrixSlot : public juce::Component
 
         // 1. Fix the TextBox visibility!
         // We set the style here instead of the constructor because we finally have non-zero bounds.
-        int textBoxW = static_cast<int> (rightArea.getWidth() * 0.8f);
-        int textBoxH = juce::jlimit (12, 20, static_cast<int> (area.getHeight() * 0.2f));
-        amountSlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, textBoxW, textBoxH);
+        int textBoxW = juce::roundToInt (rightArea.getWidth() * 0.8f);
+        int textBoxH = juce::jlimit (12, 20, juce::roundToInt (area.getHeight() * 0.2f));
+	amountSlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, textBoxW, textBoxH);
 
         // 2. Center the knob block directly in the area so it matches the grid's vertical center exactly.
         int knobSize = juce::jmin (area.getHeight(), rightArea.getWidth());
@@ -107,15 +107,15 @@ struct ModMatrixSlot : public juce::Component
         int labelH = juce::jmax (14, juce::roundToInt (rowH * 0.8f));
         int comboHeight = juce::jmax (16, juce::roundToInt (rowH * 0.65f));
 
-        auto sLabelArea = tArea.removeFromLeft (w * 0.3f);
-        rowSLabel.setBounds (sLabelArea.withSizeKeepingCentre (sLabelArea.getWidth(), labelH));
-        auto sComboArea = tArea.removeFromLeft (w * 0.7f).reduced (2, 0);
-        sourceSelector.setBounds (sComboArea.withSizeKeepingCentre (sComboArea.getWidth(), comboHeight));
+        auto sLabelArea = tArea.removeFromLeft (juce::roundToInt (w * 0.3f));
+	rowSLabel.setBounds (sLabelArea.withSizeKeepingCentre (sLabelArea.getWidth(), labelH));
+        auto sComboArea = tArea.removeFromLeft (juce::roundToInt (w * 0.7f)).reduced (2, 0);
+	sourceSelector.setBounds (sComboArea.withSizeKeepingCentre (sComboArea.getWidth(), comboHeight));
 
-        auto tLabelArea = bArea.removeFromLeft (w * 0.3f);
-        rowTLabel.setBounds (tLabelArea.withSizeKeepingCentre (tLabelArea.getWidth(), labelH));
-        auto tComboArea = bArea.removeFromLeft (w * 0.7f).reduced (2, 0);
-        targetSelector.setBounds (tComboArea.withSizeKeepingCentre (tComboArea.getWidth(), comboHeight));
+        auto tLabelArea = bArea.removeFromLeft (juce::roundToInt (w * 0.3f));
+	rowTLabel.setBounds (tLabelArea.withSizeKeepingCentre (tLabelArea.getWidth(), labelH));
+        auto tComboArea = bArea.removeFromLeft (juce::roundToInt (w * 0.7f)).reduced (2, 0);
+	targetSelector.setBounds (tComboArea.withSizeKeepingCentre (tComboArea.getWidth(), comboHeight));
     }
 
     void buildTargetMenu()
@@ -254,7 +254,7 @@ public:
                 auto* sl = outputSliders.add (new juce::Slider());
                 sl->setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
                 sl->setTextBoxStyle (juce::Slider::TextBoxBelow, false,
-                    (int)(knobSize * 0.45f), (int)(knobSize * ProjectConfig::textBoxHeightFraction));
+                    (int)(knobSize * ProjectConfig::textBoxWidthFraction), (int)(knobSize * ProjectConfig::textBoxHeightFraction));
 		addAndMakeVisible (sl);
 
                 auto* lb = outputLabels.add (new juce::Label());
@@ -288,13 +288,12 @@ public:
         outerW = cachedW * ProjectConfig::outerMargin;
         outerH = cachedH * ProjectConfig::outerMargin;
 
-        int labelLeft = static_cast<int> (cachedW * 0.055f);
-        int labelTop  = static_cast<int> (cachedH * 0.05f);
-    
-        int gridAreaW  = static_cast<int> (cachedW * splitRatio);
+        int labelLeft  = juce::roundToInt (cachedW * 0.055f);
+        int labelTop   = juce::roundToInt (cachedH * 0.05f);
+        int gridAreaW  = juce::roundToInt (cachedW * splitRatio);
         int availableW = gridAreaW - labelLeft;
-        int availableH = static_cast<int> (cachedH * 0.99f) - labelTop;
-    
+        int availableH = juce::roundToInt (cachedH * 0.99f) - labelTop;
+
         // Horizontal and vertical pitch computed independently, so the grid's overall
         // bounding box can be a wide rectangle even though each knob stays round.
         cellW    = availableW / ProjectConfig::numOperators;
@@ -305,7 +304,7 @@ public:
         knobSize = juce::jmin (std::min (cellW, cellH), sharedTarget);
         gridX    = labelLeft;
         gridY    = labelTop;
-        labelH   = knobSize * 0.26f;
+	labelH = juce::roundToInt(knobSize * ProjectConfig::textBoxHeightFraction);
     }
 
     void paint (juce::Graphics& g) override
@@ -358,7 +357,7 @@ public:
 
         // Row/column labels for the NxN grid
         g.setColour (colors.text);
-        applyFont (juce::jmax (10.0f, knobSize * 0.20f)); // <-- larger
+	applyFont (juce::jmax (10.0f, labelH * 0.75f));
         
         for (int i = 0; i < ProjectConfig::numOperators; ++i)
         {
@@ -401,8 +400,8 @@ public:
         resetButton.setBounds (btnX +10, btnY, btnW, btnH);
     
         int totalW       = area.getWidth();
-        auto gridArea    = area.removeFromLeft (static_cast<int> (totalW * splitRatio));
-        auto sidebarAreaFull = area.reduced (cachedW * 0.01f, 0);
+        auto gridArea = area.removeFromLeft (juce::roundToInt (totalW * splitRatio));
+        auto sidebarAreaFull = area.reduced (juce::roundToInt (cachedW * 0.01f), 0);
 
         // Align the sidebar's row pitch and vertical origin with the grid's, so
         // sidebar row N lines up exactly with grid row N (true vertical symmetry).
@@ -410,9 +409,9 @@ public:
         sidebarArea.removeFromTop (gridY);
 
         // Textbox sizing — legible relative to knob size, shared with OperatorsPage/EffectsPage
-        int textBoxW = static_cast<int> (knobSize * ProjectConfig::textBoxWidthFraction);
-        int textBoxH = juce::jlimit (12, 70, static_cast<int> (knobSize * ProjectConfig::textBoxHeightFraction));
-    
+        int textBoxW = juce::roundToInt (knobSize * ProjectConfig::textBoxWidthFraction);
+        int textBoxH = juce::jlimit (12, 70, juce::roundToInt (knobSize * ProjectConfig::textBoxHeightFraction));
+
         int idx = 0;
         for (int src = 0; src < ProjectConfig::numOperators; ++src)
             for (int dest = 0; dest < ProjectConfig::numOperators; ++dest)
@@ -433,21 +432,20 @@ public:
         }
         else
         {
-            int labelW  = static_cast<int> (sidebarArea.getWidth() * 0.35f);
+            int labelW  = juce::roundToInt (sidebarArea.getWidth() * 0.35f);
             for (int i = 0; i < ProjectConfig::numOperators; ++i)
             {
-                auto cell = sidebarArea.removeFromTop (cellH).reduced (0, cachedH * 0.005f);
-                if (auto* lb = outputLabels[i])
+                auto cell = sidebarArea.removeFromTop (cellH).reduced (0, juce::roundToInt (cachedH * 0.005f));
+		if (auto* lb = outputLabels[i])
                 {
-                    auto labelCell = cell.removeFromLeft (labelW);
-                    int  outLabelH = juce::jlimit (12, static_cast<int> (cellH * 0.3f),
-                                                   static_cast<int> (cellH * 0.22f));
+		    auto labelCell = cell.removeFromLeft (labelW);
+		    int outLabelH = juce::jlimit (12, juce::roundToInt (cellH * 0.3f), juce::roundToInt (knobSize * ProjectConfig::textBoxHeightFraction));
                     lb->setBounds (labelCell.withSizeKeepingCentre (labelCell.getWidth(), outLabelH));
                 }
                 if (auto* sl = outputSliders[i])
                 {
                     sl->setTextBoxStyle (juce::Slider::TextBoxBelow, false,
-                                         cell.getWidth(), static_cast<int> (cellH * 0.25f));
+                                         cell.getWidth(), juce::roundToInt (cellH * 0.25f));
                     sl->setBounds (cell);
                 }
             }

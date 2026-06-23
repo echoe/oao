@@ -113,7 +113,7 @@ struct CompactOperatorGroup : public juce::Component
 
         opHeaderLabel.setBounds (leftCol.removeFromTop (juce::jmax (14, juce::roundToInt (h * 0.16f))));
 
-        int selectorH = juce::jmax (16, juce::roundToInt (h * 0.20f));
+        int selectorH = juce::jmax (16, juce::roundToInt (h * 0.24f));
         freqModeSelector.setBounds (leftCol.removeFromTop (selectorH).reduced (1));
         modeSelector.setBounds     (leftCol.removeFromTop (selectorH).reduced (1));
 
@@ -124,7 +124,7 @@ struct CompactOperatorGroup : public juce::Component
         else
             waveShapeSelector.setBounds (leftCol.removeFromTop (selectorH).reduced (1));
 
-        area.removeFromLeft (static_cast<int> (w * 0.01f)); // small gap before knobs
+        area.removeFromLeft (juce::roundToInt (w * 0.01f)); // small gap before knobs
 
         // Knobs and Sliders in a row :D
         int Width = area.getWidth() / 8;

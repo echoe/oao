@@ -142,43 +142,55 @@ public:
             juce::roundToInt (getWidth()  * ProjectConfig::outerMargin),
             juce::roundToInt (getHeight() * ProjectConfig::outerMargin));
     
+        area.reduce (10, 10);
+    
+        // 1. Derive our standard sizing entirely from Constants.h
+        // This matches the 'knobSize' logic from your MatrixPage
+        float baseUnit = juce::jmin (getWidth(), getHeight()) * ProjectConfig::knobDiameterFraction;
+        
+        // 2. Use your global text box fraction to size the rows perfectly!
+        int rowH = juce::roundToInt (baseUnit * ProjectConfig::textBoxHeightFraction * 2.0f);
+        int gap  = juce::roundToInt (rowH * 0.5f); // Gaps scale relative to the row height
+    
         // UI Scale and Font Selection
-        auto scaleRow = area.removeFromTop (getHeight() * 0.05f);
+        auto scaleRow = area.removeFromTop (rowH);
         scaleLabel.setBounds    (scaleRow.removeFromLeft (scaleRow.getWidth() * 0.15f));
         scaleSelector.setBounds (scaleRow.removeFromLeft (scaleRow.getWidth() * 0.25f).reduced (2));
-        fontLabel.setBounds    (scaleRow.removeFromLeft (scaleRow.getWidth() * 0.2f));
-        fontSelector.setBounds (scaleRow.reduced (2));
-        area.removeFromTop (getHeight() * 0.03f); // gap
+        fontLabel.setBounds     (scaleRow.removeFromLeft (scaleRow.getWidth() * 0.2f));
+        fontSelector.setBounds  (scaleRow.reduced (2));
+        
+        area.removeFromTop (gap); 
     
-        // Buttons
-        auto presetRow1 = area.removeFromTop (getHeight() * 0.07f);
+        // Preset Buttons Row 1
+        auto presetRow1 = area.removeFromTop (rowH);
         int  btnW1      = presetRow1.getWidth() / 4;
         synthwaveBtn.setBounds  (presetRow1.removeFromLeft (btnW1).reduced (2));
         industrialBtn.setBounds (presetRow1.removeFromLeft (btnW1).reduced (2));
         minimalBtn.setBounds    (presetRow1.removeFromLeft (btnW1).reduced (2));
         warmBtn.setBounds       (presetRow1.reduced (2));
     
-        area.removeFromTop (getHeight() * 0.01f); // small gap
+        area.removeFromTop (gap / 2); 
     
-        auto presetRow2 = area.removeFromTop (getHeight() * 0.07f);
+        // Preset Buttons Row 2
+        auto presetRow2 = area.removeFromTop (rowH);
         int  btnW2      = presetRow2.getWidth() / 4;
-        mintBtn.setBounds     (presetRow2.removeFromLeft (btnW2).reduced (2));
-        peachBtn.setBounds    (presetRow2.removeFromLeft (btnW2).reduced (2));
-        lavenderBtn.setBounds (presetRow2.removeFromLeft (btnW2).reduced (2));
-        nordicBtn.setBounds   (presetRow2.reduced (2));
+        mintBtn.setBounds       (presetRow2.removeFromLeft (btnW2).reduced (2));
+        peachBtn.setBounds      (presetRow2.removeFromLeft (btnW2).reduced (2));
+        lavenderBtn.setBounds   (presetRow2.removeFromLeft (btnW2).reduced (2));
+        nordicBtn.setBounds     (presetRow2.reduced (2));
     
-        area.removeFromTop (getHeight() * 0.01f); // small gap
+        area.removeFromTop (gap); 
 
         // Save/Load theme preset buttons
-        auto themeRow = area.removeFromTop (getHeight() * 0.07f);
+        auto themeRow = area.removeFromTop (rowH);
         int  themeBtnW = themeRow.getWidth() / 2;
         saveThemeBtn.setBounds (themeRow.removeFromLeft (themeBtnW).reduced (2));
         loadThemeBtn.setBounds (themeRow.reduced (2));
 
-        area.removeFromTop (getHeight() * 0.03f); // gap
+        area.removeFromTop (gap * 2); 
     
-        // Color pickers
-        auto colorRow = area; // takes all remaining space
+        // Color pickers - give them the remaining space
+        auto colorRow = area; 
         int  sectionW = colorRow.getWidth() / 6;
     
         layoutSection (backgroundSection, colorRow.removeFromLeft (sectionW));
@@ -259,15 +271,22 @@ private:
         addAndMakeVisible (section.previewBox);
     }
 
-    void layoutSection (ColorSection& section, juce::Rectangle<int> area) // Organizes the colors
+    void layoutSection (ColorSection& section, juce::Rectangle<int> area) 
     {
         area.reduce (4, 0);
-        int labelH = area.getHeight() * 0.1f; // labels
-        int previewH = area.getHeight() * 0.5f; //colors
-    
-        section.nameLabel.setBounds (area.removeFromTop (labelH));
-        area.removeFromTop (4);
-        section.previewBox.setBounds (area.removeFromTop (previewH));
+        
+        // Grab the constants again for this specific column
+        float baseUnit = juce::jmin (getWidth(), getHeight()) * ProjectConfig::knobDiameterFraction;
+        int rowH = juce::roundToInt (baseUnit * ProjectConfig::textBoxHeightFraction);
+        
+        // The label height matches a standard text box row, we multiply so it's bigger
+        section.nameLabel.setBounds (area.removeFromTop (rowH * 2));
+        area.removeFromTop (juce::roundToInt (rowH * 0.2f)); // dynamic spacer
+        
+        // Make the color preview square based on the global base unit
+        int boxSize = juce::roundToInt (baseUnit); 
+        auto boxArea = area.removeFromTop (boxSize).withSizeKeepingCentre (boxSize, boxSize);
+        section.previewBox.setBounds (boxArea);
     }
 
     void saveThemePreset()

@@ -13,12 +13,14 @@ namespace ProjectConfig
     // Number of voices
     static constexpr int numVoices = 8;
     // Base plugin size/visual tweaks
-    static constexpr int pluginSizeX = 1000;
-    static constexpr int pluginSizeY = 700;
+    static constexpr int pluginSizeX = 900;
+    static constexpr int pluginSizeY = 720;
     static constexpr float outerMargin = 0.005f;
-    static constexpr float knobDiameterFraction = 0.100f;
+    //static constexpr float knobDiameterFraction = 0.100f;
+    static constexpr float knobDiameterFraction = 0.090f;
     static constexpr float textBoxWidthFraction  = 1.0f;
-    static constexpr float textBoxHeightFraction = 0.30f;
+    //static constexpr float textBoxHeightFraction = 0.30f;
+    static constexpr float textBoxHeightFraction = 0.40f;
     // Effects list
     inline juce::StringArray getEffectTypeChoices()
     {

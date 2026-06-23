@@ -375,41 +375,37 @@ public:
     {
         float h = getHeight();
         float w = getWidth();
-        float gapH    = juce::jmax (2.0f, h * 0.006f);
+        int gapH = juce::roundToInt (juce::jmax (2.0f, h * 0.006f));
 
         auto full    = getLocalBounds().reduced (
             juce::roundToInt (w * ProjectConfig::outerMargin),
             juce::roundToInt (h * ProjectConfig::outerMargin));
-        auto fxArea  = full.removeFromLeft ((int)(full.getWidth() * splitRatio));
-        auto lfoArea = full;
+        auto fxArea  = full.removeFromLeft (juce::roundToInt (full.getWidth() * splitRatio));
+	auto lfoArea = full;
 
         // Computed from the true page dimensions (this component, not a per-slot card)
-        // and pushed down to each slot, since a slot's own height is only 1/6th of
-        // this and far too small to derive a sensible shared knob target from.
         int sharedKnobTarget = juce::roundToInt (juce::jmin (w, h) * ProjectConfig::knobDiameterFraction);
 
-        // FX slots — the last slot gets whatever's left of fxArea exactly, rather than
-        // the same truncated slotH as the others, so integer-division leftover doesn't
-        // pile up as an uneven extra gutter at the bottom.
-        int slotH = (int)((fxArea.getHeight() - (ProjectConfig::numEffects - 1) * gapH) / ProjectConfig::numEffects);
-        for (int i = 0; i < ProjectConfig::numEffects; ++i)
+        // FX slots 
+        int slotH = juce::roundToInt ((fxArea.getHeight() - (ProjectConfig::numEffects - 1) * gapH) / (float)ProjectConfig::numEffects);
+	for (int i = 0; i < ProjectConfig::numEffects; ++i)
         {
             bool isLast = (i == ProjectConfig::numEffects - 1);
             // Must be set before setBounds, since setBounds synchronously triggers
             // the slot's own resized() which reads this value.
             slots[i]->setSharedKnobTarget (sharedKnobTarget);
             slots[i]->setBounds (fxArea.removeFromTop (isLast ? fxArea.getHeight() : slotH));
-            if (! isLast) fxArea.removeFromTop ((int)gapH);
-        }
+            if (! isLast) fxArea.removeFromTop (gapH);
+	}
 
         // LFO sidebar — same fix applied identically, so both columns' bottom edges
         // land flush with the page's outer margin, matching the top edge exactly.
-        int lfoH = (int)((lfoArea.getHeight() - (ProjectConfig::numEffects - 1) * gapH) / ProjectConfig::numEffects);
-        for (int i = 0; i < ProjectConfig::numEffects; ++i)
+        int lfoH = juce::roundToInt ((lfoArea.getHeight() - (ProjectConfig::numEffects - 1) * gapH) / (float)ProjectConfig::numEffects);
+	for (int i = 0; i < ProjectConfig::numEffects; ++i)
         {
             bool isLast = (i == ProjectConfig::numEffects - 1);
             lfoSlots[i]->setBounds (lfoArea.removeFromTop (isLast ? lfoArea.getHeight() : lfoH));
-            if (! isLast) lfoArea.removeFromTop ((int)gapH);
+            if (! isLast) lfoArea.removeFromTop (gapH);
         }
     }
 

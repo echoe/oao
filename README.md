@@ -1,6 +1,6 @@
 # Oops! All Operators! (OAO)
 
-<img src=https://raw.githubusercontent.com/echoe/oao/refs/heads/main/pictures/operators.png width="450" height="300" />
+<img src=https://raw.githubusercontent.com/echoe/oao/refs/heads/main/pictures/operators.png width="450" height="360" />
 
 This is a six-operator FM synthesizer/effects unit, where the operators do everything. It's open source, written in C++ using the JUCE framework and a lot of AI help.
 (yes, it's really Phase Modulation, but look. You can do FM if you really want with the mod matrix. Anyways, it's close enough.)

@@ -27,10 +27,14 @@ public:
         waveSelector.setSelectedId (1, juce::dontSendNotification);
         addAndMakeVisible (waveSelector);
 
-        // Target selector
-        targetSelector.addItemList (ModChoices::fxtargets(), 1);
+        // Target selector. Effects if effects-only, otherwise full list
+	addAndMakeVisible(targetSelector);
+        #ifndef OAO_FX_ONLY
+        buildTargetMenu();
+        #else
+	targetSelector.addItemList (ModChoices::fxtargets(), 1);
         targetSelector.setSelectedId (1, juce::dontSendNotification);
-        addAndMakeVisible (targetSelector);
+        #endif
 
         // Sync button
         syncButton.setButtonText ("Sync");
@@ -81,6 +85,11 @@ public:
         };
         // Force initial state on startup
         syncButton.onClick();
+    }
+
+    void buildTargetMenu()
+    {
+        ModChoices::buildTargetMenu (targetSelector);
     }
 
     void paint (juce::Graphics& g) override

@@ -107,4 +107,56 @@ namespace ModChoices // Choices for LFOs
         }
 	return fxt;
     }
+    inline void buildTargetMenu (juce::ComboBox& targetSelector)
+    {
+        targetSelector.clear (juce::dontSendNotification);
+        targetSelector.addItem ("None", 1);
+
+        // Operator params — nested by operator
+        juce::PopupMenu opMenu;
+        for (int op = 0; op < ProjectConfig::numOperators; ++op)
+        {
+            juce::PopupMenu sub;
+            int base = op * 5 + 2; // offset by 1 for None, +1 for ComboBox 1-indexing
+            juce::String opName = "Op " + juce::String (op + 1) + " ";
+            sub.addItem (base + 0, opName + "Knob A");
+            sub.addItem (base + 1, opName + "Knob B");
+            sub.addItem (base + 2, opName + "Knob C");
+            sub.addItem (base + 3, opName + "Knob D");
+            sub.addItem (base + 4, opName + "Level");
+            opMenu.addSubMenu ("Op " + juce::String (op + 1), sub);
+        }
+        targetSelector.getRootMenu()->addSubMenu ("Operators", opMenu);
+
+        // FX params — nested by slot
+        juce::PopupMenu fxMenu;
+        for (int fx = 0; fx < ProjectConfig::numEffects; ++fx)
+        {
+            juce::PopupMenu sub;
+            int base = fx * 5 + 32;
+            juce::String fxName = "FX " + juce::String (fx + 1) + " ";
+            sub.addItem (base + 0, fxName + "Knob A");
+            sub.addItem (base + 1, fxName + "Knob B");
+            sub.addItem (base + 2, fxName + "Knob C");
+            sub.addItem (base + 3, fxName + "Knob D");
+            sub.addItem (base + 4, fxName + "Mix");
+            fxMenu.addSubMenu ("FX " + juce::String (fx + 1), sub);
+        }
+        targetSelector.getRootMenu()->addSubMenu ("Effects", fxMenu);
+
+        // FM Matrix — nested by source operator
+        juce::PopupMenu matrixMenu;
+        for (int src = 0; src < ProjectConfig::numOperators; ++src)
+        {
+            juce::PopupMenu sub;
+            juce::String srcName = "Op " + juce::String (src + 1) + " -> ";
+            for (int dst = 0; dst < ProjectConfig::numOperators; ++dst)
+            {
+                int id = 62 + src * ProjectConfig::numOperators + dst; // 61 entries before this + 1 for 1-indexing
+                sub.addItem (id, srcName + "Op " + juce::String (dst + 1));
+            }
+            matrixMenu.addSubMenu ("Op " + juce::String (src + 1), sub);
+        }
+        targetSelector.getRootMenu()->addSubMenu ("FM Matrix", matrixMenu);
+    }
 }

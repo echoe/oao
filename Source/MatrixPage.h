@@ -90,7 +90,7 @@ struct ModMatrixSlot : public juce::Component
         depthLabel.setBounds (rightArea.getX(), rightArea.getY(), rightArea.getWidth(), labelHeight);
 
         // --- Left block: Source/Target ---
-        int rowH       = juce::jmax (20, juce::roundToInt (area.getHeight() * 0.25f));
+        int rowH       = juce::jmax (20, juce::roundToInt (area.getHeight() * 0.35f));
         int stackH     = rowH * 2;
         auto leftBlock = area.withSizeKeepingCentre (area.getWidth(), juce::jmin (area.getHeight(), stackH));
 
@@ -114,52 +114,7 @@ struct ModMatrixSlot : public juce::Component
 
     void buildTargetMenu()
     {
-        targetSelector.clear(juce::dontSendNotification);
-        targetSelector.addItem("None", 1);
-    
-        // Operator params — nested by operator
-        juce::PopupMenu opMenu;
-        for (int op = 0; op < 6; ++op)
-        {
-            juce::PopupMenu sub;
-            int base = op * 5 + 2; // offset by 1 for None, +1 for ComboBox 1-indexing
-            sub.addItem(base + 0, "Knob A");
-            sub.addItem(base + 1, "Knob B");
-            sub.addItem(base + 2, "Knob C");
-            sub.addItem(base + 3, "Knob D");
-            sub.addItem(base + 4, "Level");
-            opMenu.addSubMenu("Op " + juce::String(op + 1), sub);
-        }
-        targetSelector.getRootMenu()->addSubMenu("Operators", opMenu);
-    
-        // FX params — nested by slot
-        juce::PopupMenu fxMenu;
-        for (int fx = 0; fx < 6; ++fx)
-        {
-            juce::PopupMenu sub;
-            int base = fx * 5 + 32;
-            sub.addItem(base + 0, "Knob A");
-            sub.addItem(base + 1, "Knob B");
-            sub.addItem(base + 2, "Knob C");
-            sub.addItem(base + 3, "Knob D");
-            sub.addItem(base + 4, "Mix");
-            fxMenu.addSubMenu("FX " + juce::String(fx + 1), sub);
-        }
-        targetSelector.getRootMenu()->addSubMenu("Effects", fxMenu);
-    
-        // FM Matrix — nested by source operator
-        juce::PopupMenu matrixMenu;
-        for (int src = 0; src < 6; ++src)
-        {
-            juce::PopupMenu sub;
-            for (int dst = 0; dst < 6; ++dst)
-            {
-                int id = 62 + src * 6 + dst; // 61 entries before this + 1 for 1-indexing
-                sub.addItem(id, "Op " + juce::String(dst + 1));
-            }
-            matrixMenu.addSubMenu("Op " + juce::String(src + 1), sub);
-        }
-        targetSelector.getRootMenu()->addSubMenu("FM Matrix", matrixMenu);
+        ModChoices::buildTargetMenu (targetSelector);
     }
 
     void paint (juce::Graphics& g) override {}

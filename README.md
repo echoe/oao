@@ -209,7 +209,9 @@ Additional Notes:
 -- both choruses
 -- allpass delay and reverb
 -- ambient delay
-- There are also three LFOs, one per effect. The LFOs can only be assigned to effects within the effects page, but you can use them as a source in the mod matrix :)
+
+## LFOs
+- There are six LFOs, one per effect. ... You don't need to use an operator as an LFO if you don't wanna!They're pretty simple but are ... generally what you'd expect.
 
 ## Settings
 - A settings page for a few things.

@@ -313,7 +313,14 @@ private:
 
 public:
     // Set from EffectsPage::resized()
-    void setSharedKnobTarget (int targetDiameter) { sharedKnobTarget = targetDiameter; }
+    void setSharedKnobTarget (int targetDiameter)
+    {   
+	if (sharedKnobTarget != targetDiameter)
+        {
+            sharedKnobTarget = targetDiameter;
+            resized();
+        }
+    }
 private:
     int sharedKnobTarget = 90; //fallback default, not used normally
 };

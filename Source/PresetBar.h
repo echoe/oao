@@ -167,10 +167,11 @@ public:
     {
         auto area = getLocalBounds().reduced (2);
         const int totalWidth = area.getWidth();
-	const int dropdownWidth = totalWidth * 0.09f;
-        const int largedropWidth = totalWidth * 0.15f;
+	const int dropDownWidth = totalWidth * 0.09f;
+	const int medDropWidth = totalWidth * 0.12f;
+        const int largeDropWidth = totalWidth * 0.15f;
         const int smallBtnWidth   = totalWidth * 0.03f; //randomizers, preset mini buttons
-	const int smallLblWidth = totalWidth * 0.07f;
+	//const int smallLblWidth = totalWidth * 0.07f;
         const int medBtnWidth = totalWidth * 0.06f;  // Init, Save, Load
 
         // Preset buttons, 0.18f
@@ -180,19 +181,19 @@ public:
         // Centre area: < [... presetName] >, 0.24f
         prevButton.setBounds   (area.removeFromLeft  (smallBtnWidth).reduced (1));
         folderButton.setBounds (area.removeFromLeft  (smallBtnWidth).reduced (1));
-        presetNameLabel.setBounds (area.removeFromLeft (largedropWidth).reduced (1));
+        presetNameLabel.setBounds (area.removeFromLeft (largeDropWidth).reduced (1));
         nextButton.setBounds   (area.removeFromLeft (smallBtnWidth).reduced (1));
-	// random buttons, 0.09f
+	// random buttons, 0.09f. .51 to this point
         smartRandButton.setBounds   (area.removeFromLeft (smallBtnWidth).reduced (1));
         drumRandButton.setBounds   (area.removeFromLeft (smallBtnWidth).reduced (1));
         effectsRandButton.setBounds   (area.removeFromLeft (smallBtnWidth).reduced (1));
-        // algo, oversampling and poly dropdowns. 0.45f
-        algorithmLabel.setBounds       (area.removeFromLeft (smallLblWidth).reduced (1));
-        algorithmSelector.setBounds    (area.removeFromLeft (dropdownWidth).reduced (1));
-        oversamplingLabel.setBounds    (area.removeFromLeft (totalWidth * 0.04).reduced (1));
-        oversamplingSelector.setBounds (area.removeFromLeft (dropdownWidth).reduced (1));
-        polyphonyLabel.setBounds       (area.removeFromLeft (smallLblWidth).reduced (1));
-        polyphonySelector.setBounds    (area.removeFromLeft (dropdownWidth).reduced (1));
+        // algo, oversampling and poly dropdowns. .06*3 + .09*2 + .12 = .48
+        algorithmLabel.setBounds       (area.removeFromLeft (medBtnWidth).reduced (1));
+        algorithmSelector.setBounds    (area.removeFromLeft (medDropWidth).reduced (1));
+        oversamplingLabel.setBounds    (area.removeFromLeft (medBtnWidth).reduced (1));
+        oversamplingSelector.setBounds (area.removeFromLeft (dropDownWidth).reduced (1));
+        polyphonyLabel.setBounds       (area.removeFromLeft (medBtnWidth).reduced (1));
+        polyphonySelector.setBounds    (area.removeFromLeft (dropDownWidth).reduced (1));
     }
 
     void refreshScale()

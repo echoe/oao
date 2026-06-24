@@ -187,11 +187,11 @@ void FMPluginAudioProcessorEditor::resized()
     auto topBarArea = area.removeFromTop (topBarHeight);
 
     // Preset bar takes the left chunk — scale its width too
-    auto presetArea = topBarArea.removeFromLeft (static_cast<int> (getWidth() * 0.70f));
+    auto presetArea = topBarArea.removeFromLeft (static_cast<int> (getWidth() * 0.72f));
     presetBar.setBounds (presetArea.reduced (2));
 
     // Gain slider on the right
-    auto gainArea = topBarArea.removeFromRight (static_cast<int> (getWidth() * 0.22f));
+    auto gainArea = topBarArea.removeFromRight (static_cast<int> (getWidth() * 0.15f));
     gainLabel.setBounds (gainArea.removeFromLeft (static_cast<int> (getWidth() * 0.04f))); //this is taken from the gainArea
     gainSlider.setBounds (gainArea.reduced (2));
     gainSlider.setTextBoxStyle (juce::Slider::TextBoxLeft, false,

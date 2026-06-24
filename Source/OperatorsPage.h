@@ -364,7 +364,14 @@ private:
 
 public:
     // Set from OperatorsPage::resized()
-    void setSharedKnobTarget (int targetDiameter) { sharedKnobTarget = targetDiameter; }
+    void setSharedKnobTarget (int targetDiameter)
+    {
+        if (sharedKnobTarget != targetDiameter)
+        {
+            sharedKnobTarget = targetDiameter;
+            resized();
+        }
+    }
 private:
     int sharedKnobTarget = 90; //default, overwritten in page
 };

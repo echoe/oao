@@ -14,7 +14,7 @@ FMPluginAudioProcessor::FMPluginAudioProcessor()
       apvts (*this, nullptr, "Parameters", createParameterLayout())
 {
 #ifndef OAO_FX_ONLY
-    for (int i = 0; i < 8; ++i)
+    for (int i = 0; i < ProjectConfig::numVoices; ++i)
     {
         auto* voice = new FMVoice();
         voice->initParameters (apvts);
@@ -167,7 +167,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout FMPluginAudioProcessor::crea
     auto modSourceChoices = ModChoices::sources();
     auto modTargetChoices = ModChoices::targets();
 
-    for (int slot = 1; slot <= 6; ++slot)
+    for (int slot = 1; slot <= ProjectConfig::numModSlots; ++slot)
     {
         juce::String s = juce::String (slot);
         params.push_back (std::make_unique<juce::AudioParameterChoice> (
@@ -431,8 +431,8 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
             for (int i = 0; i < numSamples; ++i)
             {
                 // Tick the LFO once per sample and apply to the right parameter
-                float lfoOutputs[3];
-                for (int lfo = 0; lfo < 3; ++lfo)
+                float lfoOutputs[ProjectConfig::numEffects]; // is this necessary?
+                for (int lfo = 0; lfo < ProjectConfig::numEffects; ++lfo)
                     lfoOutputs[lfo] = fxLfo[lfo].tick(activeBPM);
                 float ratio  = baseRatio;
                 float detune = baseDetune;
@@ -735,7 +735,7 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
         }
     }
     // after effects loop, store last LFO value for voices in the next block
-    for (int i = 0; i < 3; ++i)
+    for (int i = 0; i < ProjectConfig::numEffects; ++i)
         for (int v = 0; v < synth.getNumVoices(); ++v)
             if (auto* voice = dynamic_cast<FMVoice*>(synth.getVoice(v)))
                 voice->fxLfoOutputs[i].store(fxLfo[i].getLastOutput(), std::memory_order_relaxed);

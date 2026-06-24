@@ -50,15 +50,15 @@ public:
             operators[opIndex].setSampleData (buffer);
     }
     //effects
-    std::atomic<float> fxRatioMods[3]  { 0.0f, 0.0f, 0.0f };
-    std::atomic<float> fxDetuneMods[3] { 0.0f, 0.0f, 0.0f };
-    std::atomic<float> fxPhaseMods[3]  { 0.0f, 0.0f, 0.0f };
-    std::atomic<float> fxFoldMods[3]   { 0.0f, 0.0f, 0.0f };
-    std::atomic<float> fxLevelMods[3]  { 0.0f, 0.0f, 0.0f };
+    std::atomic<float> fxRatioMods[ProjectConfig::numEffects]  { 0.0f, 0.0f, 0.0f };
+    std::atomic<float> fxDetuneMods[ProjectConfig::numEffects] { 0.0f, 0.0f, 0.0f };
+    std::atomic<float> fxPhaseMods[ProjectConfig::numEffects]  { 0.0f, 0.0f, 0.0f };
+    std::atomic<float> fxFoldMods[ProjectConfig::numEffects]   { 0.0f, 0.0f, 0.0f };
+    std::atomic<float> fxLevelMods[ProjectConfig::numEffects]  { 0.0f, 0.0f, 0.0f };
     //mod sources
     std::atomic<float> currentVelocity  { 0.0f };
     std::atomic<float> currentModWheel  { 0.0f };
-    std::atomic<float> fxLfoOutputs[3] { 0.0f, 0.0f, 0.0f };
+    std::atomic<float> fxLfoOutputs[ProjectConfig::numEffects] { 0.0f, 0.0f, 0.0f };
 
 private:
     double baseFrequency { 440.0 };

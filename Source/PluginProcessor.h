@@ -165,7 +165,7 @@ private:
     juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
     void updateVoices();
     //effects
-    static constexpr int numFxSlots = 3;
+    static constexpr int numFxSlots = ProjectConfig::numEffects;
     std::array<std::array<SynthEffect, 2>, numFxSlots> fxEffects;
     // Parameter pointers for each effects slot
     std::atomic<float>* fxTypeParams[numFxSlots]   { nullptr };
@@ -175,7 +175,7 @@ private:
     std::atomic<float>* fxPhaseParams[numFxSlots]  { nullptr };
     std::atomic<float>* fxFoldParams[numFxSlots]   { nullptr };
     // FX LFOs — three global, voice-independent modulators
-    FXModLFO fxLfo[3];
+    FXModLFO fxLfo[ProjectConfig::numEffects];
     // One shared sample buffer per operator slot (shared across all voices, set once)
     std::array<std::shared_ptr<juce::AudioBuffer<float>>, ProjectConfig::numOperators> loadedSamples;
     // also for everything we need to flush on every run to not echo forever

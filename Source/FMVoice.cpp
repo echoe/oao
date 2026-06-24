@@ -247,13 +247,18 @@ void FMVoice::renderNextBlock (juce::AudioBuffer<float>& outputBuffer, int start
                 rawSrc = currentModWheel.load(std::memory_order_relaxed);
             }
 
-            float srcSignal = rawSrc * amt; 
-            // tgtIdx 1-30: laid out as blocks of 5 per operator
-	    if (tgtIdx >= 1 && tgtIdx <= 30)
+            float srcSignal = rawSrc * amt;
+	    // let's do targets! start at 1
+	    const int opTargetEnd = 1 + (ProjectConfig::numOperators * ProjectConfig::numOpParams) - 1;
+            const int fxTargetStart = opTargetEnd + 1;
+            const int fxTargetEnd   = fxTargetStart + (ProjectConfig::numEffects * ProjectConfig::numFxParams) - 1;            
+            const int matrixTargetStart = fxTargetEnd + 1;
+            const int matrixTargetEnd   = matrixTargetStart + (ProjectConfig::numOperators * ProjectConfig::numOperators) - 1;
+            if (tgtIdx >= 1 && tgtIdx <= opTargetEnd) //operators
             {
-                int opIdx    = (tgtIdx - 1) / 5;   // 0-5
-                int paramIdx = (tgtIdx - 1) % 5;   // 0-4
-        
+                int opIdx    = (tgtIdx - 1) / ProjectConfig::numOpParams; 
+                int paramIdx = (tgtIdx - 1) % ProjectConfig::numOpParams; 
+            
                 switch (paramIdx)
                 {
                     case 0: ratioModOffsets[opIdx]  += srcSignal; break;
@@ -263,10 +268,10 @@ void FMVoice::renderNextBlock (juce::AudioBuffer<float>& outputBuffer, int start
                     case 4: levelModOffsets[opIdx]  += srcSignal; break;
                 }
             }
-	    else if (tgtIdx >= 31 && tgtIdx <= 45) // 31-45 for the effect slots, which you can target with modulation
+            else if (tgtIdx >= fxTargetStart && tgtIdx <= fxTargetEnd) //effects
             {
-                int fxIdx    = (tgtIdx - 31) / 5;  // 0-2 (which fx slot)
-                int paramIdx = (tgtIdx - 31) % 5;  // 0-4 (which parameter)
+                int fxIdx    = (tgtIdx - fxTargetStart) / ProjectConfig::numFxParams; 
+                int paramIdx = (tgtIdx - fxTargetStart) % ProjectConfig::numFxParams; 
             
                 switch (paramIdx)
                 {
@@ -277,17 +282,16 @@ void FMVoice::renderNextBlock (juce::AudioBuffer<float>& outputBuffer, int start
                     case 4: fxLevelMods[fxIdx].store  (fxLevelMods[fxIdx].load()  + srcSignal); break;
                 }
             }
-            else if (tgtIdx >= 46 && tgtIdx <= 81)
+            else if (tgtIdx >= matrixTargetStart && tgtIdx <= matrixTargetEnd) //mod matrix
             {
-                int matrixIdx = tgtIdx - 46;       // 0-35
-                int src       = matrixIdx / 6;     // which source op
-                int dst       = matrixIdx % 6;     // which dest op
-                // matrixParams[src][dst] is a raw pointer to the MOD_src_dst parameter.
-                // We can't write to it directly from the audio thread safely,
-                // so accumulate into a separate modulation array instead:
+                int matrixIdx = tgtIdx - matrixTargetStart; 
+                int src       = matrixIdx / ProjectConfig::numOperators;         // dynamic division based on operator count
+                int dst       = matrixIdx % ProjectConfig::numOperators;         // dynamic modulo based on operator count
+                
+                // Accumulate into a separate modulation array
                 matrixModOffsets[src][dst] += srcSignal;
             }
-        }
+	}
 
         // Process the operators!
         for (int dest = 0; dest < ProjectConfig::numOperators; ++dest)

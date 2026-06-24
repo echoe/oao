@@ -27,6 +27,7 @@ struct CompactOperatorGroup : public juce::Component
         setupSlider (decaySlider, decayLabel, "Decay", false);
         setupSlider (sustainSlider, sustainLabel, "Sustain", false);
         setupSlider (releaseSlider, releaseLabel, "Release", false);
+        // label operator
         opHeaderLabel.setText ("OPERATOR " + opNum, juce::dontSendNotification);
         opHeaderLabel.setFont (juce::FontOptions (13.0f, juce::Font::bold));
         addAndMakeVisible (opHeaderLabel);
@@ -91,97 +92,108 @@ struct CompactOperatorGroup : public juce::Component
 
     void paint (juce::Graphics& g) override
     {
-        g.setColour (colors.text.withAlpha (0.15f));
-        g.drawRoundedRectangle (getLocalBounds().toFloat().reduced (2.0f), 4.0f, 1.0f);
+        auto bounds = getLocalBounds().toFloat();
+        g.setColour (colors.background);
+        g.fillRoundedRectangle (bounds, 4.0f);
 
-        g.setColour (colors.text.withAlpha (0.02f));
-        g.fillRoundedRectangle (getLocalBounds().toFloat().reduced (2.0f), 4.0f);
+        g.setColour (colors.text.withAlpha (0.15f));
+        g.drawRoundedRectangle (bounds.reduced (1.0f), 4.0f, 1.0f);
     }
 
     void resized() override
     {
-        auto area        = getLocalBounds().reduced (getWidth() * 0.02f);
+        auto area = getLocalBounds().reduced (static_cast<int> (getWidth() * 0.02f),
+                                              static_cast<int> (getHeight() * 0.02f));
         float w          = static_cast<float> (area.getWidth());
         float h          = static_cast<float> (area.getHeight());
-    
-        // --- TOP STRIP ---
-        auto topStrip = area.removeFromTop (h * 0.12f);
-        opHeaderLabel.setBounds (topStrip.removeFromLeft (w * 0.25f));
-	freqModeSelector.setBounds (topStrip.removeFromLeft (w * 0.18f).reduced (1));
-	modeSelector.setBounds  (topStrip.removeFromLeft (w * 0.25f).reduced (1));
-    
+
+        // --- LEFT COLUMN: header label + 3 stacked selectors ---
+        int leftColW  = juce::jmax (90, juce::roundToInt (w * 0.16f));
+        auto leftCol  = area.removeFromLeft (leftColW);
+
+        opHeaderLabel.setBounds (leftCol.removeFromTop (juce::jmax (14, juce::roundToInt (h * 0.16f))));
+
+        int selectorH = juce::jmax (16, juce::roundToInt (h * 0.24f));
+        freqModeSelector.setBounds (leftCol.removeFromTop (selectorH).reduced (1));
+        modeSelector.setBounds     (leftCol.removeFromTop (selectorH).reduced (1));
+
         if (effectTypeSelector.isVisible())
-            effectTypeSelector.setBounds (topStrip.reduced (1));
+            effectTypeSelector.setBounds (leftCol.removeFromTop (selectorH).reduced (1));
         else if (loadSampleButton.isVisible())
-            loadSampleButton.setBounds (topStrip.reduced (1));
+            loadSampleButton.setBounds (leftCol.removeFromTop (selectorH).reduced (1));
         else
-            waveShapeSelector.setBounds  (topStrip.reduced (1));
-    
-        area.removeFromTop (h * 0.005f);
-        // Knob zone //
-        auto knobZone  = area.removeFromTop (area.getHeight() * 0.55f);
-        float labelH   = knobZone.getHeight() * 0.25f;
-        int   knobWidth = knobZone.getWidth() / 4;
+            waveShapeSelector.setBounds (leftCol.removeFromTop (selectorH).reduced (1));
+
+        area.removeFromLeft (juce::roundToInt (w * 0.01f)); // small gap before knobs
+
+        // Knobs and Sliders in a row :D
+        int Width = area.getWidth() / 8;
+
+        // Shared text box / label sizing
+        int textBoxW = juce::roundToInt (sharedKnobTarget * ProjectConfig::textBoxWidthFraction);
+        int textBoxH = juce::jlimit (12, 70, juce::roundToInt (sharedKnobTarget * colors.textBoxHeightFraction));
+        int labelH   = juce::jmax (10, juce::roundToInt (sharedKnobTarget * colors.textBoxHeightFraction));
+
+        // Clamp each knob's box to the shared target diameter (centered within its column).
+        int targetBoxSize = sharedKnobTarget + 8;
+        int knobAreaH     = area.getHeight() - labelH;
+        int knobBoxW      = juce::jmin (Width, targetBoxSize);
+        int knobBoxH       = juce::jmin (knobAreaH, targetBoxSize + textBoxH);
+
+        auto clampKnob = [knobBoxW, knobBoxH] (juce::Rectangle<int> box)
+        {
+            return box.withSizeKeepingCentre (knobBoxW, knobBoxH);
+        };
         
-        auto rArea = knobZone.removeFromLeft (knobWidth);
+        auto rArea = area.removeFromLeft (Width);
         ratioLabel.setBounds  (rArea.removeFromTop (labelH));
-        ratioSlider.setBounds (rArea);
+        ratioSlider.setBounds (clampKnob (rArea));
         
-        auto dArea = knobZone.removeFromLeft (knobWidth);
+        auto dArea = area.removeFromLeft (Width);
         detuneLabel.setBounds  (dArea.removeFromTop (labelH));
-        detuneSlider.setBounds (dArea);
+        detuneSlider.setBounds (clampKnob (dArea));
         
-        auto pArea = knobZone.removeFromLeft (knobWidth);
+        auto pArea = area.removeFromLeft (Width);
         phaseLabel.setBounds  (pArea.removeFromTop (labelH));
-        phaseSlider.setBounds (pArea);
+        phaseSlider.setBounds (clampKnob (pArea));
         
-        auto lArea = knobZone;
+        auto lArea = area.removeFromLeft (Width);
         foldLabel.setBounds  (lArea.removeFromTop (labelH));
-        foldSlider.setBounds (lArea);
+        foldSlider.setBounds (clampKnob (lArea));
     
-        // --- ENVELOPE SLIDERS (bottom half) ---
-        float envLabelH  = area.getHeight() * 0.25f;
-        int   sliderWidth = area.getWidth() / 4;
+        // --- ENVELOPE SLIDERS ---
     
-        auto aArea = area.removeFromLeft (sliderWidth);
-        attackLabel.setBounds  (aArea.removeFromTop (envLabelH));
-        attackSlider.setBounds (aArea);
+        auto aArea = area.removeFromLeft (Width);
+        attackLabel.setBounds  (aArea.removeFromTop (labelH));
+        attackSlider.setBounds (clampKnob (aArea));
     
-        auto decArea = area.removeFromLeft (sliderWidth);
-        decayLabel.setBounds  (decArea.removeFromTop (envLabelH));
-        decaySlider.setBounds (decArea);
+        auto decArea = area.removeFromLeft (Width);
+        decayLabel.setBounds  (decArea.removeFromTop (labelH));
+        decaySlider.setBounds (clampKnob (decArea));
     
-        auto sArea = area.removeFromLeft (sliderWidth);
-        sustainLabel.setBounds  (sArea.removeFromTop (envLabelH));
-        sustainSlider.setBounds (sArea);
+        auto sArea = area.removeFromLeft (Width);
+        sustainLabel.setBounds  (sArea.removeFromTop (labelH));
+        sustainSlider.setBounds (clampKnob (sArea));
     
         auto relArea = area;
-        releaseLabel.setBounds  (relArea.removeFromTop (envLabelH));
-        releaseSlider.setBounds (relArea);
+        releaseLabel.setBounds  (relArea.removeFromTop (labelH));
+        releaseSlider.setBounds (clampKnob (relArea));
 
-        // text labels //
-        int textBoxW = static_cast<int> (knobWidth * 0.8f);
-        int textBoxH = static_cast<int> (labelH * 0.6f);
-        
         ratioSlider.setTextBoxStyle  (juce::Slider::TextBoxBelow, false, textBoxW, textBoxH);
         detuneSlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, textBoxW, textBoxH);
         phaseSlider.setTextBoxStyle  (juce::Slider::TextBoxBelow, false, textBoxW, textBoxH);
         foldSlider.setTextBoxStyle   (juce::Slider::TextBoxBelow, false, textBoxW, textBoxH);
-    
-        int envTextBoxW = static_cast<int> (sliderWidth * 0.9f);
-        int envTextBoxH = static_cast<int> (area.getHeight() * 0.24f); // relative to full remaining area
-        
-        attackSlider.setTextBoxStyle  (juce::Slider::TextBoxBelow, false, envTextBoxW, envTextBoxH);
-        decaySlider.setTextBoxStyle   (juce::Slider::TextBoxBelow, false, envTextBoxW, envTextBoxH);
-        sustainSlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, envTextBoxW, envTextBoxH);
-        releaseSlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, envTextBoxW, envTextBoxH);    	
+        attackSlider.setTextBoxStyle  (juce::Slider::TextBoxBelow, false, textBoxW, textBoxH);
+        decaySlider.setTextBoxStyle   (juce::Slider::TextBoxBelow, false, textBoxW, textBoxH);
+        sustainSlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, textBoxW, textBoxH);
+        releaseSlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, textBoxW, textBoxH);    	
     }
 
     void lookAndFeelChanged() override
     {
         juce::Component::lookAndFeelChanged();
 
-        // 1. Update Labels
+        // Update Labels
         opHeaderLabel.setColour (juce::Label::textColourId, colors.text);
         ratioLabel.setColour    (juce::Label::textColourId, colors.text);
         detuneLabel.setColour   (juce::Label::textColourId, colors.text);
@@ -192,7 +204,7 @@ struct CompactOperatorGroup : public juce::Component
         sustainLabel.setColour  (juce::Label::textColourId, colors.text);
         releaseLabel.setColour  (juce::Label::textColourId, colors.text);
 
-        // 2. Helper lambda to update ComboBoxes cleanly
+        // Helper lambda to update ComboBoxes cleanly
         auto updateComboBox = [this](juce::ComboBox& cb) {
             cb.setColour (juce::ComboBox::backgroundColourId, colors.surface);
             cb.setColour (juce::ComboBox::textColourId, colors.text);
@@ -203,7 +215,7 @@ struct CompactOperatorGroup : public juce::Component
         updateComboBox (waveShapeSelector);
         updateComboBox (effectTypeSelector);
 
-        // 3. Helper lambda to update Sliders cleanly
+        // Helper lambda to update Sliders cleanly
         auto updateSlider = [this](juce::Slider& s) {
             s.setColour (juce::Slider::textBoxBackgroundColourId, colors.surface);
             s.setColour (juce::Slider::textBoxTextColourId, colors.text);
@@ -349,6 +361,19 @@ private:
     std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> freqModeAttach;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> ratioAttach, detuneAttach, phaseAttach, foldAttach;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> attackAttach, decayAttach, sustainAttach, releaseAttach;
+
+public:
+    // Set from OperatorsPage::resized()
+    void setSharedKnobTarget (int targetDiameter)
+    {
+        if (sharedKnobTarget != targetDiameter)
+        {
+            sharedKnobTarget = targetDiameter;
+            resized();
+        }
+    }
+private:
+    int sharedKnobTarget = 90; //default, overwritten in page
 };
 
 // --- THE PARENT VIEW MANAGER CLASS ---
@@ -381,6 +406,11 @@ public:
         }
     }
 
+    void paint (juce::Graphics& g) override
+    {
+        g.fillAll (colors.panelGap);
+    }
+
     void lookAndFeelChanged() override
     {
         juce::Component::lookAndFeelChanged();
@@ -401,21 +431,44 @@ public:
 
     void resized() override
     {
-        auto area = getLocalBounds();
+        auto area = getLocalBounds().reduced (
+            juce::roundToInt (getWidth()  * ProjectConfig::outerMargin),
+            juce::roundToInt (getHeight() * ProjectConfig::outerMargin));
 
-        int rows = 2;
-        int cols = 3;
+        int rows = 6;
+        int cols = 1;
+        int gap     = juce::jmax (2, juce::roundToInt (getHeight() * 0.006f));
+        int halfGap = juce::jmax (1, gap / 2);
         int cellWidth = area.getWidth() / cols;
         int cellHeight = area.getHeight() / rows;
 
+        // Computed from the true page dimensions (this component, not a per-row card)
+        int sharedKnobTarget = juce::roundToInt (
+            juce::jmin (getWidth(), getHeight()) * colors.knobDiameterFraction);
+        // Walk down to avoid weird sizing issues
+	auto remaining = area;
         for (int r = 0; r < rows; ++r)
         {
+            bool isLastRow = (r == rows - 1);
+            auto rowBounds = remaining.removeFromTop (isLastRow ? remaining.getHeight() : cellHeight);
+
             for (int c = 0; c < cols; ++c)
             {
                 int index = (r * cols) + c;
                 if (index < static_cast<int>(opModules.size()))
                 {
-                    opModules[index]->setBounds (c * cellWidth, r * cellHeight, cellWidth, cellHeight);
+                    auto cellBounds = rowBounds.withX (rowBounds.getX() + c * cellWidth).withWidth (cellWidth);
+
+                    // Only inset the sides that actually face a neighboring card
+                    // With cols == 1 there's never a horizontal neighbor, so no horizontal inset at all.
+                    int top    = (r == 0)       ? 0 : halfGap;
+                    int bottom = isLastRow       ? 0 : halfGap;
+                    cellBounds.removeFromTop (top);
+                    cellBounds.removeFromBottom (bottom);
+
+                    // Must be set before setBounds
+                    opModules[index]->setSharedKnobTarget (sharedKnobTarget);
+                    opModules[index]->setBounds (cellBounds);
                 }
             }
         }

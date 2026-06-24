@@ -20,20 +20,6 @@ FMPluginAudioProcessorEditor::FMPluginAudioProcessorEditor (FMPluginAudioProcess
     effectsPage.lookAndFeelChanged();
     settingsPage.refreshAll(); //update settingsPage boxes
 
-// Settings page callbacks
-    settingsPage.onColorsChanged = [this]
-    {
-        oaoLookAndFeel.applyColors();
-#ifndef OAO_FX_ONLY
-        opsPage.lookAndFeelChanged();
-        matrixPage.lookAndFeelChanged();
-        audioMatrixPage.lookAndFeelChanged();
-#endif
-        effectsPage.lookAndFeelChanged();
-        this->lookAndFeelChanged();
-        repaint();
-    };
-
 #ifndef OAO_FX_ONLY
     // Wire the sample-load callback from the operators page to the processor
     opsPage.onLoadSample = [&p] (int opIndex, juce::File file)
@@ -57,6 +43,7 @@ FMPluginAudioProcessorEditor::FMPluginAudioProcessorEditor (FMPluginAudioProcess
     addAndMakeVisible (effectsPage);
     addAndMakeVisible (settingsPage);
 
+    //settingsPage callbacks
     settingsPage.onScaleChanged = [this] (float scale)
     {
         // Update scale, then run resized.
@@ -75,6 +62,30 @@ FMPluginAudioProcessorEditor::FMPluginAudioProcessorEditor (FMPluginAudioProcess
         audioMatrixPage.refreshColors();
 #endif
         oaoColors.saveToFile();
+        repaint();
+    };
+
+    settingsPage.onColorsChanged = [this]
+    {
+        oaoLookAndFeel.applyColors();
+#ifndef OAO_FX_ONLY
+        opsPage.lookAndFeelChanged();
+        matrixPage.lookAndFeelChanged();
+        audioMatrixPage.lookAndFeelChanged();
+#endif
+        effectsPage.lookAndFeelChanged();
+        this->lookAndFeelChanged();
+        repaint();
+    };
+    settingsPage.onLayoutChanged = [this]
+    {
+        effectsPage.resized();
+    #ifndef OAO_FX_ONLY
+        opsPage.resized();
+        matrixPage.resized();
+        audioMatrixPage.resized();
+    #endif
+        settingsPage.resized();
         repaint();
     };
 
@@ -155,6 +166,12 @@ void FMPluginAudioProcessorEditor::setPage (PageView pageToDisplay)
 void FMPluginAudioProcessorEditor::paint (juce::Graphics& g)
 {
      g.fillAll (oaoColors.background);
+
+     // Themed divider spanning the FULL top bar width (preset bar + gain + oscilloscope),
+     // replacing the old unthemed black line that only PresetBar used to draw on its own.
+     int topBarHeight = juce::roundToInt (getHeight() * 0.05);
+     g.setColour (oaoColors.text.withAlpha (0.15f));
+     g.drawHorizontalLine (topBarHeight - 1, 0.0f, static_cast<float> (getWidth()));
 }
 
 void FMPluginAudioProcessorEditor::resized()
@@ -170,19 +187,23 @@ void FMPluginAudioProcessorEditor::resized()
     auto topBarArea = area.removeFromTop (topBarHeight);
 
     // Preset bar takes the left chunk — scale its width too
-    auto presetArea = topBarArea.removeFromLeft (static_cast<int> (getWidth() * 0.70f));
+    auto presetArea = topBarArea.removeFromLeft (static_cast<int> (getWidth() * 0.72f));
     presetBar.setBounds (presetArea.reduced (2));
 
     // Gain slider on the right
-    auto gainArea = topBarArea.removeFromRight (static_cast<int> (getWidth() * 0.22f));
+    auto gainArea = topBarArea.removeFromRight (static_cast<int> (getWidth() * 0.15f));
     gainLabel.setBounds (gainArea.removeFromLeft (static_cast<int> (getWidth() * 0.04f))); //this is taken from the gainArea
     gainSlider.setBounds (gainArea.reduced (2));
     gainSlider.setTextBoxStyle (juce::Slider::TextBoxLeft, false,
         static_cast<int> (45 * scale), static_cast<int> (topBarHeight * 0.6f));
 
-    // Oscilloscope, also on right
+    // Oscilloscope, also on right — slightly shorter than the full top bar height,
+    // so the themed divider line below has its own clear space rather than touching it.
     if (oscilloscope != nullptr)
-        oscilloscope->setBounds (topBarArea.removeFromRight (static_cast<int> (getWidth() * 0.08f)));
+    {
+        auto oscArea = topBarArea.removeFromRight (static_cast<int> (getWidth() * 0.08f));
+        oscilloscope->setBounds (oscArea.reduced (0, juce::roundToInt (topBarHeight * 0.08f)));
+    }
 
 // Nav buttons
     auto navArea   = area.removeFromTop (navBarHeight);

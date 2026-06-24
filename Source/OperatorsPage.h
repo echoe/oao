@@ -129,20 +129,12 @@ struct CompactOperatorGroup : public juce::Component
         // Knobs and Sliders in a row :D
         int Width = area.getWidth() / 8;
 
-        // Shared text box / label sizing, derived from sharedKnobTarget (not this card's
-        // own area.getHeight(), which is only 1/6th of the page) so every page's knob
-        // row — label height, text box — matches EffectsPage/MatrixPage exactly.
+        // Shared text box / label sizing
         int textBoxW = juce::roundToInt (sharedKnobTarget * ProjectConfig::textBoxWidthFraction);
         int textBoxH = juce::jlimit (12, 70, juce::roundToInt (sharedKnobTarget * colors.textBoxHeightFraction));
         int labelH   = juce::jmax (10, juce::roundToInt (sharedKnobTarget * colors.textBoxHeightFraction));
 
-        // Clamp each knob's box to the shared target diameter (centered within its column),
-        // so these knobs match MatrixPage/EffectsPage even though this row's own available
-        // space may be larger or smaller than theirs. The box must be diameter+8 wide
-        // (LookAndFeel reserves 4px each side) and that plus textBoxH tall, since
-        // TextBoxBelow eats into the bottom of whatever box the slider is given.
-        // sharedKnobTarget comes from OperatorsPage (the true page dimensions), not
-        // computed from this card's own w/h, which is only 1/6th of the page height.
+        // Clamp each knob's box to the shared target diameter (centered within its column).
         int targetBoxSize = sharedKnobTarget + 8;
         int knobAreaH     = area.getHeight() - labelH;
         int knobBoxW      = juce::jmin (Width, targetBoxSize);
@@ -201,7 +193,7 @@ struct CompactOperatorGroup : public juce::Component
     {
         juce::Component::lookAndFeelChanged();
 
-        // 1. Update Labels
+        // Update Labels
         opHeaderLabel.setColour (juce::Label::textColourId, colors.text);
         ratioLabel.setColour    (juce::Label::textColourId, colors.text);
         detuneLabel.setColour   (juce::Label::textColourId, colors.text);
@@ -212,7 +204,7 @@ struct CompactOperatorGroup : public juce::Component
         sustainLabel.setColour  (juce::Label::textColourId, colors.text);
         releaseLabel.setColour  (juce::Label::textColourId, colors.text);
 
-        // 2. Helper lambda to update ComboBoxes cleanly
+        // Helper lambda to update ComboBoxes cleanly
         auto updateComboBox = [this](juce::ComboBox& cb) {
             cb.setColour (juce::ComboBox::backgroundColourId, colors.surface);
             cb.setColour (juce::ComboBox::textColourId, colors.text);
@@ -223,7 +215,7 @@ struct CompactOperatorGroup : public juce::Component
         updateComboBox (waveShapeSelector);
         updateComboBox (effectTypeSelector);
 
-        // 3. Helper lambda to update Sliders cleanly
+        // Helper lambda to update Sliders cleanly
         auto updateSlider = [this](juce::Slider& s) {
             s.setColour (juce::Slider::textBoxBackgroundColourId, colors.surface);
             s.setColour (juce::Slider::textBoxTextColourId, colors.text);
@@ -371,12 +363,10 @@ private:
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> attackAttach, decayAttach, sustainAttach, releaseAttach;
 
 public:
-    // Set from OperatorsPage::resized(), which knows the true page dimensions —
-    // this card's own getWidth()/getHeight() are just one of six rows, far too
-    // small to derive a sensible shared knob target from directly.
+    // Set from OperatorsPage::resized()
     void setSharedKnobTarget (int targetDiameter) { sharedKnobTarget = targetDiameter; }
 private:
-    int sharedKnobTarget = 90;
+    int sharedKnobTarget = 90; //default, overwritten in page
 };
 
 // --- THE PARENT VIEW MANAGER CLASS ---
@@ -446,15 +436,10 @@ public:
         int cellHeight = area.getHeight() / rows;
 
         // Computed from the true page dimensions (this component, not a per-row card)
-        // and pushed down to each card, since a card's own height is only 1/6th of
-        // this and far too small to derive a sensible shared knob target from.
         int sharedKnobTarget = juce::roundToInt (
             juce::jmin (getWidth(), getHeight()) * colors.knobDiameterFraction);
-
-        // Walk top-down with removeFromTop, giving the last row whatever remains of
-        // 'area' exactly — avoids integer-division leftover piling up as an extra
-        // gutter below the last row that the other pages don't have.
-        auto remaining = area;
+        // Walk down to avoid weird sizing issues
+	auto remaining = area;
         for (int r = 0; r < rows; ++r)
         {
             bool isLastRow = (r == rows - 1);
@@ -467,17 +452,14 @@ public:
                 {
                     auto cellBounds = rowBounds.withX (rowBounds.getX() + c * cellWidth).withWidth (cellWidth);
 
-                    // Only inset the sides that actually face a neighboring card, so the
-                    // first/last row sit flush against the page's outer margin — matching
-                    // EffectsPage/MatrixPage, which don't add anything beyond outerMargin.
+                    // Only inset the sides that actually face a neighboring card
                     // With cols == 1 there's never a horizontal neighbor, so no horizontal inset at all.
                     int top    = (r == 0)       ? 0 : halfGap;
                     int bottom = isLastRow       ? 0 : halfGap;
                     cellBounds.removeFromTop (top);
                     cellBounds.removeFromBottom (bottom);
 
-                    // Must be set before setBounds, since setBounds synchronously
-                    // triggers the card's own resized() which reads this value.
+                    // Must be set before setBounds
                     opModules[index]->setSharedKnobTarget (sharedKnobTarget);
                     opModules[index]->setBounds (cellBounds);
                 }

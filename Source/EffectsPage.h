@@ -46,7 +46,6 @@ public:
         rateSyncSlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 0, 0);
         addAndMakeVisible (rateSyncSlider);
         
-
         rateLabel.setText ("Rate", juce::dontSendNotification);
         rateLabel.setJustificationType (juce::Justification::centred);
         addAndMakeVisible (rateLabel);
@@ -80,8 +79,7 @@ public:
             rateSlider.setVisible (!isSynced);
             rateSyncSlider.setVisible (isSynced);
         };
-        
-        // 4. Force the initial state on boot
+        // Force initial state on startup
         syncButton.onClick();
     }
 
@@ -148,7 +146,7 @@ public:
         rateSlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, textBoxW, textBoxH);
         rateSlider.setBounds (rateArea.removeFromTop (trackH + textBoxH).reduced (2, 0));
         rateSyncSlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, textBoxW, textBoxH);
-        rateSyncSlider.setBounds (rateSlider.getBounds()); //put in the same place
+        rateSyncSlider.setBounds (rateSlider.getBounds()); //put in the same place for swapping
 
         depthLabel.setBounds (area.removeFromTop (labelH));
         depthSlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, textBoxW, textBoxH);
@@ -171,7 +169,7 @@ private:
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>   rateAttach, depthAttach, rateSyncAttach;
 };
 
-// Effects slot - we make three of these to show the effects
+// Effects slot - we make these to show the effects
 class EffectsSlot : public juce::Component
 {
 public:
@@ -262,8 +260,7 @@ public:
         auto area = getLocalBounds().reduced (juce::roundToInt (getWidth() * 0.015f),
                                                juce::roundToInt (getHeight() * 0.03f));
 
-        // Left block: tiny slot tag on top, effect selector underneath — sized to its own
-        // content rather than the full slot height. Everything else sits to its right.
+        // Left block: select optoins for the operator
         int leftBlockW = juce::jmax (60, juce::roundToInt (getWidth() * 0.16f));
         int tagH       = juce::jmax (10, juce::roundToInt (getHeight() * 0.16f));
         int selectorH  = juce::jmax (16, juce::roundToInt (getHeight() * 0.26f));
@@ -274,19 +271,10 @@ public:
 
         area.removeFromLeft (juce::roundToInt (getWidth() * 0.01f)); // small gap before knobs
 
-        // Shared text box / label sizing, derived from sharedKnobTarget (not this slot's
-        // own getHeight(), which is only 1/6th of the page) so every page's knob row
-        // — label position, label height, text box — matches exactly.
+        // Shared text box / label / knob sizing derived from OAOColors and constants.h values
         int textBoxW = juce::roundToInt (sharedKnobTarget * ProjectConfig::textBoxWidthFraction);
         int textBoxH = juce::jlimit (12, 70, juce::roundToInt (sharedKnobTarget * colors.textBoxHeightFraction));
         int labelH   = juce::jmax (10, juce::roundToInt (sharedKnobTarget * colors.textBoxHeightFraction));
-
-        // Shared knob diameter target, matching OperatorsPage/MatrixPage. The slider's
-        // box must be diameter+8 wide (LookAndFeel reserves 4px each side) and that same
-        // amount plus textBoxH tall (TextBoxBelow eats into the bottom of the box).
-        // sharedKnobTarget comes from EffectsPage (the true page dimensions), not
-        // computed from this slot's own getWidth()/getHeight(), which is only 1/6th
-        // of the page height.
         int targetBoxSize = sharedKnobTarget + 8;
         auto clampKnob = [targetBoxSize, textBoxH] (juce::Rectangle<int> box)
         {
@@ -295,7 +283,6 @@ public:
             return box.withSizeKeepingCentre (w, h);
         };
 
-        // Label sits ABOVE the knob, matching OperatorsPage's layout exactly.
         auto mixArea = area.removeFromLeft (juce::roundToInt (area.getWidth() * 0.16f));
         mixLabel.setBounds (mixArea.removeFromTop (labelH));
         mixSlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, textBoxW, textBoxH);
@@ -325,12 +312,10 @@ private:
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>   knobAttachments[4];
 
 public:
-    // Set from EffectsPage::resized(), which knows the true page dimensions — this
-    // slot's own getWidth()/getHeight() is only 1/6th of the page height, far too
-    // small to derive a sensible shared knob target from directly.
+    // Set from EffectsPage::resized()
     void setSharedKnobTarget (int targetDiameter) { sharedKnobTarget = targetDiameter; }
 private:
-    int sharedKnobTarget = 90;
+    int sharedKnobTarget = 90; //fallback default, not used normally
 };
 
 
@@ -392,15 +377,13 @@ public:
 	for (int i = 0; i < ProjectConfig::numEffects; ++i)
         {
             bool isLast = (i == ProjectConfig::numEffects - 1);
-            // Must be set before setBounds, since setBounds synchronously triggers
-            // the slot's own resized() which reads this value.
+            // SharedKnob must be set before Bounds
             slots[i]->setSharedKnobTarget (sharedKnobTarget);
             slots[i]->setBounds (fxArea.removeFromTop (isLast ? fxArea.getHeight() : slotH));
             if (! isLast) fxArea.removeFromTop (gapH);
 	}
 
-        // LFO sidebar — same fix applied identically, so both columns' bottom edges
-        // land flush with the page's outer margin, matching the top edge exactly.
+        // LFO sidebar
         int lfoH = juce::roundToInt ((lfoArea.getHeight() - (ProjectConfig::numEffects - 1) * gapH) / (float)ProjectConfig::numEffects);
 	for (int i = 0; i < ProjectConfig::numEffects; ++i)
         {

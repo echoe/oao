@@ -77,25 +77,19 @@ struct ModMatrixSlot : public juce::Component
         // --- Right block: Depth Knob & Label ---
         auto rightArea = area.removeFromRight (juce::roundToInt (area.getWidth() * 0.28f));
 
-        // 1. Fix the TextBox visibility!
-        // We set the style here instead of the constructor because we finally have non-zero bounds.
         int textBoxW = juce::roundToInt (rightArea.getWidth() * 0.8f);
         int textBoxH = juce::jlimit (12, 20, juce::roundToInt (area.getHeight() * 0.2f));
 	amountSlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, textBoxW, textBoxH);
 
-        // 2. Center the knob block directly in the area so it matches the grid's vertical center exactly.
         int knobSize = juce::jmin (area.getHeight(), rightArea.getWidth());
         auto knobBlock = rightArea.withSizeKeepingCentre (rightArea.getWidth(), knobSize);
         amountSlider.setBounds (knobBlock);
 
-        // 3. Float the "Depth" label in the empty space above the knob.
-        // By taking the space from rightArea.getY() to knobBlock.getY(), the label
-        // doesn't push the knob off-center.
+        // Float the label in the empty space above the knob.
         int labelHeight = knobBlock.getY() - rightArea.getY();
         depthLabel.setBounds (rightArea.getX(), rightArea.getY(), rightArea.getWidth(), labelHeight);
 
         // --- Left block: Source/Target ---
-        // (Keep the updated dropdown sizing logic from the previous step here)
         int rowH       = juce::jmax (20, juce::roundToInt (area.getHeight() * 0.25f));
         int stackH     = rowH * 2;
         auto leftBlock = area.withSizeKeepingCentre (area.getWidth(), juce::jmin (area.getHeight(), stackH));
@@ -174,19 +168,19 @@ struct ModMatrixSlot : public juce::Component
     {
         juce::Component::lookAndFeelChanged();
 
-        // 3. Force the Row Label text color
+        // Force the Row Label text color
         rowSLabel.setColour (juce::Label::textColourId, colors.text);
         rowTLabel.setColour (juce::Label::textColourId, colors.text);
         depthLabel.setColour (juce::Label::textColourId, colors.text);
 
-        // 4. Force the ComboBox colors
+        // Force the ComboBox colors
         sourceSelector.setColour (juce::ComboBox::backgroundColourId, colors.surface);
         sourceSelector.setColour (juce::ComboBox::textColourId, colors.text);
 
         targetSelector.setColour (juce::ComboBox::backgroundColourId, colors.surface);
         targetSelector.setColour (juce::ComboBox::textColourId, colors.text);
 
-        // 5. Do the slider text boxes just like the main page
+        // Do the slider text boxes just like the main page
         amountSlider.setColour (juce::Slider::textBoxBackgroundColourId, colors.surface);
         amountSlider.setColour (juce::Slider::textBoxTextColourId, colors.text);
 
@@ -283,8 +277,7 @@ public:
         cachedW = static_cast<float> (getWidth());
         cachedH = static_cast<float> (getHeight());
     
-        // Shared outer margin, same value the card itself is drawn with in paint() —
-        // stored here so resized() (e.g. the Reset button) can align to it exactly.
+        // Shared outer margin
         outerW = cachedW * ProjectConfig::outerMargin;
         outerH = cachedH * ProjectConfig::outerMargin;
 
@@ -294,12 +287,10 @@ public:
         int availableW = gridAreaW - labelLeft;
         int availableH = juce::roundToInt (cachedH * 0.99f) - labelTop;
 
-        // Horizontal and vertical pitch computed independently, so the grid's overall
-        // bounding box can be a wide rectangle even though each knob stays round.
+        // Horizontal and vertical pitch computed independently so grid can look balanced horizontally
         cellW    = availableW / ProjectConfig::numOperators;
         cellH    = availableH / ProjectConfig::numOperators;
-        // Clamp toward the shared knob target so this page's knobs match
-        // OperatorsPage/EffectsPage even as layouts evolve independently.
+        // Clamp toward the shared knob target
         int sharedTarget = juce::roundToInt (juce::jmin (cachedW, cachedH) * colors.knobDiameterFraction);
         knobSize = juce::jmin (std::min (cellW, cellH), sharedTarget);
         gridX    = labelLeft;
@@ -311,15 +302,14 @@ public:
     {
         recalcGeometry();
 
-        // Backdrop — the space between/around the grid and sidebar regions
+        // Backdrop
         g.fillAll (colors.panelGap);
 
         float splitX = getWidth() * splitRatio;
         float cardGap = juce::jmax (2.0f, cachedH * 0.006f);
         float halfCardGap = juce::jmax (1.0f, cardGap * 0.5f);
 
-        // Card behind the grid region — extended left/up to also cover the row/column
-        // label strips and the Reset button corner, not just the cell bounds themselves
+        // Card behind the grid region
         float cardLeft = outerW;
         float cardTop  = outerH;
         juce::Rectangle<float> gridCard (
@@ -334,8 +324,7 @@ public:
 
         // Calculate the exact bottom of the grid so the sidebar can match it
         float gridBottom = (float)(gridY + ProjectConfig::numOperators * cellH);
-        // Card behind the sidebar region — insets only half the gap from the shared
-        // split line so the visible gap between the two cards isn't doubled
+        // Card behind the sidebar region
         juce::Rectangle<float> sidebarCard (
             splitX + halfCardGap,
             outerH,
@@ -377,7 +366,6 @@ public:
         }
         
         // Sidebar divider
-        // draw line
         g.setColour (colors.primary.withAlpha (0.3f));
         g.drawVerticalLine (static_cast<int> (splitX), getHeight() * 0.05f, getHeight() - 10.0f);
     }
@@ -387,10 +375,7 @@ public:
         recalcGeometry();
         auto area        = getLocalBounds();
 
-        // Reset button — sits in the empty corner where row labels (left) and
-        // column labels (top) meet, instead of occupying its own separate strip.
-        // Anchored to outerW/outerH (the same margin the card itself is drawn with
-        // in paint()) so it sits flush inside the card edge instead of poking past it.
+        // Reset button, placed dynamically
         int btnX = juce::roundToInt (outerW) + 2;
         int btnY = gridY - static_cast<int> (labelH) + 1;
         int btnMaxW = juce::jmax (10, gridX - btnX - 2);
@@ -403,8 +388,7 @@ public:
         auto gridArea = area.removeFromLeft (juce::roundToInt (totalW * splitRatio));
         auto sidebarAreaFull = area.reduced (juce::roundToInt (cachedW * 0.01f), 0);
 
-        // Align the sidebar's row pitch and vertical origin with the grid's, so
-        // sidebar row N lines up exactly with grid row N (true vertical symmetry).
+        // Align the sidebar's row pitch and vertical origin with the grid's
         auto sidebarArea = sidebarAreaFull;
         sidebarArea.removeFromTop (gridY);
 
@@ -418,7 +402,7 @@ public:
                 if (auto* s = matrixSliders[idx++])
                 {
                     s->setTextBoxStyle (juce::Slider::TextBoxBelow, false, textBoxW, textBoxH);
-                    //Make it a rectangle so the whole screen is filled
+                    // Make it a rectangle so the whole screen is filled
 		    juce::Rectangle<int> cell (gridX + dest * cellW, gridY + src * cellH, cellW, cellH);
                     int boxH = juce::jmin (cellH, knobSize - 2 + textBoxH);
                     s->setBounds (cell.withSizeKeepingCentre (knobSize - 4, boxH));
@@ -458,7 +442,7 @@ public:
     {
         juce::Component::lookAndFeelChanged();
 
-        // Use the colors from your struct! (Change these to whichever ones you prefer)
+        // Use the colors from the struct
         auto newBgColor    = colors.surface;
         auto newTextColour = colors.text;
         auto newOutline    = juce::Colours::transparentBlack;
@@ -520,7 +504,7 @@ private:
     juce::String paramPrefix;
     juce::String matrixTitle;
     OAOColors& colors; // Store colors reference
-    // Grid geometry — tweak these to taste
+    // Grid geometry — these defaults are overridden by vst-wide default
     int gridX     = 45;
     int gridY     = 70;
     int cellW     = 90; // horizontal pitch between grid columns

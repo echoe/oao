@@ -58,9 +58,7 @@ struct OAOColors
                              : background.darker (0.3f);
         }
 
-        // knobDiameterFraction/textBoxHeightFraction may not exist in settings files
-        // saved before this was added, so fall back to the existing default rather
-        // than zeroing out (which would collapse every knob/label to nothing).
+        // knobDiameterFraction/textBoxHeightFraction
         knobDiameterFraction  = (float) prefs.getDoubleValue ("knobDiameterFraction",  knobDiameterFraction);
         textBoxHeightFraction = (float) prefs.getDoubleValue ("textBoxHeightFraction", textBoxHeightFraction);
     }

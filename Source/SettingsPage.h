@@ -180,14 +180,8 @@ public:
     
         area.reduce (10, 10);
     
-        // 1. Derive our standard sizing from OAOColors, which now owns these as
-        // runtime-tweakable values (see Knob Size / Label Size sliders above) rather
-        // than the fixed ProjectConfig constants. This matches the 'knobSize' logic
-        // from MatrixPage, and means this page's own row height breathes along with
-        // the sliders too — immediate visual feedback that they're doing something.
+        // Derive our standard sizing from OAOColors
         float baseUnit = juce::jmin (getWidth(), getHeight()) * colors.knobDiameterFraction;
-        
-        // 2. Use the same runtime text box fraction to size the rows perfectly!
         int rowH = juce::roundToInt (baseUnit * colors.textBoxHeightFraction * 2.0f);
         int gap  = juce::roundToInt (rowH * 0.5f); // Gaps scale relative to the row height
     
@@ -400,8 +394,7 @@ private:
                 if (xml == nullptr || ! xml->hasTagName ("OAOThemePreset"))
                     return;
 
-                // Colors fall back to their current value if a field is missing,
-                // so a hand-edited or partial file degrades gracefully rather than zeroing out.
+                // Colors fall back to their current value if a field is missing
                 auto loadColour = [&] (const char* attr, juce::Colour fallback)
                 {
                     return xml->hasAttribute (attr)

@@ -26,7 +26,7 @@ You can also go through and manually click on knobs to reset them to the default
 - E: This randomizes the effects page only.
 
 ### Algorithm
-This lets you select from one of the original 32 algorithms. It will fill the matrix out for you. ... After attempting to make patches by hand quickly, and make a working randomizer ... I now understand why FM synths do this.
+This lets you select from one of a number of algorithms from classic or well-known synths. It will fill the matrix out for you. ... After attempting to make patches by hand quickly, and make a working randomizer ... I now understand why FM synths do this.
 If you really want you can add your own algos too, the code's very legible and I've noted how it works in PresetBar.h!
 
 ### OS
@@ -219,18 +219,22 @@ Additional Notes:
 - Set the size of the plugin window from 50% to 200%.
 ### Font
 - This is the only plugin where you can set the font to comic sans. this claim is probably wrong, but it *feels* true, okay
+### Knob Size
+- Control the size of all knobs in the plugin.
+### Font size
+- Control the size of all bouncing boxes in the plugin. This is tied to know size and in some cases, right now, won't update without also updating the knob size (even just a little).
 ### Theme
-- Select your color theme from one of eight preset choices, or make your own with fice color presets! All pages will pick up the new colors and refresh.
+- Select your color theme from one of eight preset choices, or make your own with color presets! All pages will pick up the new colors and refresh.
 
 
 ## Other Features:
-- You can sync an operator to DAW tempo and use it as an LFO. Do you want more LFOs? Why have LFOs when you can just have operators??
+- You can sync an operator to DAW tempo and use it as an LFO.
 - You can pass audio into an operator with the audio routing matrix. Stack that audio!!!
 - You can modulate any operator with any other operator. Doot de doot.
 - If you want to use the effects on other things, use the effects plugin :)
 
 ## TODO 
-- Relaxing.
+- Maybe sending audio from the effects back into operators if I really want, IDK ... I'll think about that one. But then it would be easier to filter an operator and then use it in an FM patch with the effect slots. 6 is not a lot of operators if half of them are used as effects.
 
 Pictures of the synth in use are provided in the pictures/ folder, and I've switched between themes for each picture so you can get an idea of the theme options. There are also build scripts in the main folder, and built vst3 and standalone builds for all three OS's in the release folder.
 This is mostly AI-coded, but I am actively using the synth myself and have read over all of the code in the releases and think I understand it (though how much can one understand code they haven't written themselves?). Your mileage, as always, may vary.

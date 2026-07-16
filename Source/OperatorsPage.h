@@ -9,9 +9,9 @@ struct CompactOperatorGroup : public juce::Component
     CompactOperatorGroup (juce::AudioProcessorValueTreeState& valueTreeState, int opIndex, OAOColors& c)
         : apvts (valueTreeState), opNum (juce::String (opIndex + 1)), colors (c)
     {
-        auto setupSlider = [this] (juce::Slider& slider, juce::Label& label, const juce::String& text, bool rotary)
+        auto setupSlider = [this] (juce::Slider& slider, juce::Label& label, const juce::String& text, bool opcontrol)
         {
-            slider.setSliderStyle (rotary ? juce::Slider::RotaryHorizontalVerticalDrag : juce::Slider::LinearVertical);
+            slider.setSliderStyle (opcontrol ? juce::Slider::LinearHorizontal : juce::Slider::LinearHorizontal); // bool to set different slider depending on if control is operator or envelope control
             slider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 40, 12);
             addAndMakeVisible (slider);
             
@@ -435,7 +435,7 @@ public:
             juce::roundToInt (getWidth()  * ProjectConfig::outerMargin),
             juce::roundToInt (getHeight() * ProjectConfig::outerMargin));
 
-        int rows = 6;
+        int rows = ProjectConfig::numOperators;
         int cols = 1;
         int gap     = juce::jmax (2, juce::roundToInt (getHeight() * 0.006f));
         int halfGap = juce::jmax (1, gap / 2);

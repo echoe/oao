@@ -201,7 +201,7 @@ public:
             for (int i = 0; i < ProjectConfig::numOperators; ++i)
             {
                 auto* sl = outputSliders.add (new juce::Slider());
-                sl->setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
+                sl->setSliderStyle (juce::Slider::LinearHorizontal);
                 sl->setTextBoxStyle (juce::Slider::TextBoxBelow, false,
                     (int)(knobSize * ProjectConfig::textBoxWidthFraction), (int)(knobSize * colors.textBoxHeightFraction));
 		addAndMakeVisible (sl);

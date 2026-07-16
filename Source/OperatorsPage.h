@@ -28,8 +28,8 @@ struct CompactOperatorGroup : public juce::Component
         setupSlider (sustainSlider, sustainLabel, "Sustain", false);
         setupSlider (releaseSlider, releaseLabel, "Release", false);
         // label operator
-        opHeaderLabel.setText ("OPERATOR " + opNum, juce::dontSendNotification);
-        opHeaderLabel.setFont (juce::FontOptions (13.0f, juce::Font::bold));
+        opHeaderLabel.setText (opNum, juce::dontSendNotification);
+        opHeaderLabel.setFont (juce::FontOptions (39.0f, juce::Font::bold));
         addAndMakeVisible (opHeaderLabel);
         // Letting us swap oscillator mode for easier operator control
         freqModeSelector.addItemList ({ "Std", "Sync", "Hz", "LFO" }, 1);
@@ -107,13 +107,14 @@ struct CompactOperatorGroup : public juce::Component
         float w          = static_cast<float> (area.getWidth());
         float h          = static_cast<float> (area.getHeight());
 
-        // --- LEFT COLUMN: header label + 3 stacked selectors ---
-        int leftColW  = juce::jmax (90, juce::roundToInt (w * 0.16f));
+        // --- LEFT COLUMN: Operator num on one side, 3 stacked selectors on right---
+	int opNumW = juce::jmax (70, juce::roundToInt (w * 0.03f));
+	auto opNum = area.removeFromLeft (opNumW);
+	opHeaderLabel.setBounds (opNum);
+        int leftColW  = juce::jmax (70, juce::roundToInt (w * 0.13f));
         auto leftCol  = area.removeFromLeft (leftColW);
 
-        opHeaderLabel.setBounds (leftCol.removeFromTop (juce::jmax (14, juce::roundToInt (h * 0.16f))));
-
-        int selectorH = juce::jmax (16, juce::roundToInt (h * 0.24f));
+        int selectorH = juce::jmax (16, juce::roundToInt (h * 0.33f));
         freqModeSelector.setBounds (leftCol.removeFromTop (selectorH).reduced (1));
         modeSelector.setBounds     (leftCol.removeFromTop (selectorH).reduced (1));
 

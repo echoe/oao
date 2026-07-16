@@ -446,6 +446,7 @@ public:
         // Computed from the true page dimensions (this component, not a per-row card)
         int sharedKnobTarget = juce::roundToInt (
             juce::jmin (getWidth(), getHeight()) * colors.knobDiameterFraction);
+	float sharedFontSize = static_cast<float>(cellHeight) * 0.4f;
         // Walk down to avoid weird sizing issues
 	auto remaining = area;
         for (int r = 0; r < rows; ++r)
@@ -462,8 +463,9 @@ public:
 
                     // Only inset the sides that actually face a neighboring card
                     // With cols == 1 there's never a horizontal neighbor, so no horizontal inset at all.
-                    int top    = (r == 0)       ? 0 : halfGap;
-                    int bottom = isLastRow       ? 0 : halfGap;
+                    // testing setting these to gap and not halGap
+		    int top    = halfGap;
+                    int bottom = halfGap;
                     cellBounds.removeFromTop (top);
                     cellBounds.removeFromBottom (bottom);
 

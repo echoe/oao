@@ -25,7 +25,7 @@ public:
 
     juce::Font getComboBoxFont (juce::ComboBox& box) override
     {
-        float fromHeight = box.getHeight() * 0.8f;
+        float fromHeight = box.getHeight() * 0.9f;
     
         juce::Font f = getCustomFont (fromHeight); 
         juce::GlyphArrangement ga;
@@ -46,7 +46,7 @@ public:
     
     juce::Font getLabelFont (juce::Label& label) override
     {
-        float fromHeight = label.getHeight() * 0.8f;
+        float fromHeight = label.getHeight() * 0.9f;
     
         juce::Font f = getCustomFont (fromHeight);
         juce::GlyphArrangement ga;

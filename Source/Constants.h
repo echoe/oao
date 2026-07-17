@@ -5,11 +5,12 @@
 namespace ProjectConfig
 {
     // Operator count, mod slots, effects, operator parameters, effect parameters
-    static constexpr int numOperators = 12;
+    static constexpr int numOperators = 10;
     static constexpr int numOpParams = 5;
     static constexpr int numFxParams = 5;
     static constexpr int numModSlots = 6;
     static constexpr int numEffects = 6;
+    static constexpr int numMacros = 4;
     // Number of voices
     static constexpr int numVoices = 8;
     // Base plugin size/visual tweaks

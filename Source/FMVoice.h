@@ -76,6 +76,10 @@ private:
     std::atomic<float>* modSlotSrc[ProjectConfig::numModSlots] { nullptr };
     std::atomic<float>* modSlotTgt[ProjectConfig::numModSlots] { nullptr };
     std::atomic<float>* modSlotAmt[ProjectConfig::numModSlots] { nullptr };
+    // Macros — one bipolar value each, routed straight to two independent targets
+    std::atomic<float>* macroVal[ProjectConfig::numMacros]  { nullptr };
+    std::atomic<float>* macroTgtA[ProjectConfig::numMacros] { nullptr };
+    std::atomic<float>* macroTgtB[ProjectConfig::numMacros] { nullptr };
     // FM and Audio routing grids
     std::atomic<float>* matrixParams[ProjectConfig::numOperators][ProjectConfig::numOperators]      { nullptr };
     std::atomic<float>* audioMatrixParams[ProjectConfig::numOperators][ProjectConfig::numOperators] { nullptr };

@@ -74,6 +74,19 @@ void FMVoice::initParameters (juce::AudioProcessorValueTreeState& apvts)
         if (!modSlotTgt[slot]) DBG ("CRITICAL: MOD_TGT_" + s + " not found!");
         if (!modSlotAmt[slot]) DBG ("CRITICAL: MOD_AMT_" + s + " not found!");
     }
+
+    // Wire up the macros
+    for (int m = 0; m < ProjectConfig::numMacros; ++m)
+    {
+        juce::String s = juce::String (m + 1);
+        macroVal[m]  = apvts.getRawParameterValue ("MACRO_VAL_"   + s);
+        macroTgtA[m] = apvts.getRawParameterValue ("MACRO_TGT_A_" + s);
+        macroTgtB[m] = apvts.getRawParameterValue ("MACRO_TGT_B_" + s);
+
+        if (!macroVal[m])  DBG ("CRITICAL: MACRO_VAL_"   + s + " not found!");
+        if (!macroTgtA[m]) DBG ("CRITICAL: MACRO_TGT_A_" + s + " not found!");
+        if (!macroTgtB[m]) DBG ("CRITICAL: MACRO_TGT_B_" + s + " not found!");
+    }
 }
 
 void FMVoice::setCurrentPlaybackSampleRate (double newRate)
@@ -214,6 +227,60 @@ void FMVoice::renderNextBlock (juce::AudioBuffer<float>& outputBuffer, int start
         // matrix modulation storage
         float matrixModOffsets[ProjectConfig::numOperators][ProjectConfig::numOperators] {};
 
+        // Shared routing: given a target index (from ModChoices::targets()) and a signal,
+        // adds that signal into the right per-operator/per-fx/per-matrix-cell accumulator.
+        // Used both by the general mod matrix slots and by the macros below, so a macro's
+        // two targets and a mod slot's single target all resolve identically.
+        auto applyToTarget = [&] (int tgtIdx, float srcSignal)
+        {
+            if (tgtIdx == 0 || std::abs (srcSignal) < 0.0001f)
+                return;
+
+            const int opTargetEnd = 1 + (ProjectConfig::numOperators * ProjectConfig::numOpParams) - 1;
+            const int fxTargetStart = opTargetEnd + 1;
+            const int fxTargetEnd   = fxTargetStart + (ProjectConfig::numEffects * ProjectConfig::numFxParams) - 1;
+            const int matrixTargetStart = fxTargetEnd + 1;
+            const int matrixTargetEnd   = matrixTargetStart + (ProjectConfig::numOperators * ProjectConfig::numOperators) - 1;
+
+            if (tgtIdx >= 1 && tgtIdx <= opTargetEnd) //operators
+            {
+                int opIdx    = (tgtIdx - 1) / ProjectConfig::numOpParams;
+                int paramIdx = (tgtIdx - 1) % ProjectConfig::numOpParams;
+
+                switch (paramIdx)
+                {
+                    case 0: ratioModOffsets[opIdx]  += srcSignal; break;
+                    case 1: detuneModOffsets[opIdx] += srcSignal; break;
+                    case 2: phaseModOffsets[opIdx]  += srcSignal; break;
+                    case 3: foldModOffsets[opIdx]   += srcSignal; break;
+                    case 4: levelModOffsets[opIdx]  += srcSignal; break;
+                }
+            }
+            else if (tgtIdx >= fxTargetStart && tgtIdx <= fxTargetEnd) //effects
+            {
+                int fxIdx    = (tgtIdx - fxTargetStart) / ProjectConfig::numFxParams;
+                int paramIdx = (tgtIdx - fxTargetStart) % ProjectConfig::numFxParams;
+
+                switch (paramIdx)
+                {
+                    case 0: fxRatioMods[fxIdx].store  (fxRatioMods[fxIdx].load()  + srcSignal); break;
+                    case 1: fxDetuneMods[fxIdx].store (fxDetuneMods[fxIdx].load() + srcSignal); break;
+                    case 2: fxPhaseMods[fxIdx].store  (fxPhaseMods[fxIdx].load()  + srcSignal); break;
+                    case 3: fxFoldMods[fxIdx].store   (fxFoldMods[fxIdx].load()   + srcSignal); break;
+                    case 4: fxLevelMods[fxIdx].store  (fxLevelMods[fxIdx].load()  + srcSignal); break;
+                }
+            }
+            else if (tgtIdx >= matrixTargetStart && tgtIdx <= matrixTargetEnd) //mod matrix
+            {
+                int matrixIdx = tgtIdx - matrixTargetStart;
+                int src       = matrixIdx / ProjectConfig::numOperators;         // dynamic division based on operator count
+                int dst       = matrixIdx % ProjectConfig::numOperators;         // dynamic modulo based on operator count
+
+                // Accumulate into a separate modulation array
+                matrixModOffsets[src][dst] += srcSignal;
+            }
+        };
+
         for (int slot = 0; slot < ProjectConfig::numModSlots; ++slot)
         {
             if (!modSlotSrc[slot] || !modSlotTgt[slot] || !modSlotAmt[slot])
@@ -247,51 +314,25 @@ void FMVoice::renderNextBlock (juce::AudioBuffer<float>& outputBuffer, int start
                 rawSrc = currentModWheel.load(std::memory_order_relaxed);
             }
 
-            float srcSignal = rawSrc * amt;
-	    // let's do targets! start at 1
-	    const int opTargetEnd = 1 + (ProjectConfig::numOperators * ProjectConfig::numOpParams) - 1;
-            const int fxTargetStart = opTargetEnd + 1;
-            const int fxTargetEnd   = fxTargetStart + (ProjectConfig::numEffects * ProjectConfig::numFxParams) - 1;            
-            const int matrixTargetStart = fxTargetEnd + 1;
-            const int matrixTargetEnd   = matrixTargetStart + (ProjectConfig::numOperators * ProjectConfig::numOperators) - 1;
-            if (tgtIdx >= 1 && tgtIdx <= opTargetEnd) //operators
-            {
-                int opIdx    = (tgtIdx - 1) / ProjectConfig::numOpParams; 
-                int paramIdx = (tgtIdx - 1) % ProjectConfig::numOpParams; 
-            
-                switch (paramIdx)
-                {
-                    case 0: ratioModOffsets[opIdx]  += srcSignal; break;
-                    case 1: detuneModOffsets[opIdx] += srcSignal; break;
-                    case 2: phaseModOffsets[opIdx]  += srcSignal; break;
-                    case 3: foldModOffsets[opIdx]   += srcSignal; break;
-                    case 4: levelModOffsets[opIdx]  += srcSignal; break;
-                }
-            }
-            else if (tgtIdx >= fxTargetStart && tgtIdx <= fxTargetEnd) //effects
-            {
-                int fxIdx    = (tgtIdx - fxTargetStart) / ProjectConfig::numFxParams; 
-                int paramIdx = (tgtIdx - fxTargetStart) % ProjectConfig::numFxParams; 
-            
-                switch (paramIdx)
-                {
-                    case 0: fxRatioMods[fxIdx].store  (fxRatioMods[fxIdx].load()  + srcSignal); break;
-                    case 1: fxDetuneMods[fxIdx].store (fxDetuneMods[fxIdx].load() + srcSignal); break;
-                    case 2: fxPhaseMods[fxIdx].store  (fxPhaseMods[fxIdx].load()  + srcSignal); break;
-                    case 3: fxFoldMods[fxIdx].store   (fxFoldMods[fxIdx].load()   + srcSignal); break;
-                    case 4: fxLevelMods[fxIdx].store  (fxLevelMods[fxIdx].load()  + srcSignal); break;
-                }
-            }
-            else if (tgtIdx >= matrixTargetStart && tgtIdx <= matrixTargetEnd) //mod matrix
-            {
-                int matrixIdx = tgtIdx - matrixTargetStart; 
-                int src       = matrixIdx / ProjectConfig::numOperators;         // dynamic division based on operator count
-                int dst       = matrixIdx % ProjectConfig::numOperators;         // dynamic modulo based on operator count
-                
-                // Accumulate into a separate modulation array
-                matrixModOffsets[src][dst] += srcSignal;
-            }
+            applyToTarget (tgtIdx, rawSrc * amt);
 	}
+
+        // Macros — each has one bipolar value routed straight at two independent targets.
+        for (int m = 0; m < ProjectConfig::numMacros; ++m)
+        {
+            if (!macroVal[m])
+                continue;
+
+            float val = macroVal[m]->load (std::memory_order_relaxed);
+            if (std::abs (val) < 0.0001f)
+                continue;
+
+            int tgtA = macroTgtA[m] ? static_cast<int> (macroTgtA[m]->load (std::memory_order_relaxed)) : 0;
+            int tgtB = macroTgtB[m] ? static_cast<int> (macroTgtB[m]->load (std::memory_order_relaxed)) : 0;
+
+            applyToTarget (tgtA, val);
+            applyToTarget (tgtB, val);
+        }
 
         // Process the operators!
         for (int dest = 0; dest < ProjectConfig::numOperators; ++dest)

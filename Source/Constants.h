@@ -5,16 +5,17 @@
 namespace ProjectConfig
 {
     // Operator count, mod slots, effects, operator parameters, effect parameters
-    static constexpr int numOperators = 6;
+    static constexpr int numOperators = 10;
     static constexpr int numOpParams = 5;
     static constexpr int numFxParams = 5;
     static constexpr int numModSlots = 6;
     static constexpr int numEffects = 6;
+    static constexpr int numMacros = 4;
     // Number of voices
     static constexpr int numVoices = 8;
     // Base plugin size/visual tweaks
-    static constexpr int pluginSizeX = 900;
-    static constexpr int pluginSizeY = 720;
+    static constexpr int pluginSizeX = 1200;
+    static constexpr int pluginSizeY = 900;
     static constexpr float outerMargin = 0.005f;
     static constexpr float textBoxWidthFraction  = 1.0f; // Generally meaningless with our design.
     // knobDiameter and textboxheightfraction live in OAOColors.h now so end users can change them.

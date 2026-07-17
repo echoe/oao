@@ -9,9 +9,9 @@ struct CompactOperatorGroup : public juce::Component
     CompactOperatorGroup (juce::AudioProcessorValueTreeState& valueTreeState, int opIndex, OAOColors& c)
         : apvts (valueTreeState), opNum (juce::String (opIndex + 1)), colors (c)
     {
-        auto setupSlider = [this] (juce::Slider& slider, juce::Label& label, const juce::String& text, bool rotary)
+        auto setupSlider = [this] (juce::Slider& slider, juce::Label& label, const juce::String& text, bool opcontrol)
         {
-            slider.setSliderStyle (rotary ? juce::Slider::RotaryHorizontalVerticalDrag : juce::Slider::LinearVertical);
+            slider.setSliderStyle (opcontrol ? juce::Slider::LinearHorizontal : juce::Slider::LinearHorizontal); // bool to set different slider depending on if control is operator or envelope control
             slider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 40, 12);
             addAndMakeVisible (slider);
             
@@ -28,8 +28,8 @@ struct CompactOperatorGroup : public juce::Component
         setupSlider (sustainSlider, sustainLabel, "Sustain", false);
         setupSlider (releaseSlider, releaseLabel, "Release", false);
         // label operator
-        opHeaderLabel.setText ("OPERATOR " + opNum, juce::dontSendNotification);
-        opHeaderLabel.setFont (juce::FontOptions (13.0f, juce::Font::bold));
+        opHeaderLabel.setText (opNum, juce::dontSendNotification);
+        opHeaderLabel.setFont (juce::FontOptions (39.0f, juce::Font::bold));
         addAndMakeVisible (opHeaderLabel);
         // Letting us swap oscillator mode for easier operator control
         freqModeSelector.addItemList ({ "Std", "Sync", "Hz", "LFO" }, 1);
@@ -107,13 +107,14 @@ struct CompactOperatorGroup : public juce::Component
         float w          = static_cast<float> (area.getWidth());
         float h          = static_cast<float> (area.getHeight());
 
-        // --- LEFT COLUMN: header label + 3 stacked selectors ---
-        int leftColW  = juce::jmax (90, juce::roundToInt (w * 0.16f));
+        // --- LEFT COLUMN: Operator num on one side, 3 stacked selectors on right---
+	int opNumW = juce::jmax (70, juce::roundToInt (w * 0.03f));
+	auto opNum = area.removeFromLeft (opNumW);
+	opHeaderLabel.setBounds (opNum);
+        int leftColW  = juce::jmax (70, juce::roundToInt (w * 0.13f));
         auto leftCol  = area.removeFromLeft (leftColW);
 
-        opHeaderLabel.setBounds (leftCol.removeFromTop (juce::jmax (14, juce::roundToInt (h * 0.16f))));
-
-        int selectorH = juce::jmax (16, juce::roundToInt (h * 0.24f));
+        int selectorH = juce::jmax (16, juce::roundToInt (h * 0.33f));
         freqModeSelector.setBounds (leftCol.removeFromTop (selectorH).reduced (1));
         modeSelector.setBounds     (leftCol.removeFromTop (selectorH).reduced (1));
 
@@ -376,6 +377,115 @@ private:
     int sharedKnobTarget = 90; //default, overwritten in page
 };
 
+// --- ONE MACRO ROW: a single knob that drives two independent, user-picked targets at once ---
+struct MacroSlot : public juce::Component
+{
+    MacroSlot (juce::AudioProcessorValueTreeState& apvts, int macroIndex, OAOColors& c)
+        : colors (c)
+    {
+        juce::String s = juce::String (macroIndex + 1);
+
+        macroSlider.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
+        macroSlider.setRange (-1.0, 1.0, 0.001);
+        macroSlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 40, 14);
+        addAndMakeVisible (macroSlider);
+
+        macroLabel.setText ("Macro " + s, juce::dontSendNotification);
+        macroLabel.setJustificationType (juce::Justification::centred);
+        addAndMakeVisible (macroLabel);
+
+        // Two independent target dropdowns — turning the knob drives both at once
+        addAndMakeVisible (targetASelector);
+        addAndMakeVisible (targetBSelector);
+        ModChoices::buildTargetMenu (targetASelector);
+        ModChoices::buildTargetMenu (targetBSelector);
+
+        targetAAttach = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (
+            apvts, "MACRO_TGT_A_" + s, targetASelector);
+        targetBAttach = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (
+            apvts, "MACRO_TGT_B_" + s, targetBSelector);
+
+        targetALabel.setText ("Target A", juce::dontSendNotification);
+        targetALabel.setJustificationType (juce::Justification::centred);
+        addAndMakeVisible (targetALabel);
+
+        targetBLabel.setText ("Target B", juce::dontSendNotification);
+        targetBLabel.setJustificationType (juce::Justification::centred);
+        addAndMakeVisible (targetBLabel);
+
+        valAttach = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
+            apvts, "MACRO_VAL_" + s, macroSlider);
+    }
+
+    void paint (juce::Graphics& g) override
+    {
+        auto bounds = getLocalBounds().toFloat();
+        g.setColour (colors.background);
+        g.fillRoundedRectangle (bounds, 4.0f);
+
+        g.setColour (colors.text.withAlpha (0.15f));
+        g.drawRoundedRectangle (bounds.reduced (1.0f), 4.0f, 1.0f);
+    }
+
+    void resized() override
+    {
+        auto area = getLocalBounds().reduced (juce::roundToInt (getWidth() * 0.02f),
+                                               juce::roundToInt (getHeight() * 0.06f));
+
+        // Knob on the left, two stacked target dropdowns on the right
+        int knobW = juce::jmin (area.getWidth() / 3, area.getHeight());
+        auto knobArea = area.removeFromLeft (knobW);
+
+        int macroLabelH = juce::jmax (12, juce::roundToInt (getHeight() * 0.18f));
+        macroLabel.setBounds (knobArea.removeFromTop (macroLabelH));
+        macroSlider.setBounds (knobArea);
+
+        area.removeFromLeft (juce::roundToInt (getWidth() * 0.02f)); // gap
+
+        int rowH   = area.getHeight() / 2;
+        auto aRow  = area.removeFromTop (rowH);
+        auto bRow  = area;
+
+        int tagW = juce::jmax (50, juce::roundToInt (aRow.getWidth() * 0.22f));
+        targetALabel.setBounds    (aRow.removeFromLeft (tagW));
+        targetASelector.setBounds (aRow.reduced (2, juce::roundToInt (rowH * 0.12f)));
+
+        targetBLabel.setBounds    (bRow.removeFromLeft (tagW));
+        targetBSelector.setBounds (bRow.reduced (2, juce::roundToInt (rowH * 0.12f)));
+    }
+
+    void lookAndFeelChanged() override
+    {
+        juce::Component::lookAndFeelChanged();
+
+        macroLabel.setColour   (juce::Label::textColourId, colors.text);
+        targetALabel.setColour (juce::Label::textColourId, colors.text);
+        targetBLabel.setColour (juce::Label::textColourId, colors.text);
+
+        macroSlider.setColour (juce::Slider::textBoxBackgroundColourId, colors.surface);
+        macroSlider.setColour (juce::Slider::textBoxTextColourId, colors.text);
+
+        targetASelector.setColour (juce::ComboBox::backgroundColourId, colors.surface);
+        targetASelector.setColour (juce::ComboBox::textColourId, colors.text);
+        targetBSelector.setColour (juce::ComboBox::backgroundColourId, colors.surface);
+        targetBSelector.setColour (juce::ComboBox::textColourId, colors.text);
+
+        macroLabel.sendLookAndFeelChange();
+        targetALabel.sendLookAndFeelChange(); targetBLabel.sendLookAndFeelChange();
+        macroSlider.sendLookAndFeelChange();
+        targetASelector.sendLookAndFeelChange(); targetBSelector.sendLookAndFeelChange();
+    }
+
+private:
+    OAOColors& colors;
+    juce::Slider   macroSlider;
+    juce::Label    macroLabel, targetALabel, targetBLabel;
+    juce::ComboBox targetASelector, targetBSelector;
+
+    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>   valAttach;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> targetAAttach, targetBAttach;
+};
+
 // --- THE PARENT VIEW MANAGER CLASS ---
 class OperatorsPage : public juce::Component
 {
@@ -404,6 +514,12 @@ public:
             };
             addAndMakeVisible (*opModules.back());
         }
+
+        for (int i = 0; i < ProjectConfig::numMacros; ++i)
+        {
+            macroSlots.push_back (std::make_unique<MacroSlot> (apvts, i, colors));
+            addAndMakeVisible (*macroSlots.back());
+        }
     }
 
     void paint (juce::Graphics& g) override
@@ -420,12 +536,20 @@ public:
             if (module != nullptr)
                 module->lookAndFeelChanged();
         }
+
+        for (auto& macro : macroSlots)
+        {
+            if (macro != nullptr)
+                macro->lookAndFeelChanged();
+        }
     }
 
     void repaintAll()
     {
         for (auto& op : opModules)
             op->repaint();
+        for (auto& macro : macroSlots)
+            macro->repaint();
         repaint();
     }
 
@@ -435,9 +559,29 @@ public:
             juce::roundToInt (getWidth()  * ProjectConfig::outerMargin),
             juce::roundToInt (getHeight() * ProjectConfig::outerMargin));
 
-        int rows = 6;
+        int gap = juce::jmax (2, juce::roundToInt (getHeight() * 0.006f));
+
+        // --- Macro row: fixed height across the top, one column per macro ---
+        int macroRowHeight = juce::roundToInt (area.getHeight() * 0.09f);
+        auto macroRowArea  = area.removeFromTop (macroRowHeight);
+        area.removeFromTop (gap);
+
+        int numMacros  = static_cast<int> (macroSlots.size());
+        if (numMacros > 0)
+        {
+            int macroCellW = macroRowArea.getWidth() / numMacros;
+            int macroGap   = juce::jmax (1, gap / 2);
+            for (int i = 0; i < numMacros; ++i)
+            {
+                bool isLast = (i == numMacros - 1);
+                auto cell = macroRowArea.removeFromLeft (isLast ? macroRowArea.getWidth() : macroCellW);
+                if (! isLast) macroRowArea.removeFromLeft (macroGap);
+                macroSlots[i]->setBounds (cell);
+            }
+        }
+
+        int rows = ProjectConfig::numOperators;
         int cols = 1;
-        int gap     = juce::jmax (2, juce::roundToInt (getHeight() * 0.006f));
         int halfGap = juce::jmax (1, gap / 2);
         int cellWidth = area.getWidth() / cols;
         int cellHeight = area.getHeight() / rows;
@@ -445,12 +589,12 @@ public:
         // Computed from the true page dimensions (this component, not a per-row card)
         int sharedKnobTarget = juce::roundToInt (
             juce::jmin (getWidth(), getHeight()) * colors.knobDiameterFraction);
+	float sharedFontSize = static_cast<float>(cellHeight) * 0.4f;
         // Walk down to avoid weird sizing issues
 	auto remaining = area;
         for (int r = 0; r < rows; ++r)
         {
-            bool isLastRow = (r == rows - 1);
-            auto rowBounds = remaining.removeFromTop (isLastRow ? remaining.getHeight() : cellHeight);
+            auto rowBounds = remaining.removeFromTop (cellHeight);
 
             for (int c = 0; c < cols; ++c)
             {
@@ -461,8 +605,9 @@ public:
 
                     // Only inset the sides that actually face a neighboring card
                     // With cols == 1 there's never a horizontal neighbor, so no horizontal inset at all.
-                    int top    = (r == 0)       ? 0 : halfGap;
-                    int bottom = isLastRow       ? 0 : halfGap;
+                    // testing setting these to gap and not halGap
+		    int top    = halfGap;
+                    int bottom = halfGap;
                     cellBounds.removeFromTop (top);
                     cellBounds.removeFromBottom (bottom);
 
@@ -477,4 +622,5 @@ public:
 private:
     OAOColors& colors;
     std::vector<std::unique_ptr<CompactOperatorGroup>> opModules;
+    std::vector<std::unique_ptr<MacroSlot>> macroSlots;
 };

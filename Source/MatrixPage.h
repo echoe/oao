@@ -201,7 +201,7 @@ public:
             for (int i = 0; i < ProjectConfig::numOperators; ++i)
             {
                 auto* sl = outputSliders.add (new juce::Slider());
-                sl->setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
+                sl->setSliderStyle (juce::Slider::LinearHorizontal);
                 sl->setTextBoxStyle (juce::Slider::TextBoxBelow, false,
                     (int)(knobSize * ProjectConfig::textBoxWidthFraction), (int)(knobSize * colors.textBoxHeightFraction));
 		addAndMakeVisible (sl);
@@ -301,7 +301,7 @@ public:
 
         // Row/column labels for the NxN grid
         g.setColour (colors.text);
-	applyFont (juce::jmax (10.0f, labelH * 0.75f));
+	applyFont (juce::jmax (10.0f, labelH * 0.9f)); //increased from 0.75
         
         for (int i = 0; i < ProjectConfig::numOperators; ++i)
         {
@@ -314,7 +314,7 @@ public:
         
             // Column labels (top — "To Op N")
             int x = gridX + i * cellW;
-            g.drawText ("To Op " + juce::String (i + 1),
+            g.drawText ("> Op " + juce::String (i + 1),
                 x, gridY - (int)labelH,
                 cellW, (int)labelH,
                 juce::Justification::centred);
@@ -337,7 +337,7 @@ public:
         int btnMaxH = juce::jmax (10, static_cast<int> (labelH) - 4);
         int btnW = juce::jlimit (10, btnMaxW, static_cast<int> (cachedW * 0.05f));
         int btnH = juce::jlimit (10, btnMaxH, static_cast<int> (labelH * 0.7f));
-        resetButton.setBounds (btnX +10, btnY, btnW, btnH);
+        resetButton.setBounds (btnX +5, btnY, btnW, btnH); //moved just a bit
     
         int totalW       = area.getWidth();
         auto gridArea = area.removeFromLeft (juce::roundToInt (totalW * splitRatio));
@@ -378,13 +378,13 @@ public:
 		if (auto* lb = outputLabels[i])
                 {
 		    auto labelCell = cell.removeFromLeft (labelW);
-		    int outLabelH = juce::jlimit (12, juce::roundToInt (cellH * 0.3f), juce::roundToInt (knobSize * colors.textBoxHeightFraction));
+		    int outLabelH = juce::jlimit (12, juce::roundToInt (cellH * 0.5f), juce::roundToInt (knobSize * colors.textBoxHeightFraction)); // 0.3 > 0.5
                     lb->setBounds (labelCell.withSizeKeepingCentre (labelCell.getWidth(), outLabelH));
                 }
                 if (auto* sl = outputSliders[i])
                 {
                     sl->setTextBoxStyle (juce::Slider::TextBoxBelow, false,
-                                         cell.getWidth(), juce::roundToInt (cellH * 0.25f));
+                                         cell.getWidth(), juce::roundToInt (cellH * 0.5f)); // 0.25 > 0.5
                     sl->setBounds (cell);
                 }
             }

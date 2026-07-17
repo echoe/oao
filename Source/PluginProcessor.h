@@ -29,8 +29,11 @@ struct FXModLFO
         waveParam  = apvts.getRawParameterValue ("FX_LFO_WAVE_"  + s);
         syncParam  = apvts.getRawParameterValue ("FX_LFO_SYNC_"  + s);
         tgtParam   = apvts.getRawParameterValue ("FX_LFO_TGT_"   + s);
+        depthParam2 = apvts.getRawParameterValue ("FX_LFO_DEPTH2_" + s);
+        tgtParam2   = apvts.getRawParameterValue ("FX_LFO_TGT2_"   + s);
         jassert (rateParam != nullptr && depthParam != nullptr &&
-                 waveParam != nullptr && syncParam  != nullptr && tgtParam != nullptr);
+                 waveParam != nullptr && syncParam  != nullptr && tgtParam != nullptr &&
+                 depthParam2 != nullptr && tgtParam2 != nullptr);
     }
 
     // Advance phase by one sample and return LFO output scaled by depth.
@@ -89,28 +92,39 @@ struct FXModLFO
                 raw = std::sin (fPhase);
                 break;
         }
-        float result = raw * depth;
-        lastOutput = result;  // ← store it
-        return result;
+        float depthB = depthParam2 != nullptr ? depthParam2->load (std::memory_order_relaxed) : 0.0f;
+        outputA = raw * depth;
+        outputB = raw * depthB;
+        lastOutput = outputA;  // ← preserved: used elsewhere as this LFO's "source" value
+        return outputA;
     }
 
     float getLastOutput() const { return lastOutput; }
+    // Scaled outputs for destination A (original depth) and destination B (second depth)
+    float getOutputA() const { return outputA; }
+    float getOutputB() const { return outputB; }
 
     // Returns encoded target: -1 for None, otherwise (fxSlot * 5 + fxParam)
     // fxSlot = result/5, fxParam = result%5  (0=Ratio, 1=Detune, 2=Phase, 3=Fold, 4=Level)
-    int getTarget() const
-    {
-        if (tgtParam == nullptr) return -1;
-        int tgtIdx = static_cast<int> (tgtParam->load (std::memory_order_relaxed));
-        int fxBase = tgtIdx - 1; // index 0 = None, 1 = "FX 1 Ratio", etc.
-        if (fxBase < 0 || fxBase >= 15) return -1;
-        return fxBase;
-    }
+    int getTarget() const { return decodeTarget (tgtParam); }
+    int getTarget2() const { return decodeTarget (tgtParam2); }
 
     bool isPrepared() const { return rateParam != nullptr; }
 
 private:
+    int decodeTarget (std::atomic<float>* param) const
+    {
+        if (param == nullptr) return -1;
+        int tgtIdx = static_cast<int> (param->load (std::memory_order_relaxed));
+        int fxBase = tgtIdx - 1; // index 0 = None, 1 = "FX 1 Ratio", etc.
+        const int maxFxBase = ProjectConfig::numEffects * ProjectConfig::numFxParams;
+        if (fxBase < 0 || fxBase >= maxFxBase) return -1;
+        return fxBase;
+    }
+
     float lastOutput = 0.0f;
+    float outputA = 0.0f;
+    float outputB = 0.0f;
     double phase = 0.0;
     double currentSampleRate = 44100.0;
     std::atomic<float>* rateParam  = nullptr;
@@ -119,6 +133,8 @@ private:
     std::atomic<float>* waveParam  = nullptr;
     std::atomic<float>* syncParam  = nullptr;
     std::atomic<float>* tgtParam   = nullptr;
+    std::atomic<float>* depthParam2 = nullptr;
+    std::atomic<float>* tgtParam2   = nullptr;
 };
 
 class FMPluginAudioProcessor  : public juce::AudioProcessor

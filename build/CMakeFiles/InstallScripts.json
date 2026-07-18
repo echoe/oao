@@ -1,0 +1,11 @@
+{
+	"InstallScripts" : 
+	[
+		"/Users/irisfelshman/Downloads/oao 3/build/cmake_install.cmake",
+		"/Users/irisfelshman/Downloads/oao 3/build/JUCE/cmake_install.cmake",
+		"/Users/irisfelshman/Downloads/oao 3/build/JUCE/modules/cmake_install.cmake",
+		"/Users/irisfelshman/Downloads/oao 3/build/JUCE/extras/Build/cmake_install.cmake",
+		"/Users/irisfelshman/Downloads/oao 3/build/JUCE/extras/Build/juceaide/cmake_install.cmake"
+	],
+	"Parallel" : false
+}

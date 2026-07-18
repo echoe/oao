@@ -139,6 +139,11 @@ juce::AudioProcessorValueTreeState::ParameterLayout FMPluginAudioProcessor::crea
             juce::ParameterID { "FX_LFO_DEPTH_" + s, 1 }, "FX LFO " + s + " Depth", -1.0f, 1.0f, 0.0f));
         params.push_back (std::make_unique<juce::AudioParameterChoice> (
             juce::ParameterID { "FX_LFO_TGT_" + s, 1 }, "FX LFO " + s + " Target", lfoTargetChoices, 0));
+        // Second, independent destination — lets one LFO modulate two places at once
+        params.push_back (std::make_unique<juce::AudioParameterFloat> (
+            juce::ParameterID { "FX_LFO_DEPTH2_" + s, 1 }, "FX LFO " + s + " Depth B", -1.0f, 1.0f, 0.0f));
+        params.push_back (std::make_unique<juce::AudioParameterChoice> (
+            juce::ParameterID { "FX_LFO_TGT2_" + s, 1 }, "FX LFO " + s + " Target B", lfoTargetChoices, 0));
     }
 
     // Generate Modulation Matrix Nodes (NxN Grid)
@@ -181,6 +186,29 @@ juce::AudioProcessorValueTreeState::ParameterLayout FMPluginAudioProcessor::crea
             "Mod Amount " + s, -1.0f, 1.0f, 0.0f));
     }
     
+    // --- MACROS: each has one bipolar knob and up to numMacroTargets independent
+    // targets, each with its own amount knob controlling how strongly the macro
+    // drives that particular destination. ---
+    auto macroTargetChoices = ModChoices::targets();
+    static const char* macroLetters[] = { "A", "B", "C", "D" };
+    for (int m = 1; m <= ProjectConfig::numMacros; ++m)
+    {
+        juce::String s = juce::String (m);
+        params.push_back (std::make_unique<juce::AudioParameterFloat> (
+            juce::ParameterID { "MACRO_VAL_" + s, 1 }, "Macro " + s + " Value", -1.0f, 1.0f, 0.0f));
+
+        for (int t = 0; t < ProjectConfig::numMacroTargets; ++t)
+        {
+            juce::String letter = macroLetters[t];
+            params.push_back (std::make_unique<juce::AudioParameterChoice> (
+                juce::ParameterID { "MACRO_TGT_" + letter + "_" + s, 1 },
+                "Macro " + s + " Target " + letter, macroTargetChoices, 0));
+            params.push_back (std::make_unique<juce::AudioParameterFloat> (
+                juce::ParameterID { "MACRO_AMT_" + letter + "_" + s, 1 },
+                "Macro " + s + " Amount " + letter, -1.0f, 1.0f, 1.0f));
+        }
+    }
+
     // Gain
     params.push_back (std::make_unique<juce::AudioParameterFloat> (
     juce::ParameterID { "GAIN_CEIL", 1 }, "Gain Ceiling", juce::NormalisableRange<float> (-24.0f, 0.0f, 0.1f),-0.2f)); // Ranges from -24dB to 0dB, default at -0.2dB
@@ -414,36 +442,41 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
             float baseMix    = juce::jlimit (0.0f, 1.0f,
                                              fxMixParams[slot]->load (std::memory_order_relaxed) + fxLevelModSum[slot]);
 
-            // Determine which LFO (if any) targets this slot, and which param
-            int lfoTargetParam = -1;
-            int lfoIndex       = -1;
+            // Determine which LFO destinations (if any) land on this slot. Each LFO has
+            // two independent targets (A/B), so both are checked and any number of them
+            // may point at the same slot — their contributions are summed.
+            struct LfoContribution { int lfoIndex; bool useB; int paramIdx; };
+            LfoContribution contributions[ProjectConfig::numEffects * 2];
+            int numContributions = 0;
             for (int lfo = 0; lfo < ProjectConfig::numEffects; ++lfo)
             {
-                int t = fxLfo[lfo].getTarget();
-                if (t >= 0 && t / 5 == slot)
-                {
-                    lfoTargetParam = t % 5;
-                    lfoIndex       = lfo;
-                    break; // one LFO per slot for now
-                }
+                int tA = fxLfo[lfo].getTarget();
+                if (tA >= 0 && tA / ProjectConfig::numFxParams == slot)
+                    contributions[numContributions++] = { lfo, false, tA % ProjectConfig::numFxParams };
+
+                int tB = fxLfo[lfo].getTarget2();
+                if (tB >= 0 && tB / ProjectConfig::numFxParams == slot)
+                    contributions[numContributions++] = { lfo, true, tB % ProjectConfig::numFxParams };
             }
 
             for (int i = 0; i < numSamples; ++i)
             {
-                // Tick the LFO once per sample and apply to the right parameter
-                float lfoOutputs[ProjectConfig::numEffects]; // is this necessary?
+                // Tick every LFO once per sample so their phases stay in lockstep
                 for (int lfo = 0; lfo < ProjectConfig::numEffects; ++lfo)
-                    lfoOutputs[lfo] = fxLfo[lfo].tick(activeBPM);
+                    fxLfo[lfo].tick (activeBPM);
+
                 float ratio  = baseRatio;
                 float detune = baseDetune;
                 float phase  = basePhase;
                 float fold   = baseFold;
                 float mix    = baseMix;
 
-                if (lfoIndex >= 0)
+                for (int c = 0; c < numContributions; ++c)
                 {
-                    float lfoVal = lfoOutputs[lfoIndex];
-                    switch (lfoTargetParam)
+                    const auto& contrib = contributions[c];
+                    float lfoVal = contrib.useB ? fxLfo[contrib.lfoIndex].getOutputB()
+                                                 : fxLfo[contrib.lfoIndex].getOutputA();
+                    switch (contrib.paramIdx)
                     {
                         case 0: ratio  += lfoVal * 16.0f;  break; // ratio range ~0-16
                         case 1: detune += lfoVal * 50.0f;  break; // detune range -50 to +50

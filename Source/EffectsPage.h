@@ -29,11 +29,14 @@ public:
 
         // Target selector. Effects if effects-only, otherwise full list
 	addAndMakeVisible(targetSelector);
+        addAndMakeVisible(targetSelector2);
         #ifndef OAO_FX_ONLY
         buildTargetMenu();
         #else
 	targetSelector.addItemList (ModChoices::fxtargets(), 1);
         targetSelector.setSelectedId (1, juce::dontSendNotification);
+        targetSelector2.addItemList (ModChoices::fxtargets(), 1);
+        targetSelector2.setSelectedId (1, juce::dontSendNotification);
         #endif
 
         // Sync button
@@ -54,19 +57,29 @@ public:
         rateLabel.setJustificationType (juce::Justification::centred);
         addAndMakeVisible (rateLabel);
 
-        // Depth knob
+        // Depth knob (destination A)
         depthSlider.setSliderStyle (juce::Slider::LinearHorizontal);
         depthSlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 0, 0);
         addAndMakeVisible (depthSlider);
-        depthLabel.setText ("Depth", juce::dontSendNotification);
+        depthLabel.setText ("Depth A", juce::dontSendNotification);
         depthLabel.setJustificationType (juce::Justification::centred);
         addAndMakeVisible (depthLabel);
+
+        // Depth knob (destination B) — second, independent target
+        depthSlider2.setSliderStyle (juce::Slider::LinearHorizontal);
+        depthSlider2.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 0, 0);
+        addAndMakeVisible (depthSlider2);
+        depthLabel2.setText ("Depth B", juce::dontSendNotification);
+        depthLabel2.setJustificationType (juce::Justification::centred);
+        addAndMakeVisible (depthLabel2);
 
         // APVTS attachments
         waveAttach   = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (
             apvts, "FX_LFO_WAVE_"  + s, waveSelector);
         targetAttach = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (
             apvts, "FX_LFO_TGT_"   + s, targetSelector);
+        targetAttach2 = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (
+            apvts, "FX_LFO_TGT2_"  + s, targetSelector2);
         syncAttach   = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (
             apvts, "FX_LFO_SYNC_"  + s, syncButton);
         rateAttach   = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
@@ -75,6 +88,8 @@ public:
             apvts, "FX_LFO_RATE_SYNC_" + s, rateSyncSlider);
         depthAttach  = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
             apvts, "FX_LFO_DEPTH_" + s, depthSlider);
+        depthAttach2 = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
+            apvts, "FX_LFO_DEPTH2_" + s, depthSlider2);
 
         // Swap knob visibility
         syncButton.onClick = [this]() 
@@ -90,6 +105,7 @@ public:
     void buildTargetMenu()
     {
         ModChoices::buildTargetMenu (targetSelector);
+        ModChoices::buildTargetMenu (targetSelector2);
     }
 
     void paint (juce::Graphics& g) override
@@ -109,11 +125,14 @@ public:
         label.setColour      (juce::Label::textColourId, colors.text);
         rateLabel.setColour  (juce::Label::textColourId, colors.text);
         depthLabel.setColour (juce::Label::textColourId, colors.text);
+        depthLabel2.setColour (juce::Label::textColourId, colors.text);
 
         waveSelector.setColour   (juce::ComboBox::backgroundColourId, colors.surface);
         waveSelector.setColour   (juce::ComboBox::textColourId,       colors.text);
         targetSelector.setColour (juce::ComboBox::backgroundColourId, colors.surface);
         targetSelector.setColour (juce::ComboBox::textColourId,       colors.text);
+        targetSelector2.setColour (juce::ComboBox::backgroundColourId, colors.surface);
+        targetSelector2.setColour (juce::ComboBox::textColourId,       colors.text);
 
         rateSlider.setColour  (juce::Slider::textBoxBackgroundColourId, colors.surface);
         rateSlider.setColour  (juce::Slider::textBoxTextColourId,       colors.text);
@@ -121,12 +140,16 @@ public:
         rateSyncSlider.setColour  (juce::Slider::textBoxTextColourId,       colors.text);
         depthSlider.setColour (juce::Slider::textBoxBackgroundColourId, colors.surface);
         depthSlider.setColour (juce::Slider::textBoxTextColourId,       colors.text);
+        depthSlider2.setColour (juce::Slider::textBoxBackgroundColourId, colors.surface);
+        depthSlider2.setColour (juce::Slider::textBoxTextColourId,       colors.text);
 
         waveSelector.sendLookAndFeelChange();
         targetSelector.sendLookAndFeelChange();
+        targetSelector2.sendLookAndFeelChange();
         rateSlider.sendLookAndFeelChange();
         rateSyncSlider.sendLookAndFeelChange();
         depthSlider.sendLookAndFeelChange();
+        depthSlider2.sendLookAndFeelChange();
     }
 
     void resized() override
@@ -135,20 +158,21 @@ public:
                                                juce::roundToInt (getHeight() * 0.03f));
 
         // Top row: label | wave selector | sync button
-        auto topRow = area.removeFromTop (juce::roundToInt (getHeight() * 0.24f));
+        auto topRow = area.removeFromTop (juce::roundToInt (getHeight() * 0.20f));
         label.setBounds        (topRow.removeFromLeft  (juce::roundToInt (topRow.getWidth() * 0.20f)));
         syncButton.setBounds   (topRow.removeFromRight (juce::roundToInt (topRow.getWidth() * 0.28f)).reduced (2));
         waveSelector.setBounds (topRow.reduced (2));
 
-        // Middle row: target selector (full width) — no separate gap row, just a small inset
-        targetSelector.setBounds (area.removeFromTop (juce::roundToInt (getHeight() * 0.24f)).reduced (2, 1));
+        // Target A / Target B selectors (full width, stacked) — two independent destinations
+        targetSelector.setBounds  (area.removeFromTop (juce::roundToInt (getHeight() * 0.18f)).reduced (2, 1));
+        targetSelector2.setBounds (area.removeFromTop (juce::roundToInt (getHeight() * 0.18f)).reduced (2, 1));
 
-        // Bottom row: Rate slider | Depth slider, label-above, value-below each
-        int textBoxW = juce::jmax (30, juce::roundToInt (getWidth()  * 0.4f));
+        // Bottom row: Rate | Depth A | Depth B, label-above, value-below each
+        int textBoxW = juce::jmax (26, juce::roundToInt (getWidth()  * 0.28f));
         int textBoxH = juce::jmax (12, juce::roundToInt (getHeight() * 0.2f));
         int labelH   = juce::jmax (10, juce::roundToInt (getHeight() * 0.16f));
         int trackH   = juce::jlimit (4, 18, area.getHeight() - labelH - textBoxH);
-        int knobW    = area.getWidth() / 2;
+        int knobW    = area.getWidth() / 3;
 
         auto rateArea = area.removeFromLeft (knobW);
         rateLabel.setBounds (rateArea.removeFromTop (labelH));
@@ -157,9 +181,15 @@ public:
         rateSyncSlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, textBoxW, textBoxH);
         rateSyncSlider.setBounds (rateSlider.getBounds()); //put in the same place for swapping
 
-        depthLabel.setBounds (area.removeFromTop (labelH));
+        auto depthAArea = area.removeFromLeft (knobW);
+        depthLabel.setBounds (depthAArea.removeFromTop (labelH));
         depthSlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, textBoxW, textBoxH);
-        depthSlider.setBounds (area.removeFromTop (trackH + textBoxH).reduced (2, 0));
+        depthSlider.setBounds (depthAArea.removeFromTop (trackH + textBoxH).reduced (2, 0));
+
+        auto depthBArea = area;
+        depthLabel2.setBounds (depthBArea.removeFromTop (labelH));
+        depthSlider2.setTextBoxStyle (juce::Slider::TextBoxBelow, false, textBoxW, textBoxH);
+        depthSlider2.setBounds (depthBArea.removeFromTop (trackH + textBoxH).reduced (2, 0));
     }
 
 private:
@@ -167,15 +197,15 @@ private:
 
     juce::Label      label;
     juce::ComboBox   waveSelector;
-    juce::ComboBox   targetSelector;
+    juce::ComboBox   targetSelector, targetSelector2;
     juce::TextButton syncButton;
-    juce::Slider     rateSlider,  depthSlider, rateSyncSlider;
-    juce::Label      rateLabel,   depthLabel;
+    juce::Slider     rateSlider,  depthSlider, depthSlider2, rateSyncSlider;
+    juce::Label      rateLabel,   depthLabel,  depthLabel2;
 
     std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> waveAttach;
-    std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> targetAttach;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> targetAttach, targetAttach2;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment>   syncAttach;
-    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>   rateAttach, depthAttach, rateSyncAttach;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>   rateAttach, depthAttach, depthAttach2, rateSyncAttach;
 };
 
 // Effects slot - we make these to show the effects

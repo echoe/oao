@@ -358,10 +358,14 @@ void FMVoice::renderNextBlock (juce::AudioBuffer<float>& outputBuffer, int start
             for (int src = 0; src < ProjectConfig::numOperators; ++src)
             {
                 // matrixParams/matrixModOffsets live in a normalized 0..1 "how much FM"
-                // space; maxFmModulationIndex converts that into the actual phase-modulation
-                // index, so 1.0 always means "maximum DX7-style FM depth" regardless of source.
+                // space; the depth ceiling converts that into the actual phase-modulation
+                // index. Self-feedback (src==dest) gets its own, lower ceiling since it's a
+                // recursive loop that saturates well before regular FM does — see
+                // maxFmSelfFeedbackIndex.
+                float depthCeiling = (src == dest) ? ProjectConfig::maxFmSelfFeedbackIndex
+                                                    : ProjectConfig::maxFmModulationIndex;
                 float modDepth = (safeLoad(matrixParams[src][dest]) + matrixModOffsets[src][dest])
-                                    * ProjectConfig::maxFmModulationIndex;
+                                    * depthCeiling;
                 if (modDepth > 0.0f)
                 {
                     float modSignal = (src == dest) ? (lastOpOutputs[src] + previousOpOutputs[src]) * 0.5f : lastOpOutputs[src];

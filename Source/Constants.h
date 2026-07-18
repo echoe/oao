@@ -34,6 +34,13 @@ namespace ProjectConfig
     // ceiling (this is a simplification of the DX7's exponential level curve, not a
     // byte-for-byte recreation of it).
     static constexpr float maxFmModulationIndex = 8.0f * juce::MathConstants<float>::pi; // ~25.13
+
+    // Self-feedback (an operator modulating itself) is a recursive loop, not plain
+    // modulator->carrier FM — being periodic in 2*pi, it saturates into a harsh, roughly
+    // static waveshape well before maxFmModulationIndex, so most of a 0..1 knob's travel
+    // would do almost nothing audible past that point. Giving it its own, lower ceiling
+    // keeps the full knob throw meaningful (clean -> buzzy -> saturated).
+    static constexpr float maxFmSelfFeedbackIndex = 2.0f * juce::MathConstants<float>::pi; // ~6.28
     // Number of voices
     static constexpr int numVoices = 8;
     // Base plugin size/visual tweaks

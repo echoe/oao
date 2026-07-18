@@ -447,9 +447,9 @@ struct MacroSlot : public juce::Component
 
         int numTargets = ProjectConfig::numMacroTargets;
         int rowH = area.getHeight() / numTargets;
-        int tagW = juce::jmax (44, juce::roundToInt (area.getWidth() * 0.04f));
-        int amtTextW = juce::jmax (32, juce::roundToInt (area.getWidth() * 0.10f));
-        int amtW = juce::jmax (amtTextW * 2, juce::roundToInt (area.getWidth() * 0.36f));
+        int tagW = juce::jmax (18, juce::roundToInt (area.getWidth() * 0.06f));
+        int amtTextW = juce::jmax (32, juce::roundToInt (area.getWidth() * 0.13f));
+        int amtW = juce::jmax (amtTextW * 2, juce::roundToInt (area.getWidth() * 0.38f));
 
         for (int t = 0; t < numTargets; ++t)
         {

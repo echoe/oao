@@ -5,13 +5,42 @@
 namespace ProjectConfig
 {
     // Operator count, mod slots, effects, operator parameters, effect parameters
-    static constexpr int numOperators = 10;
+    static constexpr int numOperators = 12;
     static constexpr int numOpParams = 5;
     static constexpr int numFxParams = 5;
     static constexpr int numModSlots = 6;
     static constexpr int numEffects = 6;
     static constexpr int numMacros = 4;
     static constexpr int numMacroTargets = 4; // targets per macro (A/B/C/D), each with its own amount
+
+    // --- Unified modulation depth ---
+    // Every modulation source (mod matrix, macros) produces a signal roughly bounded
+    // to -1..1. Rather than adding that directly in each target's raw parameter units
+    // (which made "amount = 1.0" mean wildly different things — instant clipping on
+    // Fold, barely audible on Phase), we scale by a per-target "full swing" range so an
+    // amount of 1.0 always means "a full, musically useful swing" no matter what it's
+    // pointed at. Index order matches operator/FX param layout: 0=Ratio,1=Detune,2=Phase,3=Fold,4=Level/Mix
+    static constexpr float modRangeForParam[5] = { 4.0f, 20.0f, 180.0f, 1.0f, 1.0f };
+
+    // FM matrix cells live in a 0..1 "how much FM" space (see maxFmModulationIndex
+    // below), so a full-swing modulator can move a cell across its whole usable range.
+    static constexpr float modRangeForMatrixCell = 1.0f;
+
+    // --- DX7-style FM depth ---
+    // FM matrix cell parameters (MOD_src_dest) are normalized 0..1, where 1.0 is the
+    // maximum useful modulation index — matching classic DX7-style FM, where the
+    // modulator's output level tops out at the brightest practical FM depth rather
+    // than an arbitrary raw number. ~8*pi is the commonly used approximation for that
+    // ceiling (this is a simplification of the DX7's exponential level curve, not a
+    // byte-for-byte recreation of it).
+    static constexpr float maxFmModulationIndex = 8.0f * juce::MathConstants<float>::pi; // ~25.13
+
+    // Self-feedback (an operator modulating itself) is a recursive loop, not plain
+    // modulator->carrier FM — being periodic in 2*pi, it saturates into a harsh, roughly
+    // static waveshape well before maxFmModulationIndex, so most of a 0..1 knob's travel
+    // would do almost nothing audible past that point. Giving it its own, lower ceiling
+    // keeps the full knob throw meaningful (clean -> buzzy -> saturated).
+    static constexpr float maxFmSelfFeedbackIndex = 2.0f * juce::MathConstants<float>::pi; // ~6.28
     // Number of voices
     static constexpr int numVoices = 8;
     // Base plugin size/visual tweaks

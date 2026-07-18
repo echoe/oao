@@ -153,7 +153,9 @@ juce::AudioProcessorValueTreeState::ParameterLayout FMPluginAudioProcessor::crea
         {
             juce::String paramID = "MOD_" + juce::String (src) + "_" + juce::String (dest);
             juce::String name = "Mod Op " + juce::String (src + 1) + " -> Op " + juce::String (dest + 1);
-            params.push_back (std::make_unique<juce::AudioParameterFloat> (juce::ParameterID {paramID, 1}, name, 0.0f, 10.0f, 0.0f));
+            // DX7-style: 0..1, where 1.0 is the maximum useful FM depth (see
+            // ProjectConfig::maxFmModulationIndex, applied where this is consumed).
+            params.push_back (std::make_unique<juce::AudioParameterFloat> (juce::ParameterID {paramID, 1}, name, 0.0f, 1.0f, 0.0f));
         }
     }
 
@@ -478,9 +480,11 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
                                                  : fxLfo[contrib.lfoIndex].getOutputA();
                     switch (contrib.paramIdx)
                     {
-                        case 0: ratio  += lfoVal * 16.0f;  break; // ratio range ~0-16
-                        case 1: detune += lfoVal * 50.0f;  break; // detune range -50 to +50
-                        case 2: phase  += lfoVal * 360.0f; break; // phase range 0-360
+                        // Same "1.0 = full musical swing" convention used everywhere else
+                        // (mod matrix, macros) — see ProjectConfig::modRangeForParam.
+                        case 0: ratio  += lfoVal * ProjectConfig::modRangeForParam[0]; break;
+                        case 1: detune += lfoVal * ProjectConfig::modRangeForParam[1]; break;
+                        case 2: phase  += lfoVal * ProjectConfig::modRangeForParam[2]; break;
                         case 3: fold   += lfoVal;          break; // fold range 0-1
                         case 4: mix     = juce::jlimit (0.0f, 1.0f, mix + lfoVal); break; // mix 0-1
                         default: break;

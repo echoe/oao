@@ -252,28 +252,30 @@ void FMVoice::renderNextBlock (juce::AudioBuffer<float>& outputBuffer, int start
             {
                 int opIdx    = (tgtIdx - 1) / ProjectConfig::numOpParams;
                 int paramIdx = (tgtIdx - 1) % ProjectConfig::numOpParams;
+                float scaled = srcSignal * ProjectConfig::modRangeForParam[paramIdx];
 
                 switch (paramIdx)
                 {
-                    case 0: ratioModOffsets[opIdx]  += srcSignal; break;
-                    case 1: detuneModOffsets[opIdx] += srcSignal; break;
-                    case 2: phaseModOffsets[opIdx]  += srcSignal; break;
-                    case 3: foldModOffsets[opIdx]   += srcSignal; break;
-                    case 4: levelModOffsets[opIdx]  += srcSignal; break;
+                    case 0: ratioModOffsets[opIdx]  += scaled; break;
+                    case 1: detuneModOffsets[opIdx] += scaled; break;
+                    case 2: phaseModOffsets[opIdx]  += scaled; break;
+                    case 3: foldModOffsets[opIdx]   += scaled; break;
+                    case 4: levelModOffsets[opIdx]  += scaled; break;
                 }
             }
             else if (tgtIdx >= fxTargetStart && tgtIdx <= fxTargetEnd) //effects
             {
                 int fxIdx    = (tgtIdx - fxTargetStart) / ProjectConfig::numFxParams;
                 int paramIdx = (tgtIdx - fxTargetStart) % ProjectConfig::numFxParams;
+                float scaled = srcSignal * ProjectConfig::modRangeForParam[paramIdx];
 
                 switch (paramIdx)
                 {
-                    case 0: fxRatioMods[fxIdx].store  (fxRatioMods[fxIdx].load()  + srcSignal); break;
-                    case 1: fxDetuneMods[fxIdx].store (fxDetuneMods[fxIdx].load() + srcSignal); break;
-                    case 2: fxPhaseMods[fxIdx].store  (fxPhaseMods[fxIdx].load()  + srcSignal); break;
-                    case 3: fxFoldMods[fxIdx].store   (fxFoldMods[fxIdx].load()   + srcSignal); break;
-                    case 4: fxLevelMods[fxIdx].store  (fxLevelMods[fxIdx].load()  + srcSignal); break;
+                    case 0: fxRatioMods[fxIdx].store  (fxRatioMods[fxIdx].load()  + scaled); break;
+                    case 1: fxDetuneMods[fxIdx].store (fxDetuneMods[fxIdx].load() + scaled); break;
+                    case 2: fxPhaseMods[fxIdx].store  (fxPhaseMods[fxIdx].load()  + scaled); break;
+                    case 3: fxFoldMods[fxIdx].store   (fxFoldMods[fxIdx].load()   + scaled); break;
+                    case 4: fxLevelMods[fxIdx].store  (fxLevelMods[fxIdx].load()  + scaled); break;
                 }
             }
             else if (tgtIdx >= matrixTargetStart && tgtIdx <= matrixTargetEnd) //mod matrix
@@ -282,8 +284,9 @@ void FMVoice::renderNextBlock (juce::AudioBuffer<float>& outputBuffer, int start
                 int src       = matrixIdx / ProjectConfig::numOperators;         // dynamic division based on operator count
                 int dst       = matrixIdx % ProjectConfig::numOperators;         // dynamic modulo based on operator count
 
-                // Accumulate into a separate modulation array
-                matrixModOffsets[src][dst] += srcSignal;
+                // Accumulate into a separate modulation array (0..1 "how much FM" space —
+                // see maxFmModulationIndex where this is actually consumed)
+                matrixModOffsets[src][dst] += srcSignal * ProjectConfig::modRangeForMatrixCell;
             }
         };
 
@@ -354,11 +357,15 @@ void FMVoice::renderNextBlock (juce::AudioBuffer<float>& outputBuffer, int start
 
             for (int src = 0; src < ProjectConfig::numOperators; ++src)
             {
-                float modIndex = safeLoad(matrixParams[src][dest]) + matrixModOffsets[src][dest];
-                if (modIndex > 0.0f)
+                // matrixParams/matrixModOffsets live in a normalized 0..1 "how much FM"
+                // space; maxFmModulationIndex converts that into the actual phase-modulation
+                // index, so 1.0 always means "maximum DX7-style FM depth" regardless of source.
+                float modDepth = (safeLoad(matrixParams[src][dest]) + matrixModOffsets[src][dest])
+                                    * ProjectConfig::maxFmModulationIndex;
+                if (modDepth > 0.0f)
                 {
                     float modSignal = (src == dest) ? (lastOpOutputs[src] + previousOpOutputs[src]) * 0.5f : lastOpOutputs[src];
-                    modulationSum += modSignal * modIndex;
+                    modulationSum += modSignal * modDepth;
                 }
 
                 float audioGain = safeLoad(audioMatrixParams[src][dest]); 

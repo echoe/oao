@@ -5,7 +5,7 @@
 namespace ProjectConfig
 {
     // Operator count, mod slots, effects, operator parameters, effect parameters
-    static constexpr int numOperators = 12;
+    static constexpr int numOperators = 10;
     static constexpr int numOpParams = 5;
     static constexpr int numFxParams = 5;
     static constexpr int numModSlots = 6;

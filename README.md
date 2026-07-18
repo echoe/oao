@@ -2,10 +2,14 @@
 
 <img src=https://raw.githubusercontent.com/echoe/oao/refs/heads/main/pictures/operators.png width="450" height="360" />
 
-This is a six-operator FM synthesizer/effects unit, where the operators do everything. It's open source, written in C++ using the JUCE framework and a lot of AI help.
-(yes, it's really Phase Modulation, but look. You can do FM if you really want with the mod matrix. Anyways, it's close enough.)
+This is a twelve-operator FM synthesizer/effects unit, where the operators do everything. It's open source, written in C++ using the JUCE framework and a lot of AI help.
+Notes:
+-Yes, AI was used to help write this synth. I've put a lot of time into it but without AI it would not exist.
+-Yes, it's really Phase Modulation. ... But look, you can do FM if you really want. Anyways, it's close enough! Done
 
-Thanks to both Six Sines and to the Korg Opsix for some of the inspiration behind this synth :) I've sort of just liberally taken from stuff to make something approximating the VST of my dreams.
+Thanks to Six Sines, the Korg Opsix, and the Minifreak for some of the inspiration behind this synth :) I've sort of just liberally taken from stuff that I really like using in order to make something approximating the VST of my dreams.
+
+Let's walk through the features of the synth in order of when you'll see them:
 
 ## Preset Bar
 
@@ -38,6 +42,8 @@ This picks the number of voices in the synth. This defauts to 8 but you can go f
 ### Gain
 If you're using randomization you may want to turn the gain down as a precaution! Don't go deaf!!! It's easy for things to get too wild. I've tried to moderate that and haven't made all audio from my computer break for a while, but this is a freeware VST made by one developer and AI, so, uh, no guarantees.
 
+## Macros
+There are too many operators so we've added macros so that you can control several controls at once. They're right there in the front of the operators page; changing them should be pretty straightforwards.
 
 ## Operator types
 
@@ -68,7 +74,7 @@ Additional Notes:
 - Odd/Even: Emphasizes either odd or even partials.
 
 Additional Notes:
-- It's a 32-partial additive oscillator, if you were wondering! I thought about it and it made the most sense to me just for CPU usage reasons. But IDK, maybe it's fine to be 32 or 64? You can change this to however many partials you want and build it yourself, just change 'numPartials' in 'FMOperator.h' and rebuild the synth yourself :)
+- It's a 32-partial additive oscillator, if you were wondering! I thought about it and it made the most sense to me just for CPU usage reasons. YMMV of course! Easily changeable in the code, if you want.
 
 ### Sample
 - Import an audio file, and modify it with the effects/route it just like everything else. Initially I wanted to pass audio through the plugin but that's a giant pain for multiple reasons and JUCE has this built in so it's very easy to implement!
@@ -93,7 +99,7 @@ Additional Notes:
 #### Comb
 - Options: Cutoff, Resonance, Keytrack, Feedback
 - This is modeled after the Comb effect on the Korg Opsix as described here: https://www.icemoonprison.com/blog/archives/579
-- As such, you can use this for physical modeling.
+- As such, you can use this for physical modeling. This is maybe 80% of why you can make an operator an effect and route the audio/everything else.
 #### Formant
 - Options: Vowel, Nasal, Vowel Mod, Drive
 - Note: Vowel Mod changes the amount of modulation coming in from the modulation matrix, if you are modulating it. So to hear it simply, you can self-modulate this operator, and then tweak the Vowel Mod, and it will change the sound then.
@@ -193,34 +199,34 @@ Additional Notes:
 - There is also an FX-Specific plugin that now builds, where you can use the effects by themselves.
 
 ## Modulation Matrix
-- A 6 by 6 matrix letting you modulate any operator with any other operator. On the right of this, there is a 6-slot mod matrix, letting you modulate anything in the synth (including effects, but effects are global only) with one of the six operators.
+This is a matrix that lets you modulate any operator with any other operator. On the right of this, there is a mod matrix, letting you modulate anything in the synth (including effects, but effects are global only) with one of the operators.
 - This is a frequency modulation matrix - you are modulating the frequency of anything you target (including targeting an effect) with the wave of whatever you are sending in.
 - The mod targets are labeled with the slot they are in (Slot A, Slot B, Slot C, Slot D). This correlates to the knobs left to right.
 
 ## Audio Matrix
-- A 6 by 6 matrix letting you route audio.
+- A matrix letting you route audio between operators.
 - You can route audio from one operator into another with this, and you can control which operators are sending out to be heard.
 - The default 'Init' state just has Operator 1 audible. You can check this when you open the synth up by opening up this page and looking on the far right.
 
 ## Extra Effects
 - Outside of the general Mod Matrix I wanted end of chain effects, so here we go!
-- Use any three of the effects that you want at the end of the chain. They always run in serial 1 > 2 > 3. You can target them in the extra modulation matrix.
+- Use any six of the effects that you want at the end of the chain. They always run in serial, and are LFO targets if you want.
 - These effects run in either dual mono (most effects, including the looper) or stereo. The stereo effects are:
 -- both choruses
 -- allpass delay and reverb
 -- ambient delay
 
 ## LFOs
-- There are six LFOs, one per effect. ... You don't need to use an operator as an LFO if you don't wanna!They're pretty simple but are ... generally what you'd expect.
+- There are six LFOs, one per effect. ... You don't need to use an operator as an LFO if you don't wanna! They're pretty simple but are ... generally what you'd expect.
 
 ## Settings
 - A settings page for a few things.
 ### Size
 - Set the size of the plugin window from 50% to 200%.
 ### Font
-- This is the only plugin where you can set the font to comic sans. this claim is probably wrong, but it *feels* true, okay
+- This is the only plugin where you can set the font to comic sans. this claim is probably wrong, but it *feels* true, okay. Anyways, YOLO!!
 ### Knob Size
-- Control the size of all knobs in the plugin.
+- Control the size of all knobs in the plugin. Semi-experimental.
 ### Font size
 - Control the size of all bouncing boxes in the plugin. This is tied to know size and in some cases, right now, won't update without also updating the knob size (even just a little).
 ### Theme
@@ -233,10 +239,7 @@ Additional Notes:
 - You can modulate any operator with any other operator. Doot de doot.
 - If you want to use the effects on other things, use the effects plugin :)
 
-## TODO 
-- Maybe sending audio from the effects back into operators if I really want, IDK ... I'll think about that one. But then it would be easier to filter an operator and then use it in an FM patch with the effect slots. 6 is not a lot of operators if half of them are used as effects.
-
-Pictures of the synth in use are provided in the pictures/ folder, and I've switched between themes for each picture so you can get an idea of the theme options. There are also build scripts in the main folder, and built vst3 and standalone builds for all three OS's in the release folder.
-This is mostly AI-coded, but I am actively using the synth myself and have read over all of the code in the releases and think I understand it (though how much can one understand code they haven't written themselves?). Your mileage, as always, may vary.
+## Todo:
+- Possibly changing some of the fields to go from -1 to +1 so that they all work better with modulation and macros.
 
 Happy synthing!

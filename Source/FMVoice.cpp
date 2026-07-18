@@ -80,12 +80,18 @@ void FMVoice::initParameters (juce::AudioProcessorValueTreeState& apvts)
     {
         juce::String s = juce::String (m + 1);
         macroVal[m]  = apvts.getRawParameterValue ("MACRO_VAL_"   + s);
-        macroTgtA[m] = apvts.getRawParameterValue ("MACRO_TGT_A_" + s);
-        macroTgtB[m] = apvts.getRawParameterValue ("MACRO_TGT_B_" + s);
-
         if (!macroVal[m])  DBG ("CRITICAL: MACRO_VAL_"   + s + " not found!");
-        if (!macroTgtA[m]) DBG ("CRITICAL: MACRO_TGT_A_" + s + " not found!");
-        if (!macroTgtB[m]) DBG ("CRITICAL: MACRO_TGT_B_" + s + " not found!");
+
+        static const char* macroLetters[] = { "A", "B", "C", "D" };
+        for (int t = 0; t < ProjectConfig::numMacroTargets; ++t)
+        {
+            juce::String letter = macroLetters[t];
+            macroTgt[m][t] = apvts.getRawParameterValue ("MACRO_TGT_" + letter + "_" + s);
+            macroAmt[m][t] = apvts.getRawParameterValue ("MACRO_AMT_" + letter + "_" + s);
+
+            if (!macroTgt[m][t]) DBG ("CRITICAL: MACRO_TGT_" + letter + "_" + s + " not found!");
+            if (!macroAmt[m][t]) DBG ("CRITICAL: MACRO_AMT_" + letter + "_" + s + " not found!");
+        }
     }
 }
 
@@ -317,7 +323,8 @@ void FMVoice::renderNextBlock (juce::AudioBuffer<float>& outputBuffer, int start
             applyToTarget (tgtIdx, rawSrc * amt);
 	}
 
-        // Macros — each has one bipolar value routed straight at two independent targets.
+        // Macros — each has one bipolar value routed at up to numMacroTargets independent
+        // targets, each scaled by its own amount knob.
         for (int m = 0; m < ProjectConfig::numMacros; ++m)
         {
             if (!macroVal[m])
@@ -327,11 +334,16 @@ void FMVoice::renderNextBlock (juce::AudioBuffer<float>& outputBuffer, int start
             if (std::abs (val) < 0.0001f)
                 continue;
 
-            int tgtA = macroTgtA[m] ? static_cast<int> (macroTgtA[m]->load (std::memory_order_relaxed)) : 0;
-            int tgtB = macroTgtB[m] ? static_cast<int> (macroTgtB[m]->load (std::memory_order_relaxed)) : 0;
+            for (int t = 0; t < ProjectConfig::numMacroTargets; ++t)
+            {
+                if (!macroTgt[m][t])
+                    continue;
 
-            applyToTarget (tgtA, val);
-            applyToTarget (tgtB, val);
+                int   tgt = static_cast<int> (macroTgt[m][t]->load (std::memory_order_relaxed));
+                float amt = macroAmt[m][t] ? macroAmt[m][t]->load (std::memory_order_relaxed) : 1.0f;
+
+                applyToTarget (tgt, val * amt);
+            }
         }
 
         // Process the operators!

@@ -186,19 +186,27 @@ juce::AudioProcessorValueTreeState::ParameterLayout FMPluginAudioProcessor::crea
             "Mod Amount " + s, -1.0f, 1.0f, 0.0f));
     }
     
-    // --- MACROS: each has one bipolar knob and two independent targets ---
-    // Turning the knob applies its value directly to whatever Target A and
-    // Target B are pointed at, so one macro can drive two destinations at once.
+    // --- MACROS: each has one bipolar knob and up to numMacroTargets independent
+    // targets, each with its own amount knob controlling how strongly the macro
+    // drives that particular destination. ---
     auto macroTargetChoices = ModChoices::targets();
+    static const char* macroLetters[] = { "A", "B", "C", "D" };
     for (int m = 1; m <= ProjectConfig::numMacros; ++m)
     {
         juce::String s = juce::String (m);
         params.push_back (std::make_unique<juce::AudioParameterFloat> (
             juce::ParameterID { "MACRO_VAL_" + s, 1 }, "Macro " + s + " Value", -1.0f, 1.0f, 0.0f));
-        params.push_back (std::make_unique<juce::AudioParameterChoice> (
-            juce::ParameterID { "MACRO_TGT_A_" + s, 1 }, "Macro " + s + " Target A", macroTargetChoices, 0));
-        params.push_back (std::make_unique<juce::AudioParameterChoice> (
-            juce::ParameterID { "MACRO_TGT_B_" + s, 1 }, "Macro " + s + " Target B", macroTargetChoices, 0));
+
+        for (int t = 0; t < ProjectConfig::numMacroTargets; ++t)
+        {
+            juce::String letter = macroLetters[t];
+            params.push_back (std::make_unique<juce::AudioParameterChoice> (
+                juce::ParameterID { "MACRO_TGT_" + letter + "_" + s, 1 },
+                "Macro " + s + " Target " + letter, macroTargetChoices, 0));
+            params.push_back (std::make_unique<juce::AudioParameterFloat> (
+                juce::ParameterID { "MACRO_AMT_" + letter + "_" + s, 1 },
+                "Macro " + s + " Amount " + letter, -1.0f, 1.0f, 1.0f));
+        }
     }
 
     // Gain

@@ -11,6 +11,7 @@ namespace ProjectConfig
     static constexpr int numModSlots = 6;
     static constexpr int numEffects = 6;
     static constexpr int numMacros = 4;
+    static constexpr int numMacroTargets = 4; // targets per macro (A/B/C/D), each with its own amount
     // Number of voices
     static constexpr int numVoices = 8;
     // Base plugin size/visual tweaks

@@ -2,9 +2,9 @@
 
 <img src=https://raw.githubusercontent.com/echoe/oao/refs/heads/main/pictures/operators.png width="450" height="360" />
 
-This is a twelve-operator FM synthesizer/effects unit, where the operators do everything. It's open source, written in C++ using the JUCE framework and a lot of AI help.
+This is a twelve-operator FM synthesizer/effects unit, where the operators do everything. It's open source, written in C++ using the JUCE framework and a lot of LLM help.
 Notes:
--Yes, AI was used to help write this synth. I've put a lot of time into it but without AI it would not exist.
+-Yes, LLMs (what we know popularly as "Artificial Intelligence") was used to help write this synth. I've put a lot of time into it but without LLMs it would not exist.
 -Yes, it's really Phase Modulation. ... But look, you can do FM if you really want. Anyways, it's close enough!
 
 Thanks to Six Sines, the Korg Opsix, and the Minifreak for some of the inspiration behind this synth :) I've sort of just liberally taken from stuff that I really like using in order to make something approximating the VST of my dreams.
@@ -40,7 +40,7 @@ This oversamples the main audio path to provide increased fidelity. Select betwe
 This picks the number of voices in the synth. This defauts to 8 but you can go from 1 (mono) to 32.
 
 ### Gain
-If you're using randomization you may want to turn the gain down as a precaution! Don't go deaf!!! It's easy for things to get too wild. I've tried to moderate that and haven't made all audio from my computer break for a while, but this is a freeware VST made by one developer and AI, so, uh, no guarantees.
+If you're using randomization you may want to turn the gain down as a precaution! Don't go deaf!!! It's easy for things to get too wild. I've tried to moderate that and haven't made all audio from my computer break for a while, but this is a freeware VST made by one developer and an LLM, so, uh, no guarantees.
 
 ## Macros
 There are too many operators so we've added macros so that you can control several controls at once. They're right there in the front of the operators page; changing them should be pretty straightforwards. You have up to four targets per macro, and you can set the strength of the macro setting for each target individually.

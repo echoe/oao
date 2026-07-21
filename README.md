@@ -4,7 +4,9 @@
 
 This is a twelve-operator FM synthesizer/effects unit, where the operators do everything. It's open source, written in C++ using the JUCE framework and a lot of LLM help.
 Notes:
--Yes, LLMs (what we know popularly as "Artificial Intelligence") was used to help write this synth. I've put a lot of time into it but without LLMs it would not exist.
+
+-Yes, LLMs (what we know popularly as AI, or "Artificial Intelligence", though it doesn't really think ... so ...) was used to help write this synth. I've put a lot of time into it but without LLMs it would not exist.
+
 -Yes, it's really Phase Modulation. ... But look, you can do FM if you really want. Anyways, it's close enough!
 
 Thanks to Six Sines, the Korg Opsix, and the Minifreak for some of the inspiration behind this synth :) I've sort of just liberally taken from stuff that I really like using in order to make something approximating the VST of my dreams.

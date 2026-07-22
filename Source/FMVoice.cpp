@@ -364,8 +364,11 @@ void FMVoice::renderNextBlock (juce::AudioBuffer<float>& outputBuffer, int start
                 // maxFmSelfFeedbackIndex.
                 float depthCeiling = (src == dest) ? ProjectConfig::maxFmSelfFeedbackIndex
                                                     : ProjectConfig::maxFmModulationIndex;
-                float modDepth = (safeLoad(matrixParams[src][dest]) + matrixModOffsets[src][dest])
-                                    * depthCeiling;
+                // Clamp defensively: this is the one value that can carry stale data from
+                // older project saves (the FM matrix used to run 0-10, now 0-1) if a host
+                // restores a raw value outside the parameter's current range.
+                float matrixRaw = juce::jlimit (0.0f, 1.0f, safeLoad (matrixParams[src][dest]));
+                float modDepth  = (matrixRaw + matrixModOffsets[src][dest]) * depthCeiling;
                 if (modDepth > 0.0f)
                 {
                     float modSignal = (src == dest) ? (lastOpOutputs[src] + previousOpOutputs[src]) * 0.5f : lastOpOutputs[src];

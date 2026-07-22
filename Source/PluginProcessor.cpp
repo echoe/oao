@@ -955,6 +955,24 @@ void FMPluginAudioProcessor::setStateInformation (const void* data, int sizeInBy
     
     apvts.replaceState (juce::ValueTree::fromXml (*xmlState));
 
+    // Defensive: a few parameter ranges have changed since earlier plugin versions
+    // (most notably the FM matrix, which used to run 0-10 and now runs 0-1). Projects
+    // saved under an older range can restore with a raw value that's technically
+    // outside the *current* range — JUCE's ValueTree restore doesn't clamp that for
+    // us — which then feeds an unbounded value into the DSP (e.g. huge FM depth) and
+    // can crash. Re-clamp every parameter into its own valid range right after restore.
+    for (auto* param : getParameters())
+    {
+        if (auto* ranged = dynamic_cast<juce::RangedAudioParameter*> (param))
+        {
+            const auto& range = ranged->getNormalisableRange();
+            float raw     = range.convertFrom0to1 (ranged->getValue());
+            float clamped = juce::jlimit (range.start, range.end, raw);
+            if (clamped != raw)
+                ranged->setValueNotifyingHost (range.convertTo0to1 (clamped));
+        }
+    }
+
     // Notify the editor so it can update Load button labels
     juce::MessageManager::callAsync ([this] {
         if (onSamplesRestored)

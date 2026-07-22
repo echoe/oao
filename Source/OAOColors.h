@@ -5,13 +5,13 @@
 struct OAOColors
 {
     // Default palette (synthwave)
-    juce::Colour background  { 0xFF0D0D1A }; // deep purple-black
-    juce::Colour primary     { 0xFFFF2D9B }; // neon pink
-    juce::Colour secondary   { 0xFF00F5FF }; // cyan
-    juce::Colour surface     { 0xFF1A1A2E }; // slightly lighter background
-    juce::Colour text        { 0xFFE0E0FF }; // soft white-blue
-    juce::Colour textDim     { 0xFF6060A0 }; // dimmed text
-    juce::Colour panelGap    { 0xFF06060F }; // space between cards/panels, darker than background
+    juce::Colour background  { 0xFF0D0D1A };
+    juce::Colour primary     { 0xFFFF2D9B };
+    juce::Colour secondary   { 0xFF00F5FF };
+    juce::Colour surface     { 0xFF1A1A2E };
+    juce::Colour text        { 0xFFE0E0FF };
+    juce::Colour textDim     { 0xFF6060A0 };
+    juce::Colour panelGap    { 0xFF06060F };
     float scale = 1.0f; //scale
     float knobDiameterFraction  = 0.100f; // fraction of min(width,height) used for knob diameter
     float textBoxHeightFraction = 0.30f;  // fraction of knob diameter used for label/textbox height

@@ -153,8 +153,6 @@ juce::AudioProcessorValueTreeState::ParameterLayout FMPluginAudioProcessor::crea
         {
             juce::String paramID = "MOD_" + juce::String (src) + "_" + juce::String (dest);
             juce::String name = "Mod Op " + juce::String (src + 1) + " -> Op " + juce::String (dest + 1);
-            // DX7-style: 0..1, where 1.0 is the maximum useful FM depth (see
-            // ProjectConfig::maxFmModulationIndex, applied where this is consumed).
             params.push_back (std::make_unique<juce::AudioParameterFloat> (juce::ParameterID {paramID, 1}, name, 0.0f, 1.0f, 0.0f));
         }
     }
@@ -170,7 +168,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout FMPluginAudioProcessor::crea
         }
     }
 
-    // --- MODULATION MATRIX: 6 SLOTS ---
+    // Flexible Mod Matrix
     auto modSourceChoices = ModChoices::sources();
     auto modTargetChoices = ModChoices::targets();
 
@@ -188,9 +186,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout FMPluginAudioProcessor::crea
             "Mod Amount " + s, -1.0f, 1.0f, 0.0f));
     }
     
-    // --- MACROS: each has one bipolar knob and up to numMacroTargets independent
-    // targets, each with its own amount knob controlling how strongly the macro
-    // drives that particular destination. ---
+    // Macros: each has one bipolar knob and up to numMacroTargets independent targets
     auto macroTargetChoices = ModChoices::targets();
     static const char* macroLetters[] = { "A", "B", "C", "D" };
     for (int m = 1; m <= ProjectConfig::numMacros; ++m)
@@ -296,14 +292,14 @@ void FMPluginAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlo
 
 void FMPluginAudioProcessor::releaseResources() {}
 
-void FMPluginAudioProcessor::updateVoices()
+void FMPluginAudioProcessor::updateVoices() // Unused right now ...
 {
     // Read current atomic parameters from APVTS and safely pass them to our synthesis engine
     for (int i = 0; i < synth.getNumVoices(); ++i)
     {
         if (auto* voice = dynamic_cast<FMVoice*> (synth.getVoice (i)))
         {
-            // In a production build, add a thread-safe method inside `FMVoice` (e.g., voice->updateParameters(...)) to read these parameters atomically.
+            // Maybe add a thread-safe method inside `FMVoice` to read these parameters atomically?
         }
     }
 }
@@ -481,7 +477,6 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
                     switch (contrib.paramIdx)
                     {
                         // Same "1.0 = full musical swing" convention used everywhere else
-                        // (mod matrix, macros) — see ProjectConfig::modRangeForParam.
                         case 0: ratio  += lfoVal * ProjectConfig::modRangeForParam[0]; break;
                         case 1: detune += lfoVal * ProjectConfig::modRangeForParam[1]; break;
                         case 2: phase  += lfoVal * ProjectConfig::modRangeForParam[2]; break;
@@ -955,12 +950,7 @@ void FMPluginAudioProcessor::setStateInformation (const void* data, int sizeInBy
     
     apvts.replaceState (juce::ValueTree::fromXml (*xmlState));
 
-    // Defensive: a few parameter ranges have changed since earlier plugin versions
-    // (most notably the FM matrix, which used to run 0-10 and now runs 0-1). Projects
-    // saved under an older range can restore with a raw value that's technically
-    // outside the *current* range — JUCE's ValueTree restore doesn't clamp that for
-    // us — which then feeds an unbounded value into the DSP (e.g. huge FM depth) and
-    // can crash. Re-clamp every parameter into its own valid range right after restore.
+    // Defensively re-clamp every parameter into its own valid range right after restore.
     for (auto* param : getParameters())
     {
         if (auto* ranged = dynamic_cast<juce::RangedAudioParameter*> (param))

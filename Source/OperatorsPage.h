@@ -377,8 +377,7 @@ private:
     int sharedKnobTarget = 90; //default, overwritten in page
 };
 
-// --- ONE MACRO ROW: a single knob that drives up to 4 independent, user-picked
-// targets at once, each weighted by its own amount knob ---
+// One macro slot that drives up to 4 independent targets at once, each weighted by its own amount knob
 struct MacroSlot : public juce::Component
 {
     MacroSlot (juce::AudioProcessorValueTreeState& apvts, int macroIndex, OAOColors& c)

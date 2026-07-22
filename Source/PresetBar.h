@@ -152,8 +152,8 @@ public:
                     // It's a modulator. Convert the indexes to grab the right mod target
                     juce::String modID = "MOD_" + juce::String (sourceOp -1) + "_" + juce::String (destOp -1);
 
-                    // Set a default modulation depth of 2.0
-                    setReal (modID, 2.0f); 
+                    // Set a default modulation depth of 0.50
+                    setReal (modID, 0.50f); 
                 }
             }
         };
@@ -431,7 +431,7 @@ struct FMAlgorithm
     };
 
     // An algorithm is:
-    // {[number]. { {[from],[to]}, {[from],[to]} } }, where [from] is 1-6 and [to] is 1-6 or 0[audio out].
+    // {[number]. { {[from],[to]}, {[from],[to]} } }, where [from] is the first operator and [to] is the second, or 0[audio out].
     // DX Algos from https://www.righto.com/2021/12/yamaha-dx7-chip-reverse-engineering.html
     // DN Algos from https://support.elektron.se/support/solutions/articles/43000566579-algorithms
     static const std::vector<FMAlgorithm> getClassicAlgorithms()
@@ -468,7 +468,7 @@ struct FMAlgorithm
             { 29, { {6,6}, {6,5}, {5,0}, {4,3}, {3,0}, {2,0}, {1,0} } },
             { 30, { {6,0}, {5,5}, {5,4}, {4,3}, {3,0}, {2,0}, {1,0} } },
             { 31, { {6,6}, {6,5}, {5,0}, {4,0}, {3,0}, {2,0}, {1,0} } },
-            { 32, { {6,6}, {6,0}, {5,0}, {4,0}, {3,0}, {2,0}, {1,0} } }, // The end of the DX algos!
+            { 32, { {6,6}, {6,0}, {5,0}, {4,0}, {3,0}, {2,0}, {1,0} } }, // The end of the DX 6-op algos!
 	    { 33, { {1,1}, {1,2}, {2,0}, {4,3}, {3,2}, {3,0} } }, //DN 4-osc algos start here ...
 	    { 34, { {1,2}, {2,0}, {4,4}, {4,3}, {3,0} } },
 	    { 35, { {1,1}, {1,2}, {1,3}, {1,4}, {2,0}, {3,0}, {4,0} } },
@@ -722,8 +722,8 @@ struct FMAlgorithm
                 // Determine if this connection fires based on the recipe's density
                 if (prng.nextFloat() < recipe.modDensity)
                 {
-                    // Scaled out of 10.0f using setReal to automatically handle normalization
-                    float randomDepth = 1.0f + prng.nextFloat() * 5.0f; // Generates index between 1.0 and 6.0
+                    // Scaled out of 1.0f using setReal to automatically handle normalization
+                    float randomDepth = 0.10f + prng.nextFloat() * 0.50f; // Generates index between 0.10 and 0.60
                     setReal (modID, randomDepth);
                 }
             }

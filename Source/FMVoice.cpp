@@ -233,10 +233,7 @@ void FMVoice::renderNextBlock (juce::AudioBuffer<float>& outputBuffer, int start
         // matrix modulation storage
         float matrixModOffsets[ProjectConfig::numOperators][ProjectConfig::numOperators] {};
 
-        // Shared routing: given a target index (from ModChoices::targets()) and a signal,
-        // adds that signal into the right per-operator/per-fx/per-matrix-cell accumulator.
-        // Used both by the general mod matrix slots and by the macros below, so a macro's
-        // two targets and a mod slot's single target all resolve identically.
+        // shared routing used by mod matrix slots and macros so everything resolves OK
         auto applyToTarget = [&] (int tgtIdx, float srcSignal)
         {
             if (tgtIdx == 0 || std::abs (srcSignal) < 0.0001f)
@@ -357,16 +354,10 @@ void FMVoice::renderNextBlock (juce::AudioBuffer<float>& outputBuffer, int start
 
             for (int src = 0; src < ProjectConfig::numOperators; ++src)
             {
-                // matrixParams/matrixModOffsets live in a normalized 0..1 "how much FM"
-                // space; the depth ceiling converts that into the actual phase-modulation
-                // index. Self-feedback (src==dest) gets its own, lower ceiling since it's a
-                // recursive loop that saturates well before regular FM does — see
-                // maxFmSelfFeedbackIndex.
+                // use the Constants.h values to set depth ceiling
                 float depthCeiling = (src == dest) ? ProjectConfig::maxFmSelfFeedbackIndex
                                                     : ProjectConfig::maxFmModulationIndex;
-                // Clamp defensively: this is the one value that can carry stale data from
-                // older project saves (the FM matrix used to run 0-10, now 0-1) if a host
-                // restores a raw value outside the parameter's current range.
+                // Clamp defensively to make sure anything >1.0 doesn't break the plugin
                 float matrixRaw = juce::jlimit (0.0f, 1.0f, safeLoad (matrixParams[src][dest]));
                 float modDepth  = (matrixRaw + matrixModOffsets[src][dest]) * depthCeiling;
                 if (modDepth > 0.0f)

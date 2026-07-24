@@ -242,4 +242,18 @@ Additional Notes:
 - You can modulate any operator with any other operator. Doot de doot.
 - If you want to use the effects on other things, use the effects plugin :)
 
+## How to build
+- I always forget how to do this ... so it's back in the readme for now.
+### Windows 
+- I installed CMake and Git from the respective websites (using the windows executables) and then installed Visual Studio Community Edition: "Desktop development with C++" workload.
+### Linux
+- sudo dnf groupinstall "Development Tools"
+- sudo dnf install cmake gcc-c++ git alsa-lib-devel freetype-devel fontconfig-devel \
+  libX11-devel libXinerama-devel libXext-devel libXrandr-devel \
+  libXcursor-devel libXcomposite-devel \
+  gtk3-devel webkit2gtk4.1-devel \
+  freetype-devel curl-devel
+### MacOS
+- ... I don't remember.
+
 Happy synthing!

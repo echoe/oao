@@ -13,7 +13,7 @@ else()
     FetchContent_Declare(
         juce
         GIT_REPOSITORY https://github.com/juce-framework/JUCE.git
-        GIT_TAG        8.0.13
+        GIT_TAG        9.0.0
         GIT_SHALLOW    TRUE
     )
     FetchContent_MakeAvailable(juce)

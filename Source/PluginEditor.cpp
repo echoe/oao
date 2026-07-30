@@ -27,11 +27,20 @@ FMPluginAudioProcessorEditor::FMPluginAudioProcessorEditor (FMPluginAudioProcess
         p.loadSampleForOperator (opIndex, file);
     };
 
-    // After preset load, update the Load button text on each operator to the restored sample name
+    // After preset load, update the Load button text on each operator to the restored sample name,
+    // and re-sync the FM Input rows to whatever connections the preset actually contains.
     p.onSamplesRestored = [this, &p]
     {
         for (int i = 0; i < ProjectConfig::numOperators; ++i)
             opsPage.setSampleButtonText (i, p.loadedSampleNames[i]);
+        opsPage.refreshFMInputsAll();
+    };
+
+    // Init / randomizers / Algorithm quick-select rewrite MOD_ params directly — keep the
+    // FM Input rows in sync with those too.
+    presetBar.onPatchChanged = [this]
+    {
+        opsPage.refreshFMInputsAll();
     };
 
     addAndMakeVisible (opsPage);

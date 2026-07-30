@@ -13,6 +13,12 @@ public:
         RoutingMatrix
     };
 
+    // Fired after anything that rewrites MOD_ (or OUT_) params directly rather than through a
+    // single control's own APVTS attachment — Init, the randomizers, and the Algorithm quick-select.
+    // The OperatorsPage FM Input rows use this to stay in sync (preset loads are covered
+    // separately, via FMPluginAudioProcessor::onSamplesRestored).
+    std::function<void()> onPatchChanged;
+
     PresetBar (FMPluginAudioProcessor& processorToLink)
         : audioProcessor (processorToLink)
     {
@@ -110,7 +116,7 @@ public:
             if (selectedId == 1) return; // "None" selected, do nothing
 
             int dxAlgoIndex = selectedId - 2; // Offset for 0-based vector index
-            auto algorithms = getClassicAlgorithms();
+            auto algorithms = FMAlgorithms::getClassicAlgorithms();
             
             if (dxAlgoIndex < 0 || dxAlgoIndex >= algorithms.size()) return;
 
@@ -156,6 +162,8 @@ public:
                     setReal (modID, 0.50f); 
                 }
             }
+
+            if (onPatchChanged != nullptr) onPatchChanged();
         };
     }
 
@@ -299,6 +307,7 @@ private:
 
         currentPresetIndex = -1;
         updateNameLabel();
+        if (onPatchChanged != nullptr) onPatchChanged();
     }
 
     // ============================================================
@@ -430,61 +439,8 @@ private:
         setReal ("ENV_RELEASE_" + e, wobbleReal (op.release, prng, op.release * 0.10f, 0.01f,  5.0f));
     }
 
-struct FMAlgorithm 
-    {
-        int id;
-        std::vector<std::pair<int, int>> connections; 
-    };
-
-    // An algorithm is:
-    // {[number]. { {[from],[to]}, {[from],[to]} } }, where [from] is the first operator and [to] is the second, or 0[audio out].
-    // DX Algos from https://www.righto.com/2021/12/yamaha-dx7-chip-reverse-engineering.html
-    // DN Algos from https://support.elektron.se/support/solutions/articles/43000566579-algorithms
-    static const std::vector<FMAlgorithm> getClassicAlgorithms()
-    {
-        return {
-            { 1, { {6,6}, {6,5}, {5,4}, {4,3}, {3,0}, {2,1}, {1,0} } },
-            { 2, { {6,5}, {5,4}, {4,3}, {3,0}, {2,2}, {2,1}, {1,0} } },
-            { 3, { {6,6}, {6,5}, {5,4}, {4,0}, {3,2}, {2,1}, {1,0} } },
-            { 4, { {6,5}, {5,4}, {4,6}, {4,0}, {3,2}, {2,1}, {1,0} } },
-            { 5, { {6,6}, {6,5}, {5,0}, {4,3}, {3,0}, {2,1}, {1,0} } },
-            { 6, { {6,5}, {5,6}, {5,0}, {4,3}, {3,0}, {2,1}, {1,0} } },
-            { 7, { {6,6}, {6,5}, {5,3}, {4,3}, {3,0}, {2,1}, {1,0} } },
-            { 8, { {6,5}, {5,3}, {3,0}, {4,4}, {4,3}, {2,1}, {1,0} } },
-            { 9, { {6,5}, {5,3}, {3,0}, {4,3}, {2,1}, {1,0}, {2,2} } },
-            { 10, { {6,4}, {5,4}, {4,0}, {3,3}, {3,2}, {2,1}, {1,0} } },
-            { 11, { {6,6}, {6,4}, {5,4}, {4,0}, {3,2}, {2,1}, {1,0} } },
-            { 12, { {6,3}, {5,3}, {4,3}, {3,0}, {2,2}, {2,1}, {1,0} } },
-            { 13, { {6,6}, {6,3}, {5,3}, {4,3}, {3,0}, {2,1}, {1,0} } },
-            { 14, { {6,6}, {6,4}, {4,3}, {3,0}, {5,4}, {2,1}, {1,0} } },
-            { 15, { {6,4}, {5,4}, {4,3}, {3,0}, {2,2}, {2,1}, {1,0} } },
-            { 16, { {6,6}, {6,5}, {5,1}, {4,3}, {3,1}, {2,1}, {1,0} } },
-            { 17, { {6,5}, {5,1}, {4,3}, {3,1}, {2,2}, {2,1}, {1,0} } },
-            { 18, { {6,5}, {5,4}, {4,1}, {3,3}, {3,1}, {2,1}, {1,0} } },
-            { 19, { {6,6}, {6,5}, {6,4}, {5,0}, {4,0}, {3,2}, {2,1}, {1,0} } },
-            { 20, { {6,4}, {4,0}, {5,4}, {2,0}, {3,3}, {3,1}, {1,0} } },
-            { 21, { {6,5}, {5,0}, {6,4}, {4,0}, {3,3}, {3,2}, {2,0}, {3,1}, {1,0} } },
-            { 22, { {6,6}, {6,5}, {5,0}, {6,4}, {4,0}, {6,3}, {3,0}, {2,1}, {1,0} } },
-            { 23, { {6,6}, {6,5}, {6,4}, {5,0}, {4,0}, {3,2}, {2,0}, {1,0} } },
-            { 24, { {6,6}, {6,5}, {6,4}, {5,0}, {4,0}, {3,0}, {2,0}, {1,0} } },
-            { 25, { {6,6}, {6,5}, {5,0}, {4,0}, {3,0}, {2,0}, {1,0} } },
-            { 26, { {6,6}, {6,4}, {5,4}, {4,0}, {3,2}, {2,0}, {1,0} } },
-            { 27, { {6,4}, {5,4}, {4,0}, {3,3}, {3,2}, {2,0}, {1,0} } },
-            { 28, { {6,0}, {5,5}, {5,4}, {4,3}, {3,0}, {2,1}, {1,0} } },
-            { 29, { {6,6}, {6,5}, {5,0}, {4,3}, {3,0}, {2,0}, {1,0} } },
-            { 30, { {6,0}, {5,5}, {5,4}, {4,3}, {3,0}, {2,0}, {1,0} } },
-            { 31, { {6,6}, {6,5}, {5,0}, {4,0}, {3,0}, {2,0}, {1,0} } },
-            { 32, { {6,6}, {6,0}, {5,0}, {4,0}, {3,0}, {2,0}, {1,0} } }, // The end of the DX 6-op algos!
-	    { 33, { {1,1}, {1,2}, {2,0}, {4,3}, {3,2}, {3,0} } }, //DN 4-osc algos start here ...
-	    { 34, { {1,2}, {2,0}, {4,4}, {4,3}, {3,0} } },
-	    { 35, { {1,1}, {1,2}, {1,3}, {1,4}, {2,0}, {3,0}, {4,0} } },
-	    { 36, { {4,4}, {4,3}, {3,1}, {1,0}, {1,2}, {2,0} } },
-	    { 37, { {3,3}, {3,4}, {4,1}, {3,1}, {1,2}, {2,0}, {1,0} } },
-	    { 38, { {1,1}, {1,2}, {1,3}, {4,2}, {4,3}, {2,0}, {3,0} } },
-	    { 39, { {1,1}, {1,2}, {2,0}, {4,3}, {3,0}, {1,0}, {4,0} } },
-	    { 40, { {1,2}, {2,0}, {4,0}, {3,3}, {3,0} } }, // And end here
-        };
-    }
+// FMAlgorithm / getClassicAlgorithms() moved to Constants.h (namespace FMAlgorithms) — it's
+// shared data now used both by this randomizer and the OperatorsPage "Algorithm" quick-select.
 
     // Randomize all 3 FX slots with type-first, label-aware knob logic.
     // drumMode adjusts mix levels and biases toward transient-safe effect types.
@@ -700,7 +656,7 @@ struct FMAlgorithm
             }
         }
         // Select a structured baseline algorithm at random.
-        auto algorithms = getClassicAlgorithms();
+        auto algorithms = FMAlgorithms::getClassicAlgorithms();
         const auto& selectedAlgo = algorithms[prng.nextInt (static_cast<int> (algorithms.size()))];
     
         // Inject random values strictly into the active algorithmic pathways
@@ -711,10 +667,11 @@ struct FMAlgorithm
     
             if (destOp == 0)
             {
-                // It's a carrier. Route to audio output.
-                // (Assuming AUDIO_ROUTE_ matches your 1-indexed operator UI format, e.g., "AUDIO_ROUTE_1")
-                juce::String routeID = "AUDIO_ROUTE_" + juce::String (sourceOp);
-    
+                // It's a carrier. Give it a solid output level so it's actually audible —
+                // note this was previously writing to a malformed "AUDIO_ROUTE_" + sourceOp id
+                // (that param only exists as AUDIO_ROUTE_src_dest), which silently no-op'd.
+                juce::String routeID = "OUT_" + juce::String (sourceOp);
+
                 // Give carriers a solid output level between 0.75 and 1.0
                 setReal (routeID, 0.75f + prng.nextFloat() * 0.25f);
             }
@@ -739,6 +696,7 @@ struct FMAlgorithm
 
         currentPresetIndex = -1;
         updateNameLabel();
+        if (onPatchChanged != nullptr) onPatchChanged();
     }
 
     //  DRUM RANDOMIZER
@@ -888,6 +846,7 @@ struct FMAlgorithm
 
         currentPresetIndex = -1;
         updateNameLabel();
+        if (onPatchChanged != nullptr) onPatchChanged();
     }
 
     //  EFFECTS RANDOMIZER

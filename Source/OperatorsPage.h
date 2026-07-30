@@ -30,6 +30,24 @@ struct CompactOperatorGroup : public juce::Component
         for (int e = 0; e < ProjectConfig::numEnvelopes; ++e)
             envSourceSelector.addItem ("Env " + juce::String (e + 1), e + 1);
         addAndMakeVisible (envSourceSelector);
+
+        // FM Inputs — up to numFMInputSlots incoming connections, shown compactly on the
+        // operator's own card instead of a global matrix page. Each slot is a thin wrapper
+        // around the same underlying MOD_src_dest params the (now-optional/advanced) Matrix
+        // page edits directly, so nothing here changes the data model or breaks presets.
+        for (int slot = 0; slot < numFMInputSlots; ++slot)
+        {
+            fmInputSource[slot].addItem ("--", 1);
+            for (int src = 0; src < ProjectConfig::numOperators; ++src)
+                fmInputSource[slot].addItem ("Op " + juce::String (src + 1), src + 2);
+            addAndMakeVisible (fmInputSource[slot]);
+
+            fmInputAmount[slot].setSliderStyle (juce::Slider::LinearHorizontal);
+            fmInputAmount[slot].setTextBoxStyle (juce::Slider::TextBoxRight, false, 34, 14);
+            addAndMakeVisible (fmInputAmount[slot]);
+
+            fmInputSource[slot].onChange = [this, slot] { onFMInputSourceChanged (slot); };
+        }
         // label operator
         opHeaderLabel.setText (opNum, juce::dontSendNotification);
         opHeaderLabel.setFont (juce::FontOptions (39.0f, juce::Font::bold));
@@ -88,6 +106,8 @@ struct CompactOperatorGroup : public juce::Component
 	freqModeSelector.onChange = [this]() { updateUIState(); };
 	effectTypeSelector.onChange = [this]() {updateUIState(); };
         updateUIState(); // on load
+
+        refreshFMInputsFromState(); // populate FM input slots from any existing MOD_ connections
     }
 
     void paint (juce::Graphics& g) override
@@ -126,6 +146,12 @@ struct CompactOperatorGroup : public juce::Component
             waveShapeSelector.setBounds (leftCol.removeFromTop (selectorH).reduced (1));
 
         area.removeFromLeft (juce::roundToInt (w * 0.01f)); // small gap before knobs
+
+        // --- FM INPUTS: reserve a column on the right for up to numFMInputSlots incoming
+        // connections, before dividing what's left into the knob columns. ---
+        int fmInputColW = juce::jmax (120, juce::roundToInt (area.getWidth() * 0.22f));
+        auto fmInputArea = area.removeFromRight (fmInputColW);
+        area.removeFromRight (juce::roundToInt (w * 0.01f)); // gap between knobs and FM inputs
 
         // Knobs and Sliders in a row :D
         int Width = area.getWidth() / 5;
@@ -174,6 +200,19 @@ struct CompactOperatorGroup : public juce::Component
         detuneSlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, textBoxW, textBoxH);
         phaseSlider.setTextBoxStyle  (juce::Slider::TextBoxBelow, false, textBoxW, textBoxH);
         foldSlider.setTextBoxStyle   (juce::Slider::TextBoxBelow, false, textBoxW, textBoxH);
+
+        // --- FM INPUTS: one row per slot, source dropdown + amount slider side by side ---
+        int fmRowH = fmInputArea.getHeight() / numFMInputSlots;
+        for (int slot = 0; slot < numFMInputSlots; ++slot)
+        {
+            auto row = fmInputArea.removeFromTop (fmRowH).reduced (2);
+            int comboW = juce::roundToInt (row.getWidth() * 0.55f);
+            fmInputSource[slot].setBounds (row.removeFromLeft (comboW).reduced (1));
+            row.removeFromLeft (2);
+            fmInputAmount[slot].setBounds (row.reduced (1));
+            fmInputAmount[slot].setTextBoxStyle (juce::Slider::TextBoxRight, false,
+                                                  juce::jmax (28, row.getWidth() / 3), row.getHeight());
+        }
     }
 
     void lookAndFeelChanged() override
@@ -199,6 +238,8 @@ struct CompactOperatorGroup : public juce::Component
         updateComboBox (waveShapeSelector);
         updateComboBox (effectTypeSelector);
         updateComboBox (envSourceSelector);
+        for (auto& cb : fmInputSource)
+            updateComboBox (cb);
 
         // Helper lambda to update Sliders cleanly
         auto updateSlider = [this](juce::Slider& s) {
@@ -211,6 +252,8 @@ struct CompactOperatorGroup : public juce::Component
         updateSlider (detuneSlider);
         updateSlider (phaseSlider);
         updateSlider (foldSlider);
+        for (auto& s : fmInputAmount)
+            updateSlider (s);
     }
 
     // Callback fired when the user picks a file. Receives (opIndex, file).
@@ -219,6 +262,42 @@ struct CompactOperatorGroup : public juce::Component
     void setSampleButtonText (const juce::String& name)
     {
         loadSampleButton.setButtonText (name.isNotEmpty() ? name : "Load Sample");
+    }
+
+    // Re-scan this operator's incoming MOD_src_dest cells and rebind the FM Input slots to
+    // whichever are currently non-zero. Needed after anything that writes those params directly
+    // instead of through a slot's own combo box — a preset load, or the Algorithm quick-select.
+    // Needs to be public.
+    void refreshFMInputsFromState()
+    {
+        int destIdx = opNum.getIntValue() - 1;
+
+        for (int slot = 0; slot < numFMInputSlots; ++slot)
+        {
+            fmInputAmountAttach[slot].reset();
+            fmInputBoundSrc[slot] = -1;
+        }
+
+        int slot = 0;
+        for (int src = 0; src < ProjectConfig::numOperators && slot < numFMInputSlots; ++src)
+        {
+            auto* raw = apvts.getRawParameterValue ("MOD_" + juce::String (src) + "_" + juce::String (destIdx));
+            if (raw != nullptr && raw->load (std::memory_order_relaxed) > 0.0001f)
+            {
+                fmInputSource[slot].setSelectedId (src + 2, juce::dontSendNotification);
+                fmInputAmountAttach[slot] = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
+                    apvts, "MOD_" + juce::String (src) + "_" + juce::String (destIdx), fmInputAmount[slot]);
+                fmInputAmount[slot].setEnabled (true);
+                fmInputBoundSrc[slot] = src;
+                ++slot;
+            }
+        }
+        for (; slot < numFMInputSlots; ++slot)
+        {
+            fmInputSource[slot].setSelectedId (1, juce::dontSendNotification);
+            fmInputAmount[slot].setEnabled (false);
+            fmInputAmount[slot].setValue (0.0, juce::dontSendNotification);
+        }
     }
 
 private:
@@ -318,6 +397,39 @@ private:
         resized();
     }
 
+    // Called when a slot's source dropdown changes — rebinds the amount slider to the newly
+    // chosen MOD_src_dest cell, and zeroes out the cell the slot is leaving so it doesn't
+    // linger as an invisible active connection nobody can see in this compact view.
+    void onFMInputSourceChanged (int slot)
+    {
+        int destIdx  = opNum.getIntValue() - 1;
+        int selId    = fmInputSource[slot].getSelectedId();
+        int newSrc   = (selId <= 1) ? -1 : (selId - 2);
+        int oldSrc   = fmInputBoundSrc[slot];
+
+        if (oldSrc != -1 && oldSrc != newSrc)
+        {
+            if (auto* p = apvts.getParameter ("MOD_" + juce::String (oldSrc) + "_" + juce::String (destIdx)))
+                p->setValueNotifyingHost (p->convertTo0to1 (0.0f));
+        }
+
+        fmInputAmountAttach[slot].reset();
+
+        if (newSrc != -1)
+        {
+            fmInputAmountAttach[slot] = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
+                apvts, "MOD_" + juce::String (newSrc) + "_" + juce::String (destIdx), fmInputAmount[slot]);
+            fmInputAmount[slot].setEnabled (true);
+        }
+        else
+        {
+            fmInputAmount[slot].setEnabled (false);
+            fmInputAmount[slot].setValue (0.0, juce::dontSendNotification);
+        }
+
+        fmInputBoundSrc[slot] = newSrc;
+    }
+
     // Keep state reference completely safe inside class lifecycle
     juce::AudioProcessorValueTreeState& apvts;
     juce::String opNum;
@@ -335,6 +447,15 @@ private:
     juce::ComboBox envSourceSelector; // which shared envelope generator drives this operator
     juce::TextButton loadSampleButton;
     std::unique_ptr<juce::FileChooser> fileChooser;
+
+    // FM Inputs — compact per-operator view onto a handful of the MOD_src_dest matrix cells
+    // that target this operator, instead of a global 12x12 grid. See refreshFMInputsFromState()
+    // and onFMInputSourceChanged() below.
+    static constexpr int numFMInputSlots = 4;
+    juce::ComboBox fmInputSource[numFMInputSlots];
+    juce::Slider   fmInputAmount[numFMInputSlots];
+    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> fmInputAmountAttach[numFMInputSlots];
+    int fmInputBoundSrc[numFMInputSlots] = { -1, -1, -1, -1 }; // -1 = "--" (no source), else 0-based source op index
 
     std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> modeAttach;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> waveShapeAttach;
@@ -645,6 +766,17 @@ public:
         for (auto& env : envelopeSlots)
             env->repaint();
         repaint();
+    }
+
+    // Re-syncs every operator's FM Input rows to whatever is currently in the MOD_ matrix.
+    // Call this after anything that rewrites those params directly — a preset load (via
+    // FMPluginAudioProcessor::onSamplesRestored) or a PresetBar::onPatchChanged event
+    // (Init, the randomizers, the Algorithm quick-select).
+    void refreshFMInputsAll()
+    {
+        for (auto& op : opModules)
+            if (op != nullptr)
+                op->refreshFMInputsFromState();
     }
 
     void resized() override

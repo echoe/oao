@@ -2,7 +2,7 @@
 
 <img src=https://raw.githubusercontent.com/echoe/oao/refs/heads/main/pictures/operators.png width="450" height="360" />
 
-This is a twelve-operator FM synthesizer/effects unit, where the operators do everything. It's open source, written in C++ using the JUCE framework and a lot of LLM help.
+This is an FM synthesizer/effects unit, where the operators do everything. It's open source, written in C++ using the JUCE framework and a lot of LLM help.
 Notes:
 
 -Yes, LLMs (what we know popularly as AI, or "Artificial Intelligence", though it doesn't really think ... so ...) was used to help write this synth. I've put a lot of time into it but without LLMs it would not exist.
@@ -254,4 +254,9 @@ Additional Notes:
 ### MacOS
 - xcode-select --install (everything else is already there by default)
 
-Happy synthing!
+### What's left
+Honestly, I attempted to use the plugin just now and I just didn't feel the joy of it. There are too many knobs when I'm in *music-making mode*. I don't care enough about most of the knobs even when they're hidden from me, and I hate having to set ADSR per oscillator instead of just setting one or two and having them shared.
+...
+So there's some ways left to go. I'm going to see a few different things and am going to change a lot of the current stuff ... I'm thinking about setting it to four oscillators, with each oscillator going into an effect before going out (so ... sort of eight oscillators), and then feeding into an effects chain. Simplicity.
+
+I want to use this myself, even if nobody else does. It's been an adventure ... figuring out personally why synth makers made the decisions they did. And there's still more to find.

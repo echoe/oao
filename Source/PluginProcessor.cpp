@@ -70,6 +70,9 @@ juce::AudioProcessorValueTreeState::ParameterLayout FMPluginAudioProcessor::crea
     juce::StringArray freqModeChoices { "Standard", "Sync", "Hz", "LFO" };
     juce::StringArray lfosyncRates = { "8/1", "4/1", "2/1", "1/1", "1/2", "1/4", "1/8", "1/16", "1/32" }; // for Sync LFOs
     auto effectTypeChoices = ProjectConfig::getEffectTypeChoices();
+    juce::StringArray envelopeSourceChoices;
+    for (int i = 0; i < ProjectConfig::numEnvelopes; ++i)
+        envelopeSourceChoices.add ("Env " + juce::String (i + 1));
 
     // Setting up an option to use when/if you see too many decimal attributes ...
     auto twoDecimalAttributes = juce::AudioParameterFloatAttributes()
@@ -94,14 +97,23 @@ juce::AudioProcessorValueTreeState::ParameterLayout FMPluginAudioProcessor::crea
         params.push_back (std::make_unique<juce::AudioParameterFloat> (juce::ParameterID {"DETUNE_" + opNum, 1}, "Op " + opNum + " Detune", -50.0f, 50.0f, 0.0f));
         params.push_back (std::make_unique<juce::AudioParameterFloat> (juce::ParameterID { "PHASE_" + opNum, 1 }, "Op " + opNum + " Phase", 0.0f, 360.0f, 0.0f));
 	params.push_back (std::make_unique<juce::AudioParameterFloat> (juce::ParameterID { "FOLD_" + opNum, 1 }, "Op " + opNum + " Fold", 0.0f, 1.0f, 0.0f));
-        // Envelopes
-        params.push_back (std::make_unique<juce::AudioParameterFloat> (juce::ParameterID {"ATTACK_" + opNum, 1}, "Op " + opNum + " Attack", 0.001f, 5.0f, 0.1f));
-        params.push_back (std::make_unique<juce::AudioParameterFloat> (juce::ParameterID {"DECAY_" + opNum, 1}, "Op " + opNum + " Decay", 0.01f, 5.0f, 0.2f));
-        params.push_back (std::make_unique<juce::AudioParameterFloat> (juce::ParameterID {"SUSTAIN_" + opNum, 1}, "Op " + opNum + " Sustain", 0.0f, 1.0f, 0.8f));
-        params.push_back (std::make_unique<juce::AudioParameterFloat> (juce::ParameterID {"RELEASE_" + opNum, 1}, "Op " + opNum + " Release", 0.01f, 5.0f, 0.5f));
+        // Envelope source — which shared envelope generator (see below) drives this operator's amplitude
+        params.push_back (std::make_unique<juce::AudioParameterChoice> (juce::ParameterID { "ENV_SRC_" + opNum, 1 }, "Op " + opNum + " Envelope", envelopeSourceChoices, 0));
         // Output Levels
         params.push_back (std::make_unique<juce::AudioParameterFloat> (juce::ParameterID {"OUT_" + opNum, 1}, "Op " + opNum + " Out Level", 0.0f, 1.0f, (i == 0) ? 1.0f : 0.0f));
     }
+
+    // Shared envelope generator pool — a small number of ADSRs that operators pick from via ENV_SRC_,
+    // instead of each operator owning its own dedicated ADSR.
+    for (int i = 0; i < ProjectConfig::numEnvelopes; ++i)
+    {
+        juce::String envNum = juce::String (i + 1);
+        params.push_back (std::make_unique<juce::AudioParameterFloat> (juce::ParameterID {"ENV_ATTACK_" + envNum, 1}, "Env " + envNum + " Attack", 0.001f, 5.0f, 0.1f));
+        params.push_back (std::make_unique<juce::AudioParameterFloat> (juce::ParameterID {"ENV_DECAY_" + envNum, 1}, "Env " + envNum + " Decay", 0.01f, 5.0f, 0.2f));
+        params.push_back (std::make_unique<juce::AudioParameterFloat> (juce::ParameterID {"ENV_SUSTAIN_" + envNum, 1}, "Env " + envNum + " Sustain", 0.0f, 1.0f, 0.8f));
+        params.push_back (std::make_unique<juce::AudioParameterFloat> (juce::ParameterID {"ENV_RELEASE_" + envNum, 1}, "Env " + envNum + " Release", 0.01f, 5.0f, 0.5f));
+    }
+
     // Effects page — slots, each with type, sync, mix, and 4 knobs
     for (int i = 0; i < ProjectConfig::numEffects; ++i)
     {

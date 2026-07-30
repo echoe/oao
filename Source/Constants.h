@@ -5,13 +5,14 @@
 namespace ProjectConfig
 {
     // Operator count, mod slots, effects, operator parameters, effect parameters
-    static constexpr int numOperators = 12;
+    static constexpr int numOperators = 8;
     static constexpr int numOpParams = 5;
     static constexpr int numFxParams = 5;
     static constexpr int numModSlots = 6;
     static constexpr int numEffects = 6;
     static constexpr int numMacros = 4;
     static constexpr int numMacroTargets = 4; // targets per macro (A/B/C/D), each with its own amount
+    static constexpr int numEnvelopes = 4; // shared envelope generator pool; operators pick one via ENV_SRC_N
 
     // --- Unified modulation depth ---
     // for modulation we scale by a per-target "full swing" range so 1.0 is a good range for all knobs

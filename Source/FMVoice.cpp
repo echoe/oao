@@ -28,19 +28,22 @@ void FMVoice::prepare (double sampleRate, int samplesPerBlock, WaveTable* wt)
     {
         operators[i].prepare (safeRate, wt);
     }
+    for (auto& env : sharedEnvelopes)
+        env.setSampleRate (safeRate * oversamplingFactor);
 }
 
 void FMVoice::initParameters (juce::AudioProcessorValueTreeState& apvts)
 {
+    // Debugigng check to make sure we have parameters
+    auto check = [&](juce::String id, std::atomic<float>*& ptr) {
+        ptr = apvts.getRawParameterValue(id);
+        if (ptr == nullptr) 
+            DBG("CRITICAL: Parameter " + id + " not found!");
+    };
+
     for (int i = 0; i < ProjectConfig::numOperators; ++i)
     {
         juce::String opNum = juce::String (i + 1);
-	// Debugigng check to make sure we have parameters
-        auto check = [&](juce::String id, std::atomic<float>*& ptr) {
-            ptr = apvts.getRawParameterValue(id);
-            if (ptr == nullptr) 
-                DBG("CRITICAL: Parameter " + id + " not found!");
-        };
 
         check("MODE_" + opNum, opParams[i].mode);
         check("WAVE_SHAPE_" + opNum, opParams[i].wave);
@@ -50,10 +53,7 @@ void FMVoice::initParameters (juce::AudioProcessorValueTreeState& apvts)
         check("PHASE_" + opNum, opParams[i].phase);
         check("FOLD_" + opNum, opParams[i].fold);
         check("OUT_" + opNum, opParams[i].out);
-        check("ATTACK_" + opNum, opParams[i].attack);
-        check("DECAY_" + opNum, opParams[i].decay);
-        check("SUSTAIN_" + opNum, opParams[i].sustain);
-        check("RELEASE_" + opNum, opParams[i].release);
+        check("ENV_SRC_" + opNum, opParams[i].envSrc);
 	check("FREQ_MODE_" +opNum, opParams[i].freqMode);
 	for (int dest = 0; dest < ProjectConfig::numOperators; ++dest)
         {
@@ -61,6 +61,16 @@ void FMVoice::initParameters (juce::AudioProcessorValueTreeState& apvts)
             audioMatrixParams[i][dest] = apvts.getRawParameterValue ("AUDIO_ROUTE_" + juce::String (i) + "_" + juce::String (dest));
 
         }
+    }
+
+    // Wire up the shared envelope generator pool
+    for (int e = 0; e < ProjectConfig::numEnvelopes; ++e)
+    {
+        juce::String s = juce::String (e + 1);
+        check ("ENV_ATTACK_"  + s, envParams[e].attack);
+        check ("ENV_DECAY_"   + s, envParams[e].decay);
+        check ("ENV_SUSTAIN_" + s, envParams[e].sustain);
+        check ("ENV_RELEASE_" + s, envParams[e].release);
     }
     // Wire up the 6 mod slots
     for (int slot = 0; slot < ProjectConfig::numModSlots; ++slot)
@@ -103,8 +113,11 @@ void FMVoice::setCurrentPlaybackSampleRate (double newRate)
 
 void FMVoice::setOversamplingFactor (int factor)
 {
+    oversamplingFactor = factor;
     for (int i = 0; i < ProjectConfig::numOperators; ++i)
         operators[i].setOversamplingFactor (factor);
+    for (auto& env : sharedEnvelopes)
+        env.setSampleRate (getSampleRate() * factor);
 }
 
 void FMVoice::startNote (int midiNoteNumber, float velocity, juce::SynthesiserSound*, int)
@@ -115,19 +128,29 @@ void FMVoice::startNote (int midiNoteNumber, float velocity, juce::SynthesiserSo
     resetVoiceState();
     for (int i = 0; i < ProjectConfig::numOperators; ++i)
     {
-        if (opParams[i].attack != nullptr)
+        if (opParams[i].phase != nullptr)
         {
             float initPhase = opParams[i].phase->load (std::memory_order_relaxed);
             operators[i].resetPhase (initPhase);
-            
-            juce::ADSR::Parameters p;
-            p.attack  = opParams[i].attack->load (std::memory_order_relaxed);
-            p.decay   = opParams[i].decay->load (std::memory_order_relaxed);
-            p.sustain = opParams[i].sustain->load (std::memory_order_relaxed);
-            p.release = opParams[i].release->load (std::memory_order_relaxed);
-            
-            operators[i].noteOn (p);
         }
+        operators[i].noteOn();
+    }
+
+    // Trigger every shared envelope generator — cheap (there are only a handful of them),
+    // and avoids having to work out in advance which ones are actually in use this note.
+    for (int e = 0; e < ProjectConfig::numEnvelopes; ++e)
+    {
+        if (envParams[e].attack == nullptr)
+            continue;
+
+        juce::ADSR::Parameters p;
+        p.attack  = envParams[e].attack->load  (std::memory_order_relaxed);
+        p.decay   = envParams[e].decay->load   (std::memory_order_relaxed);
+        p.sustain = envParams[e].sustain->load (std::memory_order_relaxed);
+        p.release = envParams[e].release->load (std::memory_order_relaxed);
+
+        sharedEnvelopes[e].setParameters (p);
+        sharedEnvelopes[e].noteOn();
     }
 }
 
@@ -135,7 +158,7 @@ void FMVoice::stopNote (float, bool allowTailOff)
 {
     if (allowTailOff) 
     { 
-        for (auto& op : operators) op.noteOff(); 
+        for (auto& env : sharedEnvelopes) env.noteOff();
     }
     else 
     { 
@@ -166,8 +189,9 @@ void FMVoice::resetVoiceState()
     for (int i = 0; i < ProjectConfig::numOperators; ++i)
     {
         operators[i].resetPhase (0.0f);
-        operators[i].resetEnvelope(); 
     }
+    for (auto& env : sharedEnvelopes)
+        env.reset();
 }
 
 void FMVoice::renderNextBlock (juce::AudioBuffer<float>& outputBuffer, int startSample, int numSamples)
@@ -180,21 +204,21 @@ void FMVoice::renderNextBlock (juce::AudioBuffer<float>& outputBuffer, int start
         return ptr != nullptr ? ptr->load(std::memory_order_relaxed) : fallback;
     };
 
-    // Refresh ADSR parameters every block in case they changed
-    for (int i = 0; i < ProjectConfig::numOperators; ++i)
+    // Refresh shared envelope ADSR parameters every block in case they changed
+    for (int e = 0; e < ProjectConfig::numEnvelopes; ++e)
     {
         juce::ADSR::Parameters p;
-        p.attack  = safeLoad (opParams[i].attack,  0.1f);
-        p.decay   = safeLoad (opParams[i].decay,   0.2f);
-        p.sustain = safeLoad (opParams[i].sustain, 0.8f);
-        p.release = safeLoad (opParams[i].release, 0.5f);
-        operators[i].setEnvelopeParameters (p);
+        p.attack  = safeLoad (envParams[e].attack,  0.1f);
+        p.decay   = safeLoad (envParams[e].decay,   0.2f);
+        p.sustain = safeLoad (envParams[e].sustain, 0.8f);
+        p.release = safeLoad (envParams[e].release, 0.5f);
+        sharedEnvelopes[e].setParameters (p);
     }
 
     // Cache parameters for all operators.
     std::array<float, ProjectConfig::numOperators> cachedRatios, cachedDetunes, cachedPhases, cachedFolds, cachedOuts;
     std::array<int, ProjectConfig::numOperators> cachedModes, cachedShapes, cachedEffectTypes, cachedFreqModes;
-    std::array<float, ProjectConfig::numOperators> cachedAttacks, cachedDecays, cachedSustains, cachedReleases;
+    std::array<int, ProjectConfig::numOperators> cachedEnvSrc;
 
     for (int i = 0; i < ProjectConfig::numOperators; ++i)
     {
@@ -207,6 +231,8 @@ void FMVoice::renderNextBlock (juce::AudioBuffer<float>& outputBuffer, int start
         cachedShapes[i]      = static_cast<int>(safeLoad(opParams[i].wave, 0.0f));
         cachedEffectTypes[i] = static_cast<int>(safeLoad(opParams[i].effectType, 0.0f));
         cachedFreqModes[i] = static_cast<int> (safeLoad (opParams[i].freqMode, 0.0f));
+        cachedEnvSrc[i]    = juce::jlimit (0, ProjectConfig::numEnvelopes - 1,
+                                            static_cast<int> (safeLoad (opParams[i].envSrc, 0.0f)));
     }
 
     // prep for block audio handling
@@ -232,6 +258,15 @@ void FMVoice::renderNextBlock (juce::AudioBuffer<float>& outputBuffer, int start
         
         // matrix modulation storage
         float matrixModOffsets[ProjectConfig::numOperators][ProjectConfig::numOperators] {};
+
+        // Advance each shared envelope generator exactly once per sample.
+        std::array<float, ProjectConfig::numEnvelopes> envValues;
+        std::array<bool,  ProjectConfig::numEnvelopes> envActiveFlags;
+        for (int e = 0; e < ProjectConfig::numEnvelopes; ++e)
+        {
+            envActiveFlags[e] = sharedEnvelopes[e].isActive();
+            envValues[e]      = sharedEnvelopes[e].getNextSample();
+        }
 
         // shared routing used by mod matrix slots and macros so everything resolves OK
         auto applyToTarget = [&] (int tgtIdx, float srcSignal)
@@ -391,7 +426,9 @@ void FMVoice::renderNextBlock (juce::AudioBuffer<float>& outputBuffer, int start
                 cachedModes[dest], 
                 cachedShapes[dest], 
                 cachedEffectTypes[dest], 
-                cachedFreqModes[dest]
+                cachedFreqModes[dest],
+                envActiveFlags[cachedEnvSrc[dest]],
+                envValues[cachedEnvSrc[dest]]
             );
 
             // Process outputs and send them out
@@ -428,9 +465,9 @@ void FMVoice::renderNextBlock (juce::AudioBuffer<float>& outputBuffer, int start
     }
     // Cleanup - check if voice is finished
     bool isAnyEnvelopeActive = false;
-    for (int i = 0; i < ProjectConfig::numOperators; ++i)
+    for (auto& env : sharedEnvelopes)
     {
-        if (operators[i].isActive())
+        if (env.isActive())
         {
             isAnyEnvelopeActive = true;
             break;

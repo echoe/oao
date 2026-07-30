@@ -23,10 +23,13 @@ struct CompactOperatorGroup : public juce::Component
         setupSlider (detuneSlider, detuneLabel, "Detune", true);
         setupSlider (phaseSlider, phaseLabel, "Phase", true);
         setupSlider (foldSlider, foldLabel, "Fold", true);
-        setupSlider (attackSlider, attackLabel, "Attack", false);
-        setupSlider (decaySlider, decayLabel, "Decay", false);
-        setupSlider (sustainSlider, sustainLabel, "Sustain", false);
-        setupSlider (releaseSlider, releaseLabel, "Release", false);
+        // Envelope source — picks which shared envelope generator (see the Envelopes panel) drives this operator
+        envSourceLabel.setText ("Env", juce::dontSendNotification);
+        envSourceLabel.setJustificationType (juce::Justification::centred);
+        addAndMakeVisible (envSourceLabel);
+        for (int e = 0; e < ProjectConfig::numEnvelopes; ++e)
+            envSourceSelector.addItem ("Env " + juce::String (e + 1), e + 1);
+        addAndMakeVisible (envSourceSelector);
         // label operator
         opHeaderLabel.setText (opNum, juce::dontSendNotification);
         opHeaderLabel.setFont (juce::FontOptions (39.0f, juce::Font::bold));
@@ -74,10 +77,7 @@ struct CompactOperatorGroup : public juce::Component
         detuneAttach  = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (apvts, "DETUNE_" + opNum, detuneSlider);
         phaseAttach   = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (apvts, "PHASE_" + opNum, phaseSlider);
         foldAttach    = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (apvts, "FOLD_" + opNum, foldSlider);
-        attackAttach  = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (apvts, "ATTACK_" + opNum, attackSlider);
-        decayAttach   = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (apvts, "DECAY_" + opNum, decaySlider);
-        sustainAttach = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (apvts, "SUSTAIN_" + opNum, sustainSlider);
-        releaseAttach = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (apvts, "RELEASE_" + opNum, releaseSlider);
+        envSourceAttach = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (apvts, "ENV_SRC_" + opNum, envSourceSelector);
         modeAttach      = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (apvts, "MODE_" + opNum, modeSelector);
         waveShapeAttach = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (apvts, "WAVE_SHAPE_" + opNum, waveShapeSelector);
         effectTypeAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (apvts, "FILTER_TYPE_" + opNum, effectTypeSelector);
@@ -128,7 +128,7 @@ struct CompactOperatorGroup : public juce::Component
         area.removeFromLeft (juce::roundToInt (w * 0.01f)); // small gap before knobs
 
         // Knobs and Sliders in a row :D
-        int Width = area.getWidth() / 8;
+        int Width = area.getWidth() / 5;
 
         // Shared text box / label sizing
         int textBoxW = juce::roundToInt (sharedKnobTarget * ProjectConfig::textBoxWidthFraction);
@@ -162,32 +162,18 @@ struct CompactOperatorGroup : public juce::Component
         foldLabel.setBounds  (lArea.removeFromTop (labelH));
         foldSlider.setBounds (clampKnob (lArea));
     
-        // --- ENVELOPE SLIDERS ---
-    
-        auto aArea = area.removeFromLeft (Width);
-        attackLabel.setBounds  (aArea.removeFromTop (labelH));
-        attackSlider.setBounds (clampKnob (aArea));
-    
-        auto decArea = area.removeFromLeft (Width);
-        decayLabel.setBounds  (decArea.removeFromTop (labelH));
-        decaySlider.setBounds (clampKnob (decArea));
-    
-        auto sArea = area.removeFromLeft (Width);
-        sustainLabel.setBounds  (sArea.removeFromTop (labelH));
-        sustainSlider.setBounds (clampKnob (sArea));
-    
-        auto relArea = area;
-        releaseLabel.setBounds  (relArea.removeFromTop (labelH));
-        releaseSlider.setBounds (clampKnob (relArea));
+        // --- ENVELOPE SOURCE ---
+        // Takes the space the four ADSR sliders used to occupy; the actual ADSR now lives
+        // in the shared Envelopes panel, this just picks which one drives this operator.
+        auto envArea = area.removeFromLeft (Width);
+        envSourceLabel.setBounds (envArea.removeFromTop (labelH));
+        envSourceSelector.setBounds (envArea.reduced (2).withSizeKeepingCentre (
+            envArea.getWidth(), juce::jmin (envArea.getHeight(), labelH * 2)));
 
         ratioSlider.setTextBoxStyle  (juce::Slider::TextBoxBelow, false, textBoxW, textBoxH);
         detuneSlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, textBoxW, textBoxH);
         phaseSlider.setTextBoxStyle  (juce::Slider::TextBoxBelow, false, textBoxW, textBoxH);
         foldSlider.setTextBoxStyle   (juce::Slider::TextBoxBelow, false, textBoxW, textBoxH);
-        attackSlider.setTextBoxStyle  (juce::Slider::TextBoxBelow, false, textBoxW, textBoxH);
-        decaySlider.setTextBoxStyle   (juce::Slider::TextBoxBelow, false, textBoxW, textBoxH);
-        sustainSlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, textBoxW, textBoxH);
-        releaseSlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, textBoxW, textBoxH);    	
     }
 
     void lookAndFeelChanged() override
@@ -200,10 +186,7 @@ struct CompactOperatorGroup : public juce::Component
         detuneLabel.setColour   (juce::Label::textColourId, colors.text);
         phaseLabel.setColour    (juce::Label::textColourId, colors.text);
         foldLabel.setColour     (juce::Label::textColourId, colors.text);
-        attackLabel.setColour   (juce::Label::textColourId, colors.text);
-        decayLabel.setColour    (juce::Label::textColourId, colors.text);
-        sustainLabel.setColour  (juce::Label::textColourId, colors.text);
-        releaseLabel.setColour  (juce::Label::textColourId, colors.text);
+        envSourceLabel.setColour (juce::Label::textColourId, colors.text);
 
         // Helper lambda to update ComboBoxes cleanly
         auto updateComboBox = [this](juce::ComboBox& cb) {
@@ -215,6 +198,7 @@ struct CompactOperatorGroup : public juce::Component
         updateComboBox (modeSelector);
         updateComboBox (waveShapeSelector);
         updateComboBox (effectTypeSelector);
+        updateComboBox (envSourceSelector);
 
         // Helper lambda to update Sliders cleanly
         auto updateSlider = [this](juce::Slider& s) {
@@ -227,10 +211,6 @@ struct CompactOperatorGroup : public juce::Component
         updateSlider (detuneSlider);
         updateSlider (phaseSlider);
         updateSlider (foldSlider);
-        updateSlider (attackSlider);
-        updateSlider (decaySlider);
-        updateSlider (sustainSlider);
-        updateSlider (releaseSlider);
     }
 
     // Callback fired when the user picks a file. Receives (opIndex, file).
@@ -343,16 +323,16 @@ private:
     juce::String opNum;
 
     juce::Slider ratioSlider, detuneSlider, phaseSlider, foldSlider;
-    juce::Slider attackSlider, decaySlider, sustainSlider, releaseSlider;
     
     juce::Label opHeaderLabel;
     juce::Label ratioLabel, detuneLabel, phaseLabel, foldLabel;
-    juce::Label attackLabel, decayLabel, sustainLabel, releaseLabel;
+    juce::Label envSourceLabel;
     
     juce::ComboBox modeSelector;
     juce::ComboBox waveShapeSelector;
     juce::ComboBox effectTypeSelector;
     juce::ComboBox freqModeSelector;
+    juce::ComboBox envSourceSelector; // which shared envelope generator drives this operator
     juce::TextButton loadSampleButton;
     std::unique_ptr<juce::FileChooser> fileChooser;
 
@@ -360,8 +340,8 @@ private:
     std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> waveShapeAttach;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> effectTypeAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> freqModeAttach;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> envSourceAttach;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> ratioAttach, detuneAttach, phaseAttach, foldAttach;
-    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> attackAttach, decayAttach, sustainAttach, releaseAttach;
 
 public:
     // Set from OperatorsPage::resized()
@@ -502,6 +482,90 @@ private:
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>   amountAttach[ProjectConfig::numMacroTargets];
 };
 
+// One shared envelope generator (attack/decay/sustain/release) that operators can pick
+// via their own "Env" source selector (see CompactOperatorGroup::envSourceSelector).
+struct EnvelopeSlot : public juce::Component
+{
+    EnvelopeSlot (juce::AudioProcessorValueTreeState& apvts, int envIndex, OAOColors& c)
+        : colors (c)
+    {
+        juce::String s = juce::String (envIndex + 1);
+
+        envLabel.setText ("Env " + s, juce::dontSendNotification);
+        envLabel.setJustificationType (juce::Justification::centred);
+        envLabel.setFont (juce::FontOptions (16.0f, juce::Font::bold));
+        addAndMakeVisible (envLabel);
+
+        static const char* names[] = { "A", "D", "S", "R" };
+        juce::Slider::SliderStyle style = juce::Slider::LinearHorizontal;
+        for (int k = 0; k < 4; ++k)
+        {
+            knob[k].setSliderStyle (style);
+            knob[k].setTextBoxStyle (juce::Slider::TextBoxBelow, false, 40, 12);
+            addAndMakeVisible (knob[k]);
+
+            knobLabel[k].setText (names[k], juce::dontSendNotification);
+            knobLabel[k].setJustificationType (juce::Justification::centred);
+            addAndMakeVisible (knobLabel[k]);
+        }
+
+        attackAttach  = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (apvts, "ENV_ATTACK_"  + s, knob[0]);
+        decayAttach   = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (apvts, "ENV_DECAY_"   + s, knob[1]);
+        sustainAttach = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (apvts, "ENV_SUSTAIN_" + s, knob[2]);
+        releaseAttach = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (apvts, "ENV_RELEASE_" + s, knob[3]);
+    }
+
+    void paint (juce::Graphics& g) override
+    {
+        auto bounds = getLocalBounds().toFloat();
+        g.setColour (colors.background);
+        g.fillRoundedRectangle (bounds, 4.0f);
+
+        g.setColour (colors.text.withAlpha (0.15f));
+        g.drawRoundedRectangle (bounds.reduced (1.0f), 4.0f, 1.0f);
+    }
+
+    void resized() override
+    {
+        auto area = getLocalBounds().reduced (juce::roundToInt (getWidth() * 0.02f),
+                                               juce::roundToInt (getHeight() * 0.04f));
+
+        int labelH = juce::jmax (12, juce::roundToInt (getHeight() * 0.16f));
+        envLabel.setBounds (area.removeFromTop (labelH));
+
+        int knobW = area.getWidth() / 4;
+        for (int k = 0; k < 4; ++k)
+        {
+            auto col = area.removeFromLeft (knobW);
+            knobLabel[k].setBounds (col.removeFromTop (labelH));
+            knob[k].setBounds (col.reduced (2, 0));
+        }
+    }
+
+    void lookAndFeelChanged() override
+    {
+        juce::Component::lookAndFeelChanged();
+
+        envLabel.setColour (juce::Label::textColourId, colors.text);
+        for (int k = 0; k < 4; ++k)
+        {
+            knobLabel[k].setColour (juce::Label::textColourId, colors.text);
+            knob[k].setColour (juce::Slider::textBoxBackgroundColourId, colors.surface);
+            knob[k].setColour (juce::Slider::textBoxTextColourId, colors.text);
+            knobLabel[k].sendLookAndFeelChange();
+            knob[k].sendLookAndFeelChange();
+        }
+    }
+
+private:
+    OAOColors& colors;
+    juce::Label  envLabel;
+    juce::Slider knob[4];       // Attack, Decay, Sustain, Release
+    juce::Label  knobLabel[4];
+
+    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> attackAttach, decayAttach, sustainAttach, releaseAttach;
+};
+
 // --- THE PARENT VIEW MANAGER CLASS ---
 class OperatorsPage : public juce::Component
 {
@@ -536,6 +600,12 @@ public:
             macroSlots.push_back (std::make_unique<MacroSlot> (apvts, i, colors));
             addAndMakeVisible (*macroSlots.back());
         }
+
+        for (int i = 0; i < ProjectConfig::numEnvelopes; ++i)
+        {
+            envelopeSlots.push_back (std::make_unique<EnvelopeSlot> (apvts, i, colors));
+            addAndMakeVisible (*envelopeSlots.back());
+        }
     }
 
     void paint (juce::Graphics& g) override
@@ -558,6 +628,12 @@ public:
             if (macro != nullptr)
                 macro->lookAndFeelChanged();
         }
+
+        for (auto& env : envelopeSlots)
+        {
+            if (env != nullptr)
+                env->lookAndFeelChanged();
+        }
     }
 
     void repaintAll()
@@ -566,6 +642,8 @@ public:
             op->repaint();
         for (auto& macro : macroSlots)
             macro->repaint();
+        for (auto& env : envelopeSlots)
+            env->repaint();
         repaint();
     }
 
@@ -593,6 +671,25 @@ public:
                 auto cell = macroRowArea.removeFromLeft (isLast ? macroRowArea.getWidth() : macroCellW);
                 if (! isLast) macroRowArea.removeFromLeft (macroGap);
                 macroSlots[i]->setBounds (cell);
+            }
+        }
+
+        // --- Envelope row: fixed height beneath the macros, one column per shared envelope ---
+        int envRowHeight = juce::roundToInt (area.getHeight() * 0.12f);
+        auto envRowArea  = area.removeFromTop (envRowHeight);
+        area.removeFromTop (gap);
+
+        int numEnvs = static_cast<int> (envelopeSlots.size());
+        if (numEnvs > 0)
+        {
+            int envCellW = envRowArea.getWidth() / numEnvs;
+            int envGap   = juce::jmax (1, gap / 2);
+            for (int i = 0; i < numEnvs; ++i)
+            {
+                bool isLast = (i == numEnvs - 1);
+                auto cell = envRowArea.removeFromLeft (isLast ? envRowArea.getWidth() : envCellW);
+                if (! isLast) envRowArea.removeFromLeft (envGap);
+                envelopeSlots[i]->setBounds (cell);
             }
         }
 
@@ -639,4 +736,5 @@ private:
     OAOColors& colors;
     std::vector<std::unique_ptr<CompactOperatorGroup>> opModules;
     std::vector<std::unique_ptr<MacroSlot>> macroSlots;
+    std::vector<std::unique_ptr<EnvelopeSlot>> envelopeSlots;
 };

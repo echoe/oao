@@ -12,20 +12,13 @@ public:
     {
         currentSampleRate = sampleRate;
         waveTable = wt;
-        envelope.setSampleRate (sampleRate * oversamplingFactor);
         phase = 0.0;
         internalEffect.prepare (sampleRate);
         internalEffect.reset();
     }
 
-    void setEnvelopeParameters (const juce::ADSR::Parameters& p) {envelope.setParameters (p);}
-
-    void resetEnvelope(){envelope.reset();}
-
-    void noteOn (const juce::ADSR::Parameters& envParams)
+    void noteOn()
     {
-        envelope.setParameters (envParams);
-        envelope.noteOn();
         phase = 0.0;
         samplePlayPos  = 0.0;
         xfadePlayPos   = 0.0;
@@ -33,10 +26,9 @@ public:
         xfadePingDir   = 1.0f;
         xfadeActive    = false;
 	scatterWindowOffset = 0.0f;
+        sampleFinished = false;
         internalEffect.reset();
     }
-
-    void noteOff() { envelope.noteOff(); }
 
     void resetPhase (float phaseInDegrees)
     {
@@ -47,7 +39,6 @@ public:
 
     void resetVoiceState()
     {
-        envelope.reset();
         pinkB0 = pinkB1 = pinkB2 = pinkB3 = pinkB4 = pinkB5 = pinkB6 = 0.0f;
         samplePlayPos = 0.0;
         xfadePlayPos  = 0.0;
@@ -56,13 +47,13 @@ public:
         xfadeActive   = false;
 	scatterWindowOffset = 0.0f;
 	blockSampleBuffer = nullptr;
+        sampleFinished = false;
         internalEffect.reset();
     }
 
     void setOversamplingFactor (int factor)
     {
         oversamplingFactor = factor;
-        envelope.setSampleRate (currentSampleRate * factor);
     }
 
     // Set a shared pointer to the loaded audio buffer for sample mode.
@@ -73,17 +64,21 @@ public:
         samplePlayPos = 0.0;
         xfadePlayPos  = 0.0;
         xfadeActive   = false;
+        sampleFinished = false;
     }
 
-    bool isActive() const { return envelope.isActive(); }
+    // True once a one-shot sample has played to its end, independent of whichever
+    // shared envelope generator (see FMVoice) is assigned to this operator.
+    bool hasFinishedSample() const { return sampleFinished; }
 
     float processSample (double baseFrequency, float currentBpm,
                          float ratio, float detune, float phaseKnob, float foldKnob,
                          float audioInputSum, float modulationSum,
                          float pitchModOffset, float phaseModOffset, float cutoffModOffset, float foldModOffset,
-                         int mode, int waveShape, int effectType, int freqMode)
+                         int mode, int waveShape, int effectType, int freqMode,
+                         bool envelopeActive, float envelopeValue)
     {
-        if (!envelope.isActive()) return 0.0f;
+        if (!envelopeActive || sampleFinished) return 0.0f;
 
         float outputSample = 0.0f;
         if (mode == 2) // Sample playback
@@ -191,7 +186,7 @@ public:
                     {
                         // Clamp at the very last valid position and kill the voice.
                         samplePlayPos = regionLen - 1.0;
-                        envelope.noteOff(); // stop the envelope — operator is done
+                        sampleFinished = true; // this operator is done, independent of the (possibly shared) envelope
                     }
                     else
                     {
@@ -730,7 +725,7 @@ public:
             }
         }
 
-        return outputSample * envelope.getNextSample();
+        return outputSample * envelopeValue;
     }
 
 private:
@@ -749,7 +744,7 @@ private:
     double phase = 0.0;
     double currentSampleRate = 44100.0;
     int oversamplingFactor = 1;
-    juce::ADSR envelope;
+    bool sampleFinished = false; // set once a one-shot sample has played out (see processSample, playMode == 0)
     juce::Random random; // white noise
     float pinkB0 = 0.0f, pinkB1 = 0.0f, pinkB2 = 0.0f;
     float pinkB3 = 0.0f, pinkB4 = 0.0f, pinkB5 = 0.0f, pinkB6 = 0.0f;

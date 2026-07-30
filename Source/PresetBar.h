@@ -417,11 +417,17 @@ private:
         else
             setReal ("OUT_" + s, prng.nextFloat());
 
-        // Envelopes — wobble proportional to value so short times stay short
-        setReal ("ATTACK_"  + s, wobbleReal (op.attack,  prng, op.attack  * 0.10f, 0.001f, 5.0f));
-        setReal ("DECAY_"   + s, wobbleReal (op.decay,   prng, op.decay   * 0.10f, 0.01f,  5.0f));
-        setReal ("SUSTAIN_" + s, wobbleReal (op.sustain, prng, 0.05f,               0.0f,   1.0f));
-        setReal ("RELEASE_" + s, wobbleReal (op.release, prng, op.release * 0.10f, 0.01f,  5.0f));
+        // Envelope — operators now pick from a small shared pool rather than owning their own
+        // ADSR, so assign this operator a generator (round-robin across the pool) and wobble
+        // that generator's ADSR toward this recipe's envelope shape.
+        int envIdx = opIndex % ProjectConfig::numEnvelopes;
+        setChoice ("ENV_SRC_" + s, envIdx);
+
+        juce::String e = juce::String (envIdx + 1);
+        setReal ("ENV_ATTACK_"  + e, wobbleReal (op.attack,  prng, op.attack  * 0.10f, 0.001f, 5.0f));
+        setReal ("ENV_DECAY_"   + e, wobbleReal (op.decay,   prng, op.decay   * 0.10f, 0.01f,  5.0f));
+        setReal ("ENV_SUSTAIN_" + e, wobbleReal (op.sustain, prng, 0.05f,               0.0f,   1.0f));
+        setReal ("ENV_RELEASE_" + e, wobbleReal (op.release, prng, op.release * 0.10f, 0.01f,  5.0f));
     }
 
 struct FMAlgorithm 

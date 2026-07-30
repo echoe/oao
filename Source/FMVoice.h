@@ -18,11 +18,17 @@ struct OperatorParameterCache
     std::atomic<float>* phase { nullptr };
     std::atomic<float>* fold { nullptr };
     std::atomic<float>* out { nullptr };
+    std::atomic<float>* envSrc { nullptr }; // which shared envelope generator (0..numEnvelopes-1) drives this operator
+    std::atomic<float>* freqMode { nullptr };
+};
+
+// Raw APVTS param pointers for one shared envelope generator (see FMVoice::sharedEnvelopes)
+struct SharedEnvelopeParameterCache
+{
     std::atomic<float>* attack { nullptr };
     std::atomic<float>* decay { nullptr };
     std::atomic<float>* sustain { nullptr };
     std::atomic<float>* release { nullptr };
-    std::atomic<float>* freqMode { nullptr };
 };
 
 class FMVoice : public juce::SynthesiserVoice
@@ -62,6 +68,7 @@ public:
 
 private:
     double baseFrequency { 440.0 };
+    int oversamplingFactor { 1 };
     bool alwaysActive = false;
     float level { 0.0f };
     int lastPlayedNote = 60; 
@@ -72,6 +79,10 @@ private:
     std::array<float, ProjectConfig::numOperators> previousOpOutputs { 0.0f };
     std::array<float, ProjectConfig::numOperators> processedOpOutputs { 0.0f };
     std::array<OperatorParameterCache, ProjectConfig::numOperators> opParams;
+    // Shared envelope generator pool — a small number of ADSRs that operators pick from via
+    // their envSrc param, instead of each operator owning its own dedicated ADSR.
+    std::array<juce::ADSR, ProjectConfig::numEnvelopes> sharedEnvelopes;
+    std::array<SharedEnvelopeParameterCache, ProjectConfig::numEnvelopes> envParams;
     std::array<std::atomic<float>*, 6> extraModParams { nullptr };
     std::atomic<float>* modSlotSrc[ProjectConfig::numModSlots] { nullptr };
     std::atomic<float>* modSlotTgt[ProjectConfig::numModSlots] { nullptr };

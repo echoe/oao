@@ -74,20 +74,23 @@ struct ModMatrixSlot : public juce::Component
     {
         auto area = getLocalBounds().reduced (2, 0);
 
-        // --- Right block: Depth Knob & Label ---
+        // --- Right block: Depth Knob & Label — label sits beside the knob, vertically
+        // centered together, matching the Src./Tgt. rows below rather than floating above it.
         auto rightArea = area.removeFromRight (juce::roundToInt (area.getWidth() * 0.28f));
 
         int textBoxW = juce::roundToInt (rightArea.getWidth() * 0.8f);
         int textBoxH = juce::jlimit (12, 20, juce::roundToInt (area.getHeight() * 0.2f));
 	amountSlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, textBoxW, textBoxH);
 
+        auto depthLabelArea = rightArea.removeFromLeft (juce::roundToInt (rightArea.getWidth() * 0.35f));
+
         int knobSize = juce::jmin (area.getHeight(), rightArea.getWidth());
         auto knobBlock = rightArea.withSizeKeepingCentre (rightArea.getWidth(), knobSize);
         amountSlider.setBounds (knobBlock);
 
-        // Float the label in the empty space above the knob.
-        int labelHeight = knobBlock.getY() - rightArea.getY();
-        depthLabel.setBounds (rightArea.getX(), rightArea.getY(), rightArea.getWidth(), labelHeight);
+        // Same vertical centre as the knob, so the two visually align as a pair.
+        depthLabel.setBounds (depthLabelArea.withSizeKeepingCentre (
+            depthLabelArea.getWidth(), juce::jmin (depthLabelArea.getHeight(), knobSize)));
 
         // --- Left block: Source/Target ---
         int rowH       = juce::jmax (20, juce::roundToInt (area.getHeight() * 0.35f));

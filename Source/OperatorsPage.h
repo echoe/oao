@@ -49,24 +49,26 @@ struct CompactOperatorGroup : public juce::Component
             fmInputSource[slot].onChange = [this, slot] { onFMInputSourceChanged (slot); };
         }
 
-        // Audio Out — single destination selector + amount
-        audioHeaderLabel.setText ("Audio", juce::dontSendNotification);
-        audioHeaderLabel.setJustificationType (juce::Justification::centred);
-        addAndMakeVisible (audioHeaderLabel);
-
-        audioOutTarget.addItem ("None", 1);
-        audioOutTarget.addItem ("Out", 2);
-        for (int op = 0; op < ProjectConfig::numOperators; ++op)
+        // Audio Route — two independent destination slots, so an operator can feed two
+        // places at once (e.g. main mix + another operator, or two other operators).
+        // Column headers ("Out" / "Out2") now live in the page-level header bar above the
+        // operator list, so no per-row label is needed here.
+        for (int slot = 0; slot < numAudioOutSlots; ++slot)
         {
-            if (op == opIndex) continue; // no self audio routing here — self FM feedback already covers that case
-            audioOutTarget.addItem ("Op " + juce::String (op + 1), 3 + op);
-        }
-        addAndMakeVisible (audioOutTarget);
-        audioOutTarget.onChange = [this] { onAudioOutTargetChanged(); };
+            audioOutTarget[slot].addItem ("None", 1);
+            audioOutTarget[slot].addItem ("Out", 2);
+            for (int op = 0; op < ProjectConfig::numOperators; ++op)
+            {
+                if (op == opIndex) continue; // no self audio routing here — self FM feedback already covers that case
+                audioOutTarget[slot].addItem ("Op " + juce::String (op + 1), 3 + op);
+            }
+            addAndMakeVisible (audioOutTarget[slot]);
+            audioOutTarget[slot].onChange = [this, slot] { onAudioOutTargetChanged (slot); };
 
-        audioOutAmount.setSliderStyle (juce::Slider::LinearHorizontal);
-        audioOutAmount.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 40, 12);
-        addAndMakeVisible (audioOutAmount);
+            audioOutAmount[slot].setSliderStyle (juce::Slider::LinearHorizontal);
+            audioOutAmount[slot].setTextBoxStyle (juce::Slider::TextBoxBelow, false, 36, 12);
+            addAndMakeVisible (audioOutAmount[slot]);
+        }
         // label operator
         opHeaderLabel.setText (opNum, juce::dontSendNotification);
         opHeaderLabel.setFont (juce::FontOptions (39.0f, juce::Font::bold));
@@ -159,7 +161,7 @@ struct CompactOperatorGroup : public juce::Component
         int textBoxW = juce::roundToInt (sharedKnobTarget * ProjectConfig::textBoxWidthFraction);
         int textBoxH = juce::jlimit (12, 70, juce::roundToInt (sharedKnobTarget * colors.textBoxHeightFraction));
         int labelH   = juce::jmax (10, juce::roundToInt (sharedKnobTarget * colors.textBoxHeightFraction));
-        int gap      = juce::jmax (2, juce::roundToInt (w * 0.01f));
+        int gap      = juce::jmax (4, juce::roundToInt (w * 0.018f));
 
         // ============================================================
         // SECTION 1 — operator number + Mode/Wave/Effect/FreqMode selectors
@@ -185,10 +187,10 @@ struct CompactOperatorGroup : public juce::Component
         area.removeFromLeft (gap);
 
         // ============================================================
-        // SECTION 5 — Audio Out (carved from the right first, fixed width, so section 4
-        // gets whatever's left over — see below. It's small so doesn't need much.)
+        // SECTION 5 — Audio Route: two sub-columns, "Out" and "Out2" (carved from the right
+        // first, fixed width, so section 4 gets whatever's left over — see below)
         // ============================================================
-        int audioColW = juce::jmax (110, juce::roundToInt (w * 0.03f));
+        int audioColW = juce::jmax (70, juce::roundToInt (w * 0.065f)) * numAudioOutSlots;
         auto audioArea = area.removeFromRight (audioColW);
         area.removeFromRight (gap);
         section5Divider = area.getRight();
@@ -196,9 +198,9 @@ struct CompactOperatorGroup : public juce::Component
         // ============================================================
         // SECTION 2 — the four operator tweak knobs (Ratio/Detune/Phase/Fold)
         // ============================================================
-        int knobColW = juce::jmax (sharedKnobTarget, juce::roundToInt (w * 0.075f)); // it's been too big so I removed 16 from sharedknobtarget
+        int knobColW = juce::jmax (sharedKnobTarget + 4, juce::roundToInt (w * 0.058f));
 
-        int targetBoxSize = sharedKnobTarget; // i removed 8 from this
+        int targetBoxSize = sharedKnobTarget + 8;
         int knobAreaH     = area.getHeight() - labelH;
         int knobBoxW      = juce::jmin (knobColW, targetBoxSize);
         int knobBoxH      = juce::jmin (knobAreaH, targetBoxSize + textBoxH);
@@ -236,7 +238,7 @@ struct CompactOperatorGroup : public juce::Component
         // SECTION 3 — envelope source (deliberately smaller than a knob column: it's just
         // a dropdown, not a value to dial in)
         // ============================================================
-        int envColW = juce::jmax (50, juce::roundToInt (w * 0.07f)); //lowered from 60
+        int envColW = juce::jmax (50, juce::roundToInt (w * 0.05f));
         auto envArea = area.removeFromLeft (envColW);
         envSourceLabel.setBounds (envArea.removeFromTop (labelH));
         envSourceSelector.setBounds (envArea.reduced (2).withSizeKeepingCentre (
@@ -248,30 +250,44 @@ struct CompactOperatorGroup : public juce::Component
         // ============================================================
         // SECTION 4 — FM Inputs: whatever's left after the other four sections, which is
         // deliberately most of the row. Laid out the same way as the section 2 knobs (label/
-        // selector on top, slider below) rather than the old cramped side-by-side rows.
+        // selector on top, slider below). Slightly smaller than a full tweak knob, with a
+        // visible gap between slots so they don't run together.
         // ============================================================
         auto fmInputArea = area;
-        int fmSlotW = fmInputArea.getWidth() / numFMInputSlots;
+        int fmGap  = juce::jmax (3, gap / 2);
+        int fmSlotW = (fmInputArea.getWidth() - fmGap * (numFMInputSlots - 1)) / numFMInputSlots;
         int fmComboH = juce::jmax (16, labelH + 4);
+        int fmKnobBoxW = juce::jmin (knobBoxW, juce::roundToInt (knobBoxW * 0.82f));
+        int fmKnobBoxH = juce::jmin (knobBoxH, juce::roundToInt (knobBoxH * 0.9f));
+        auto clampFmKnob = [fmKnobBoxW, fmKnobBoxH] (juce::Rectangle<int> box)
+        {
+            return box.withSizeKeepingCentre (fmKnobBoxW, fmKnobBoxH);
+        };
 
         for (int slot = 0; slot < numFMInputSlots; ++slot)
         {
-            auto col = fmInputArea.removeFromLeft (fmSlotW).reduced (2, 0);
+            auto col = fmInputArea.removeFromLeft (fmSlotW);
+            if (slot < numFMInputSlots - 1)
+                fmInputArea.removeFromLeft (fmGap);
             fmInputSource[slot].setBounds (col.removeFromTop (fmComboH));
             col.removeFromTop (2);
-            fmInputAmount[slot].setBounds (clampKnob (col));
+            fmInputAmount[slot].setBounds (clampFmKnob (col));
             fmInputAmount[slot].setTextBoxStyle (juce::Slider::TextBoxBelow, false, textBoxW, textBoxH);
         }
 
         // ============================================================
-        // SECTION 5 (laid out) — Audio header, destination combo, amount slider, stacked
+        // SECTION 5 (laid out) — Out / Out2: destination combo + amount slider, stacked,
+        // side by side. No per-slot header text — the page-level header bar labels these.
         // ============================================================
-        auto aArea = audioArea;
-        audioHeaderLabel.setBounds (aArea.removeFromTop (labelH));
-        audioOutTarget.setBounds (aArea.removeFromTop (fmComboH).reduced (2, 0));
-        aArea.removeFromTop (2);
-        audioOutAmount.setBounds (aArea.reduced (2, 0));
-        audioOutAmount.setTextBoxStyle (juce::Slider::TextBoxBelow, false, textBoxW, textBoxH);
+        int audioSlotW = audioArea.getWidth() / numAudioOutSlots;
+        for (int slot = 0; slot < numAudioOutSlots; ++slot)
+        {
+            auto aArea = audioArea.removeFromLeft (audioSlotW).reduced (2, 0);
+            audioOutTarget[slot].setBounds (aArea.removeFromTop (fmComboH));
+            aArea.removeFromTop (2);
+            audioOutAmount[slot].setBounds (aArea);
+            audioOutAmount[slot].setTextBoxStyle (juce::Slider::TextBoxBelow, false, textBoxW, textBoxH);
+        }
     }
 
     void lookAndFeelChanged() override
@@ -285,7 +301,6 @@ struct CompactOperatorGroup : public juce::Component
         phaseLabel.setColour    (juce::Label::textColourId, colors.text);
         foldLabel.setColour     (juce::Label::textColourId, colors.text);
         envSourceLabel.setColour (juce::Label::textColourId, colors.text);
-        audioHeaderLabel.setColour (juce::Label::textColourId, colors.text);
 
         // Helper lambda to update ComboBoxes cleanly
         auto updateComboBox = [this](juce::ComboBox& cb) {
@@ -298,7 +313,8 @@ struct CompactOperatorGroup : public juce::Component
         updateComboBox (waveShapeSelector);
         updateComboBox (effectTypeSelector);
         updateComboBox (envSourceSelector);
-        updateComboBox (audioOutTarget);
+        for (auto& cb : audioOutTarget)
+            updateComboBox (cb);
         for (auto& cb : fmInputSource)
             updateComboBox (cb);
 
@@ -315,7 +331,8 @@ struct CompactOperatorGroup : public juce::Component
         updateSlider (foldSlider);
         for (auto& s : fmInputAmount)
             updateSlider (s);
-        updateSlider (audioOutAmount);
+        for (auto& s : audioOutAmount)
+            updateSlider (s);
     }
 
     // Callback fired when the user picks a file. Receives (opIndex, file).
@@ -494,61 +511,65 @@ public:
 
     // Re-scan this operator's OUT_ level and outgoing AUDIO_ROUTE_ cells, and set the Audio Out
     // control to whichever is currently active. If both happen to be active at once (possible if
-    // someone used the old Audio Matrix page directly), the audio-route target wins and is shown;
-    // that's a real ambiguity this compact control can't fully represent, not a bug.
+    // someone used the old Audio Matrix page directly, or both slots here happen to point at
+    // the same destination), only the first numAudioOutSlots found are shown; that's a real
+    // limit of this compact view, not a bug.
     void refreshAudioOutFromState()
     {
         int srcIdx = opNum.getIntValue() - 1;
-        audioOutAmountAttach.reset();
-        boundAudioOutParamID = {};
+        for (int slot = 0; slot < numAudioOutSlots; ++slot)
+        {
+            audioOutAmountAttach[slot].reset();
+            boundAudioOutParamID[slot] = {};
+        }
 
-        int foundTarget = -1;
-        for (int dest = 0; dest < ProjectConfig::numOperators; ++dest)
+        int slot = 0;
+
+        auto* outParam = apvts.getRawParameterValue ("OUT_" + opNum);
+        float outVal = outParam != nullptr ? outParam->load (std::memory_order_relaxed) : 0.0f;
+        if (outVal > 0.0001f && slot < numAudioOutSlots)
+        {
+            bindAudioOutSlot (slot, 2, "OUT_" + opNum);
+            ++slot;
+        }
+
+        for (int dest = 0; dest < ProjectConfig::numOperators && slot < numAudioOutSlots; ++dest)
         {
             if (dest == srcIdx) continue;
             auto* raw = apvts.getRawParameterValue ("AUDIO_ROUTE_" + juce::String (srcIdx) + "_" + juce::String (dest));
             if (raw != nullptr && raw->load (std::memory_order_relaxed) > 0.0001f)
             {
-                foundTarget = dest;
-                break;
+                bindAudioOutSlot (slot, 3 + dest, "AUDIO_ROUTE_" + juce::String (srcIdx) + "_" + juce::String (dest));
+                ++slot;
             }
         }
 
-        if (foundTarget != -1)
+        for (; slot < numAudioOutSlots; ++slot)
         {
-            audioOutTarget.setSelectedId (3 + foundTarget, juce::dontSendNotification);
-            boundAudioOutParamID = "AUDIO_ROUTE_" + juce::String (srcIdx) + "_" + juce::String (foundTarget);
-            audioOutAmountAttach = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
-                apvts, boundAudioOutParamID, audioOutAmount);
-            audioOutAmount.setEnabled (true);
-            return;
+            audioOutTarget[slot].setSelectedId (1, juce::dontSendNotification);
+            audioOutAmount[slot].setEnabled (false);
+            audioOutAmount[slot].setValue (0.0, juce::dontSendNotification);
         }
-
-        auto* outParam = apvts.getRawParameterValue ("OUT_" + opNum);
-        float outVal = outParam != nullptr ? outParam->load (std::memory_order_relaxed) : 0.0f;
-        if (outVal > 0.0001f)
-        {
-            audioOutTarget.setSelectedId (2, juce::dontSendNotification);
-            boundAudioOutParamID = "OUT_" + opNum;
-            audioOutAmountAttach = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
-                apvts, boundAudioOutParamID, audioOutAmount);
-            audioOutAmount.setEnabled (true);
-            return;
-        }
-
-        audioOutTarget.setSelectedId (1, juce::dontSendNotification);
-        audioOutAmount.setEnabled (false);
-        audioOutAmount.setValue (0.0, juce::dontSendNotification);
     }
 
-    // Called when the Audio Out destination changes — rebinds the amount slider to the newly
-    // chosen param (OUT_ for "Out", AUDIO_ROUTE_this_target for another operator), and zeroes
-    // out whichever param this control was previously bound to so it doesn't linger active
+    // Shared by refreshAudioOutFromState — binds one Audio Route slot to an already-known param.
+    void bindAudioOutSlot (int slot, int comboSelectedId, const juce::String& paramID)
+    {
+        audioOutTarget[slot].setSelectedId (comboSelectedId, juce::dontSendNotification);
+        boundAudioOutParamID[slot] = paramID;
+        audioOutAmountAttach[slot] = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
+            apvts, paramID, audioOutAmount[slot]);
+        audioOutAmount[slot].setEnabled (true);
+    }
+
+    // Called when an Audio Route slot's destination changes — rebinds its amount slider to the
+    // newly chosen param (OUT_ for "Out", AUDIO_ROUTE_this_target for another operator), and
+    // zeroes out whichever param that slot was previously bound to so it doesn't linger active
     // and inaudible-but-invisible.
-    void onAudioOutTargetChanged()
+    void onAudioOutTargetChanged (int slot)
     {
         int srcIdx = opNum.getIntValue() - 1;
-        int selId  = audioOutTarget.getSelectedId();
+        int selId  = audioOutTarget[slot].getSelectedId();
 
         juce::String newParamID;
         if (selId == 2)
@@ -557,25 +578,25 @@ public:
             newParamID = "AUDIO_ROUTE_" + juce::String (srcIdx) + "_" + juce::String (selId - 3);
         // selId == 1 ("None") leaves newParamID empty
 
-        if (boundAudioOutParamID.isNotEmpty() && boundAudioOutParamID != newParamID)
+        if (boundAudioOutParamID[slot].isNotEmpty() && boundAudioOutParamID[slot] != newParamID)
         {
-            if (auto* p = apvts.getParameter (boundAudioOutParamID))
+            if (auto* p = apvts.getParameter (boundAudioOutParamID[slot]))
                 p->setValueNotifyingHost (p->convertTo0to1 (0.0f));
         }
 
-        audioOutAmountAttach.reset();
-        boundAudioOutParamID = newParamID;
+        audioOutAmountAttach[slot].reset();
+        boundAudioOutParamID[slot] = newParamID;
 
         if (newParamID.isNotEmpty())
         {
-            audioOutAmountAttach = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
-                apvts, newParamID, audioOutAmount);
-            audioOutAmount.setEnabled (true);
+            audioOutAmountAttach[slot] = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
+                apvts, newParamID, audioOutAmount[slot]);
+            audioOutAmount[slot].setEnabled (true);
         }
         else
         {
-            audioOutAmount.setEnabled (false);
-            audioOutAmount.setValue (0.0, juce::dontSendNotification);
+            audioOutAmount[slot].setEnabled (false);
+            audioOutAmount[slot].setValue (0.0, juce::dontSendNotification);
         }
     }
 
@@ -606,15 +627,16 @@ public:
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> fmInputAmountAttach[numFMInputSlots];
     int fmInputBoundSrc[numFMInputSlots] = { -1, -1, -1, -1 }; // -1 = "--" (no source), else 0-based source op index
 
-    // Audio Out — a single destination for this operator's raw audio signal: the main mix
-    // ("Out", bound to OUT_), another operator (bound to AUDIO_ROUTE_thisOp_target, an
-    // audio-rate feed into that operator), or None (this operator is FM/LFO-only and produces
-    // no audible signal of its own). See refreshAudioOutFromState() / onAudioOutTargetChanged().
-    juce::Label audioHeaderLabel;
-    juce::ComboBox audioOutTarget;
-    juce::Slider audioOutAmount;
-    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> audioOutAmountAttach;
-    juce::String boundAudioOutParamID; // empty = None; else the OUT_ or AUDIO_ROUTE_ id currently bound
+    // Audio Route — up to numAudioOutSlots independent destinations for this operator's raw
+    // audio signal: the main mix ("Out", bound to OUT_), another operator (bound to
+    // AUDIO_ROUTE_thisOp_target, an audio-rate feed into that operator), or None. Two slots
+    // means an operator can feed two destinations at once. See refreshAudioOutFromState() /
+    // onAudioOutTargetChanged() below.
+    static constexpr int numAudioOutSlots = 2;
+    juce::ComboBox audioOutTarget[numAudioOutSlots];
+    juce::Slider audioOutAmount[numAudioOutSlots];
+    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> audioOutAmountAttach[numAudioOutSlots];
+    juce::String boundAudioOutParamID[numAudioOutSlots]; // empty = None; else the OUT_/AUDIO_ROUTE_ id bound
 
     // X positions of the boundaries between the 5 sections, computed each resized() and drawn
     // as thin dividers in paint() so the sections read as clearly separate at a glance.
@@ -777,19 +799,20 @@ struct EnvelopeSlot : public juce::Component
 
         envLabel.setText ("Env " + s, juce::dontSendNotification);
         envLabel.setJustificationType (juce::Justification::centred);
-        envLabel.setFont (juce::FontOptions (16.0f, juce::Font::bold));
+        envLabel.setFont (juce::FontOptions (20.0f, juce::Font::bold));
         addAndMakeVisible (envLabel);
 
         static const char* names[] = { "A", "D", "S", "R" };
-        juce::Slider::SliderStyle style = juce::Slider::LinearHorizontal;
+        juce::Slider::SliderStyle style = juce::Slider::LinearVertical;
         for (int k = 0; k < 4; ++k)
         {
             knob[k].setSliderStyle (style);
-            knob[k].setTextBoxStyle (juce::Slider::TextBoxBelow, false, 40, 12);
+            knob[k].setTextBoxStyle (juce::Slider::TextBoxBelow, false, 44, 15);
             addAndMakeVisible (knob[k]);
 
             knobLabel[k].setText (names[k], juce::dontSendNotification);
             knobLabel[k].setJustificationType (juce::Justification::centred);
+            knobLabel[k].setFont (juce::FontOptions (15.0f, juce::Font::bold));
             addAndMakeVisible (knobLabel[k]);
         }
 
@@ -812,17 +835,18 @@ struct EnvelopeSlot : public juce::Component
     void resized() override
     {
         auto area = getLocalBounds().reduced (juce::roundToInt (getWidth() * 0.02f),
-                                               juce::roundToInt (getHeight() * 0.04f));
+                                               juce::roundToInt (getHeight() * 0.025f));
 
-        int labelH = juce::jmax (12, juce::roundToInt (getHeight() * 0.16f));
+        int labelH = juce::jmax (16, juce::roundToInt (getHeight() * 0.18f));
         envLabel.setBounds (area.removeFromTop (labelH));
 
         int knobW = area.getWidth() / 4;
+        int faderW = juce::jmin (knobW - 4, juce::roundToInt (getWidth() * 0.05f));
         for (int k = 0; k < 4; ++k)
         {
             auto col = area.removeFromLeft (knobW);
             knobLabel[k].setBounds (col.removeFromTop (labelH));
-            knob[k].setBounds (col.reduced (2, 0));
+            knob[k].setBounds (col.withSizeKeepingCentre (juce::jmax (24, faderW), col.getHeight()));
         }
     }
 
@@ -850,6 +874,220 @@ private:
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> attackAttach, decayAttach, sustainAttach, releaseAttach;
 };
 
+// One row of the modulation matrix, condensed for the Operators page's one-page layout:
+// Src/Tgt selectors stacked on top, Depth as a full-width horizontal slider underneath
+// (rather than a knob beside them, as on the standalone Matrix page's ModMatrixSlot).
+// Same param wiring as ModMatrixSlot (MatrixPage.h) — kept as a separate struct rather than
+// a shared one so this page's layout can diverge without touching the standalone page.
+struct CompactModMatrixSlot : public juce::Component
+{
+    CompactModMatrixSlot (juce::AudioProcessorValueTreeState& apvts, int slotIndex, OAOColors& c)
+        : colors (c)
+    {
+        juce::String s = juce::String (slotIndex + 1); // slots are 1-indexed in param IDs
+
+        sourceSelector.addItemList (ModChoices::sources(), 1);
+        sourceSelector.setSelectedId (1, juce::dontSendNotification);
+        addAndMakeVisible (sourceSelector);
+
+        addAndMakeVisible (targetSelector);
+        ModChoices::buildTargetMenu (targetSelector);
+
+        if (auto* param = apvts.getRawParameterValue ("MOD_TGT_" + s))
+        {
+            int idx = static_cast<int> (param->load (std::memory_order_relaxed));
+            targetSelector.setSelectedId (idx + 1, juce::dontSendNotification);
+        }
+
+        targetSelector.onChange = [this, &apvts, s]()
+        {
+            int selectedId = targetSelector.getSelectedId();
+            if (auto* param = apvts.getParameter ("MOD_TGT_" + s))
+            {
+                float normalized = param->convertTo0to1 (selectedId - 1);
+                param->setValueNotifyingHost (normalized);
+            }
+        };
+
+        amountSlider.setSliderStyle (juce::Slider::LinearHorizontal);
+        amountSlider.setRange (-1.0, 1.0, 0.001);
+        amountSlider.setValue (0.0, juce::dontSendNotification);
+        addAndMakeVisible (amountSlider);
+
+        rowSLabel.setText ("Src. " + s, juce::dontSendNotification);
+        rowSLabel.setJustificationType (juce::Justification::centred);
+        addAndMakeVisible (rowSLabel);
+
+        rowTLabel.setText ("Tgt. " + s, juce::dontSendNotification);
+        rowTLabel.setJustificationType (juce::Justification::centred);
+        addAndMakeVisible (rowTLabel);
+
+        depthLabel.setText ("Depth", juce::dontSendNotification);
+        depthLabel.setJustificationType (juce::Justification::centred);
+        addAndMakeVisible (depthLabel);
+
+        srcAttach = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (
+            apvts, "MOD_SRC_" + s, sourceSelector);
+        amtAttach = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
+            apvts, "MOD_AMT_" + s, amountSlider);
+    }
+
+    void resized() override
+    {
+        auto area = getLocalBounds().reduced (2, 0);
+
+        // --- Depth: a horizontal slider spanning the full width, underneath the Src/Tgt rows ---
+        int depthRowH = juce::jmax (26, juce::roundToInt (area.getHeight() * 0.30f));
+        auto depthRow = area.removeFromBottom (depthRowH);
+
+        int depthLabelH = juce::jmax (11, juce::roundToInt (depthRowH * 0.32f));
+        depthLabel.setBounds (depthRow.removeFromTop (depthLabelH));
+
+        int textBoxW = juce::roundToInt (depthRow.getWidth() * 0.3f);
+        int textBoxH = juce::jlimit (12, 20, juce::roundToInt (depthRowH * 0.3f));
+        amountSlider.setTextBoxStyle (juce::Slider::TextBoxRight, false, textBoxW, textBoxH);
+        amountSlider.setBounds (depthRow.reduced (2, 0));
+
+        // --- Source/Target, stacked above ---
+        int rowH       = juce::jmax (18, juce::roundToInt (area.getHeight() * 0.42f));
+        int stackH     = rowH * 2;
+        auto leftBlock = area.withSizeKeepingCentre (area.getWidth(), juce::jmin (area.getHeight(), stackH));
+
+        auto tArea = leftBlock.removeFromTop (rowH);
+        auto bArea = leftBlock.removeFromTop (rowH);
+        int w = tArea.getWidth();
+
+        int labelH = juce::jmax (13, juce::roundToInt (rowH * 0.8f));
+        int comboHeight = juce::jmax (15, juce::roundToInt (rowH * 0.65f));
+
+        auto sLabelArea = tArea.removeFromLeft (juce::roundToInt (w * 0.28f));
+        rowSLabel.setBounds (sLabelArea.withSizeKeepingCentre (sLabelArea.getWidth(), labelH));
+        auto sComboArea = tArea.removeFromLeft (juce::roundToInt (w * 0.72f)).reduced (2, 0);
+        sourceSelector.setBounds (sComboArea.withSizeKeepingCentre (sComboArea.getWidth(), comboHeight));
+
+        auto tLabelArea = bArea.removeFromLeft (juce::roundToInt (w * 0.28f));
+        rowTLabel.setBounds (tLabelArea.withSizeKeepingCentre (tLabelArea.getWidth(), labelH));
+        auto tComboArea = bArea.removeFromLeft (juce::roundToInt (w * 0.72f)).reduced (2, 0);
+        targetSelector.setBounds (tComboArea.withSizeKeepingCentre (tComboArea.getWidth(), comboHeight));
+    }
+
+    void paint (juce::Graphics&) override {}
+
+    void lookAndFeelChanged() override
+    {
+        juce::Component::lookAndFeelChanged();
+
+        rowSLabel.setColour (juce::Label::textColourId, colors.text);
+        rowTLabel.setColour (juce::Label::textColourId, colors.text);
+        depthLabel.setColour (juce::Label::textColourId, colors.text);
+
+        sourceSelector.setColour (juce::ComboBox::backgroundColourId, colors.surface);
+        sourceSelector.setColour (juce::ComboBox::textColourId, colors.text);
+        targetSelector.setColour (juce::ComboBox::backgroundColourId, colors.surface);
+        targetSelector.setColour (juce::ComboBox::textColourId, colors.text);
+
+        amountSlider.setColour (juce::Slider::textBoxBackgroundColourId, colors.surface);
+        amountSlider.setColour (juce::Slider::textBoxTextColourId, colors.text);
+
+        rowSLabel.sendLookAndFeelChange();
+        rowTLabel.sendLookAndFeelChange();
+        depthLabel.sendLookAndFeelChange();
+        sourceSelector.sendLookAndFeelChange();
+        targetSelector.sendLookAndFeelChange();
+        amountSlider.sendLookAndFeelChange();
+    }
+
+private:
+    OAOColors& colors;
+    juce::Label    rowSLabel, rowTLabel, depthLabel;
+    juce::ComboBox sourceSelector, targetSelector;
+    juce::Slider   amountSlider;
+
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> srcAttach;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> amtAttach;
+};
+
+// A single row of column headers sitting above the operator list, explaining what each of the
+// 5 (well, 6 counting Out/Out2 separately) sections of every operator bar means at a glance.
+// Mirrors CompactOperatorGroup's exact section-width formulas (see its resized()) so the
+// labels line up with the columns below — if that layout changes, this needs to match it.
+struct OperatorsHeaderBar : public juce::Component
+{
+    explicit OperatorsHeaderBar (OAOColors& c) : colors (c)
+    {
+        auto setup = [this] (juce::Label& l, const juce::String& text)
+        {
+            l.setText (text, juce::dontSendNotification);
+            l.setJustificationType (juce::Justification::centred);
+            l.setFont (juce::FontOptions (13.0f, juce::Font::bold));
+            addAndMakeVisible (l);
+        };
+        setup (optionsLabel,  "Operator Options");
+        setup (controlsLabel, "Operator Controls");
+        setup (envLabel,      "Env");
+        setup (fmLabel,       "FM coming into Operator");
+        setup (outLabel,      "Out");
+        setup (out2Label,     "Out2");
+    }
+
+    // Must be called before resized(), same as CompactOperatorGroup::setSharedKnobTarget()
+    void setSharedKnobTarget (int targetDiameter)
+    {
+        sharedKnobTarget = targetDiameter;
+        if (getWidth() > 0 && getHeight() > 0)
+            resized();
+    }
+
+    void resized() override
+    {
+        auto area = getLocalBounds().reduced (static_cast<int> (getWidth() * 0.02f), 0);
+        float w = static_cast<float> (area.getWidth());
+
+        int gap = juce::jmax (4, juce::roundToInt (w * 0.018f));
+
+        // Section 1 — Operator Options (op number + Mode/Wave/Effect/FreqMode selectors)
+        int opNumW   = juce::jmax (70, juce::roundToInt (w * 0.03f));
+        int leftColW = juce::jmax (70, juce::roundToInt (w * 0.13f));
+        optionsLabel.setBounds (area.removeFromLeft (opNumW + leftColW));
+        area.removeFromLeft (gap);
+
+        // Section 5 — Out / Out2 (carved from the right first, same as the operator rows)
+        int audioColW  = juce::jmax (70, juce::roundToInt (w * 0.065f)) * 2;
+        auto audioArea = area.removeFromRight (audioColW);
+        area.removeFromRight (gap);
+        outLabel.setBounds  (audioArea.removeFromLeft (audioArea.getWidth() / 2));
+        out2Label.setBounds (audioArea);
+
+        // Section 2 — Operator Controls (the four tweak knobs)
+        int knobColW = juce::jmax (sharedKnobTarget + 4, juce::roundToInt (w * 0.058f));
+        controlsLabel.setBounds (area.removeFromLeft (knobColW * 4));
+        area.removeFromLeft (gap);
+
+        // Section 3 — Env
+        int envColW = juce::jmax (50, juce::roundToInt (w * 0.05f));
+        envLabel.setBounds (area.removeFromLeft (envColW));
+        area.removeFromLeft (gap);
+
+        // Section 4 — FM coming into Operator (whatever's left)
+        fmLabel.setBounds (area);
+    }
+
+    void lookAndFeelChanged() override
+    {
+        juce::Component::lookAndFeelChanged();
+        for (auto* l : { &optionsLabel, &controlsLabel, &envLabel, &fmLabel, &outLabel, &out2Label })
+        {
+            l->setColour (juce::Label::textColourId, colors.textDim);
+            l->sendLookAndFeelChange();
+        }
+    }
+
+private:
+    OAOColors& colors;
+    int sharedKnobTarget = 40;
+    juce::Label optionsLabel, controlsLabel, envLabel, fmLabel, outLabel, out2Label;
+};
+
 // --- THE PARENT VIEW MANAGER CLASS ---
 class OperatorsPage : public juce::Component
 {
@@ -865,8 +1103,10 @@ public:
             opModules[opIndex]->setSampleButtonText (name);
     }
 
-    OperatorsPage (juce::AudioProcessorValueTreeState& apvts, OAOColors& c) : colors (c)
+    OperatorsPage (juce::AudioProcessorValueTreeState& apvts, OAOColors& c) : colors (c), headerBar (c)
     {
+        addAndMakeVisible (headerBar);
+
         for (int i = 0; i < ProjectConfig::numOperators; ++i)
         {
             opModules.push_back (std::make_unique<CompactOperatorGroup> (apvts, i, colors));
@@ -879,10 +1119,17 @@ public:
             addAndMakeVisible (*opModules.back());
         }
 
-        for (int i = 0; i < ProjectConfig::numMacros; ++i)
+        // Note: the standalone Matrix page's sidebar actually creates numOperators (12)
+        // ModMatrixSlot rows even though only numModSlots (6) MOD_SRC_/MOD_TGT_/MOD_AMT_
+        // params exist — slots 7-12 there are bound to params that don't exist. This embedded
+        // copy only shows the first 4 of the real 6 slots, to keep the condensed one-page
+        // layout from getting too crowded; slots 5-6 are still reachable from that page.
+        constexpr int numVisibleModSlots = 4;
+        static_assert (numVisibleModSlots <= ProjectConfig::numModSlots, "can't show more slots than exist");
+        for (int i = 0; i < numVisibleModSlots; ++i)
         {
-            macroSlots.push_back (std::make_unique<MacroSlot> (apvts, i, colors));
-            addAndMakeVisible (*macroSlots.back());
+            modMatrixSlots.push_back (std::make_unique<CompactModMatrixSlot> (apvts, i, colors));
+            addAndMakeVisible (*modMatrixSlots.back());
         }
 
         for (int i = 0; i < ProjectConfig::numEnvelopes; ++i)
@@ -901,16 +1148,18 @@ public:
     {
         juce::Component::lookAndFeelChanged();
 
+        headerBar.lookAndFeelChanged();
+
         for (auto& module : opModules)
         {
             if (module != nullptr)
                 module->lookAndFeelChanged();
         }
 
-        for (auto& macro : macroSlots)
+        for (auto& slot : modMatrixSlots)
         {
-            if (macro != nullptr)
-                macro->lookAndFeelChanged();
+            if (slot != nullptr)
+                slot->lookAndFeelChanged();
         }
 
         for (auto& env : envelopeSlots)
@@ -922,10 +1171,11 @@ public:
 
     void repaintAll()
     {
+        headerBar.repaint();
         for (auto& op : opModules)
             op->repaint();
-        for (auto& macro : macroSlots)
-            macro->repaint();
+        for (auto& slot : modMatrixSlots)
+            slot->repaint();
         for (auto& env : envelopeSlots)
             env->repaint();
         repaint();
@@ -948,49 +1198,29 @@ public:
             juce::roundToInt (getWidth()  * ProjectConfig::outerMargin),
             juce::roundToInt (getHeight() * ProjectConfig::outerMargin));
 
-        int gap = juce::jmax (2, juce::roundToInt (getHeight() * 0.006f));
+        // More breathing room between sections and rows than before (was 0.006f).
+        int gap = juce::jmax (4, juce::roundToInt (getHeight() * 0.014f));
 
-        // --- Macro row: fixed height across the top, one column per macro ---
-        int macroRowHeight = juce::roundToInt (area.getHeight() * 0.15f);
-        auto macroRowArea  = area.removeFromTop (macroRowHeight);
+        // --- Header bar: small fixed height at the very top, labeling each operator-bar section ---
+        int headerHeight = juce::jmax (16, juce::roundToInt (area.getHeight() * 0.025f));
+        auto headerArea  = area.removeFromTop (headerHeight);
         area.removeFromTop (gap);
 
-        int numMacros  = static_cast<int> (macroSlots.size());
-        if (numMacros > 0)
-        {
-            int macroCellW = macroRowArea.getWidth() / numMacros;
-            int macroGap   = juce::jmax (1, gap / 2);
-            for (int i = 0; i < numMacros; ++i)
-            {
-                bool isLast = (i == numMacros - 1);
-                auto cell = macroRowArea.removeFromLeft (isLast ? macroRowArea.getWidth() : macroCellW);
-                if (! isLast) macroRowArea.removeFromLeft (macroGap);
-                macroSlots[i]->setBounds (cell);
-            }
-        }
+        // --- Mod Matrix row: fixed height at the very bottom, one column per slot ---
+        int modMatrixRowHeight = juce::roundToInt (area.getHeight() * 0.20f);
+        auto modMatrixRowArea  = area.removeFromBottom (modMatrixRowHeight);
+        area.removeFromBottom (gap);
 
-        // --- Envelope row: fixed height beneath the macros, one column per shared envelope ---
-        int envRowHeight = juce::roundToInt (area.getHeight() * 0.12f);
-        auto envRowArea  = area.removeFromTop (envRowHeight);
-        area.removeFromTop (gap);
+        // --- Envelope row: sits just above the mod matrix, beneath the operators. A bit
+        // taller than before (was 0.12f) since it's no longer sharing the top with macros.
+        int envRowHeight = juce::roundToInt (area.getHeight() * 0.19f);
+        auto envRowArea  = area.removeFromBottom (envRowHeight);
+        area.removeFromBottom (gap);
 
-        int numEnvs = static_cast<int> (envelopeSlots.size());
-        if (numEnvs > 0)
-        {
-            int envCellW = envRowArea.getWidth() / numEnvs;
-            int envGap   = juce::jmax (1, gap / 2);
-            for (int i = 0; i < numEnvs; ++i)
-            {
-                bool isLast = (i == numEnvs - 1);
-                auto cell = envRowArea.removeFromLeft (isLast ? envRowArea.getWidth() : envCellW);
-                if (! isLast) envRowArea.removeFromLeft (envGap);
-                envelopeSlots[i]->setBounds (cell);
-            }
-        }
-
+        // --- Operators: everything left, at the top ---
         int rows = ProjectConfig::numOperators;
         int cols = 1;
-        int halfGap = juce::jmax (1, gap / 2);
+        int rowGap = 0; // no gap between operators — they sit flush against each other
         int cellWidth = area.getWidth() / cols;
         int cellHeight = area.getHeight() / rows;
 
@@ -998,6 +1228,10 @@ public:
         int sharedKnobTarget = juce::roundToInt (
             juce::jmin (getWidth(), getHeight()) * colors.knobDiameterFraction);
 	float sharedFontSize = static_cast<float>(cellHeight) * 0.4f;
+
+        headerBar.setSharedKnobTarget (sharedKnobTarget);
+        headerBar.setBounds (headerArea);
+
         // Walk down to avoid weird sizing issues
 	auto remaining = area;
         for (int r = 0; r < rows; ++r)
@@ -1013,11 +1247,8 @@ public:
 
                     // Only inset the sides that actually face a neighboring card
                     // With cols == 1 there's never a horizontal neighbor, so no horizontal inset at all.
-                    // testing setting these to gap and not halGap
-		    int top    = halfGap;
-                    int bottom = halfGap;
-                    cellBounds.removeFromTop (top);
-                    cellBounds.removeFromBottom (bottom);
+	            cellBounds.removeFromTop (rowGap);
+                    cellBounds.removeFromBottom (rowGap);
 
                     // Must be set before setBounds
                     opModules[index]->setSharedKnobTarget (sharedKnobTarget);
@@ -1025,11 +1256,42 @@ public:
                 }
             }
         }
+
+        // --- Envelope row (laid out) ---
+        int numEnvs = static_cast<int> (envelopeSlots.size());
+        if (numEnvs > 0)
+        {
+            int envCellW = envRowArea.getWidth() / numEnvs;
+            int envGap   = juce::jmax (2, gap / 2);
+            for (int i = 0; i < numEnvs; ++i)
+            {
+                bool isLast = (i == numEnvs - 1);
+                auto cell = envRowArea.removeFromLeft (isLast ? envRowArea.getWidth() : envCellW);
+                if (! isLast) envRowArea.removeFromLeft (envGap);
+                envelopeSlots[i]->setBounds (cell);
+            }
+        }
+
+        // --- Mod Matrix row (laid out) ---
+        int numModMatrix = static_cast<int> (modMatrixSlots.size());
+        if (numModMatrix > 0)
+        {
+            int slotW = modMatrixRowArea.getWidth() / numModMatrix;
+            int slotGap = juce::jmax (2, gap / 2);
+            for (int i = 0; i < numModMatrix; ++i)
+            {
+                bool isLast = (i == numModMatrix - 1);
+                auto cell = modMatrixRowArea.removeFromLeft (isLast ? modMatrixRowArea.getWidth() : slotW);
+                if (! isLast) modMatrixRowArea.removeFromLeft (slotGap);
+                modMatrixSlots[i]->setBounds (cell);
+            }
+        }
     }
 
 private:
     OAOColors& colors;
+    OperatorsHeaderBar headerBar;
     std::vector<std::unique_ptr<CompactOperatorGroup>> opModules;
-    std::vector<std::unique_ptr<MacroSlot>> macroSlots;
+    std::vector<std::unique_ptr<CompactModMatrixSlot>> modMatrixSlots;
     std::vector<std::unique_ptr<EnvelopeSlot>> envelopeSlots;
 };

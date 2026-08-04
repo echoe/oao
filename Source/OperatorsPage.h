@@ -112,7 +112,7 @@ struct CompactOperatorGroup : public juce::Component
 
         // APVTS Links
         freqModeAttach = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (apvts, "FREQ_MODE_" + opNum, freqModeSelector);
-	ratioAttach   = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (apvts, "RATIO_" + opNum, ratioSlider);
+        ratioAttach   = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (apvts, "RATIO_" + opNum, ratioSlider);
         detuneAttach  = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (apvts, "DETUNE_" + opNum, detuneSlider);
         phaseAttach   = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (apvts, "PHASE_" + opNum, phaseSlider);
         foldAttach    = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (apvts, "FOLD_" + opNum, foldSlider);
@@ -124,8 +124,8 @@ struct CompactOperatorGroup : public juce::Component
         // Safe UI state triggers using the stored class member reference
         modeSelector.onChange = [this]() { updateUIState(); };
         waveShapeSelector.onChange = [this]() { updateUIState(); };
-	freqModeSelector.onChange = [this]() { updateUIState(); };
-	effectTypeSelector.onChange = [this]() {updateUIState(); };
+        freqModeSelector.onChange = [this]() { updateUIState(); };
+        effectTypeSelector.onChange = [this]() {updateUIState(); };
         updateUIState(); // on load
 
         refreshFMInputsFromState(); // populate FM input slots from any existing MOD_ connections
@@ -174,7 +174,6 @@ struct CompactOperatorGroup : public juce::Component
         section1Divider = area.getX();
 
         int selectorH = juce::jmax (16, juce::roundToInt (h * 0.33f));
-        freqModeSelector.setBounds (leftCol.removeFromTop (selectorH).reduced (1));
         modeSelector.setBounds     (leftCol.removeFromTop (selectorH).reduced (1));
 
         if (effectTypeSelector.isVisible())
@@ -184,6 +183,7 @@ struct CompactOperatorGroup : public juce::Component
         else
             waveShapeSelector.setBounds (leftCol.removeFromTop (selectorH).reduced (1));
 
+        freqModeSelector.setBounds (leftCol.removeFromTop (selectorH).reduced (1));
         area.removeFromLeft (gap);
 
         // ============================================================
@@ -663,131 +663,6 @@ private:
     int sharedKnobTarget = 90; //default, overwritten in page
 };
 
-// One macro slot that drives up to 4 independent targets at once, each weighted by its own amount knob
-struct MacroSlot : public juce::Component
-{
-    MacroSlot (juce::AudioProcessorValueTreeState& apvts, int macroIndex, OAOColors& c)
-        : colors (c)
-    {
-        juce::String s = juce::String (macroIndex + 1);
-        static const char* letters[] = { "A", "B", "C", "D" };
-
-        macroSlider.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
-        macroSlider.setRange (-1.0, 1.0, 0.001);
-        macroSlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 40, 14);
-        addAndMakeVisible (macroSlider);
-
-        macroLabel.setText ("Macro " + s, juce::dontSendNotification);
-        macroLabel.setJustificationType (juce::Justification::centred);
-        addAndMakeVisible (macroLabel);
-
-        valAttach = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
-            apvts, "MACRO_VAL_" + s, macroSlider);
-
-        for (int t = 0; t < ProjectConfig::numMacroTargets; ++t)
-        {
-            juce::String letter = letters[t];
-
-            addAndMakeVisible (targetSelector[t]);
-            ModChoices::buildTargetMenu (targetSelector[t]);
-            targetAttach[t] = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (
-                apvts, "MACRO_TGT_" + letter + "_" + s, targetSelector[t]);
-
-            amountSlider[t].setSliderStyle (juce::Slider::LinearHorizontal);
-            amountSlider[t].setRange (-1.0, 1.0, 0.001);
-            addAndMakeVisible (amountSlider[t]);
-            amountAttach[t] = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
-                apvts, "MACRO_AMT_" + letter + "_" + s, amountSlider[t]);
-
-            targetLabel[t].setText (letter, juce::dontSendNotification);
-            targetLabel[t].setJustificationType (juce::Justification::centred);
-            addAndMakeVisible (targetLabel[t]);
-        }
-    }
-
-    void paint (juce::Graphics& g) override
-    {
-        auto bounds = getLocalBounds().toFloat();
-        g.setColour (colors.background);
-        g.fillRoundedRectangle (bounds, 4.0f);
-
-        g.setColour (colors.text.withAlpha (0.15f));
-        g.drawRoundedRectangle (bounds.reduced (1.0f), 4.0f, 1.0f);
-    }
-
-    void resized() override
-    {
-        auto area = getLocalBounds().reduced (juce::roundToInt (getWidth() * 0.02f),
-                                               juce::roundToInt (getHeight() * 0.04f));
-
-        // Knob on the left, 4 stacked [target dropdown | amount knob] rows on the right
-        int knobW = juce::jmin (area.getWidth() / 4, area.getHeight());
-        auto knobArea = area.removeFromLeft (knobW);
-
-        int macroLabelH = juce::jmax (12, juce::roundToInt (getHeight() * 0.14f));
-        macroLabel.setBounds (knobArea.removeFromTop (macroLabelH));
-        macroSlider.setBounds (knobArea);
-
-        area.removeFromLeft (juce::roundToInt (getWidth() * 0.02f)); // gap
-
-        int numTargets = ProjectConfig::numMacroTargets;
-        int rowH = area.getHeight() / numTargets;
-        int tagW = juce::jmax (18, juce::roundToInt (area.getWidth() * 0.06f));
-        int amtTextW = juce::jmax (32, juce::roundToInt (area.getWidth() * 0.13f));
-        int amtW = juce::jmax (amtTextW * 2, juce::roundToInt (area.getWidth() * 0.38f));
-
-        for (int t = 0; t < numTargets; ++t)
-        {
-            bool isLast = (t == numTargets - 1);
-            auto row = area.removeFromTop (isLast ? area.getHeight() : rowH);
-
-            targetLabel[t].setBounds (row.removeFromLeft (tagW));
-
-            auto amtArea = row.removeFromRight (amtW).reduced (2, juce::roundToInt (rowH * 0.12f));
-            amountSlider[t].setTextBoxStyle (juce::Slider::TextBoxRight, false, amtTextW, amtArea.getHeight());
-            amountSlider[t].setBounds (amtArea);
-
-            targetSelector[t].setBounds (row.reduced (2, juce::roundToInt (rowH * 0.12f)));
-        }
-    }
-
-    void lookAndFeelChanged() override
-    {
-        juce::Component::lookAndFeelChanged();
-
-        macroLabel.setColour (juce::Label::textColourId, colors.text);
-        macroSlider.setColour (juce::Slider::textBoxBackgroundColourId, colors.surface);
-        macroSlider.setColour (juce::Slider::textBoxTextColourId, colors.text);
-        macroSlider.sendLookAndFeelChange();
-
-        for (int t = 0; t < ProjectConfig::numMacroTargets; ++t)
-        {
-            targetLabel[t].setColour (juce::Label::textColourId, colors.text);
-            targetSelector[t].setColour (juce::ComboBox::backgroundColourId, colors.surface);
-            targetSelector[t].setColour (juce::ComboBox::textColourId, colors.text);
-            amountSlider[t].setColour (juce::Slider::textBoxBackgroundColourId, colors.surface);
-            amountSlider[t].setColour (juce::Slider::textBoxTextColourId, colors.text);
-
-            targetLabel[t].sendLookAndFeelChange();
-            targetSelector[t].sendLookAndFeelChange();
-            amountSlider[t].sendLookAndFeelChange();
-        }
-    }
-
-private:
-    OAOColors& colors;
-    juce::Slider   macroSlider;
-    juce::Label    macroLabel;
-
-    juce::ComboBox targetSelector[ProjectConfig::numMacroTargets];
-    juce::Slider   amountSlider[ProjectConfig::numMacroTargets];
-    juce::Label    targetLabel[ProjectConfig::numMacroTargets];
-
-    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>   valAttach;
-    std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> targetAttach[ProjectConfig::numMacroTargets];
-    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>   amountAttach[ProjectConfig::numMacroTargets];
-};
-
 // One shared envelope generator (attack/decay/sustain/release) that operators can pick
 // via their own "Env" source selector (see CompactOperatorGroup::envSourceSelector).
 struct EnvelopeSlot : public juce::Component
@@ -1199,7 +1074,7 @@ public:
             juce::roundToInt (getHeight() * ProjectConfig::outerMargin));
 
         // More breathing room between sections and rows than before (was 0.006f).
-        int gap = juce::jmax (4, juce::roundToInt (getHeight() * 0.014f));
+        int gap = juce::jmax (4, juce::roundToInt (getHeight() * 0.010f));
 
         // --- Header bar: small fixed height at the very top, labeling each operator-bar section ---
         int headerHeight = juce::jmax (16, juce::roundToInt (area.getHeight() * 0.025f));
@@ -1207,7 +1082,7 @@ public:
         area.removeFromTop (gap);
 
         // --- Mod Matrix row: fixed height at the very bottom, one column per slot ---
-        int modMatrixRowHeight = juce::roundToInt (area.getHeight() * 0.20f);
+        int modMatrixRowHeight = juce::roundToInt (area.getHeight() * 0.15f);
         auto modMatrixRowArea  = area.removeFromBottom (modMatrixRowHeight);
         area.removeFromBottom (gap);
 

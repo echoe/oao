@@ -8,8 +8,8 @@ namespace ProjectConfig
     static constexpr int numOperators = 8;
     static constexpr int numOpParams = 5;
     static constexpr int numFxParams = 5;
-    static constexpr int numModSlots = 6;
-    static constexpr int numEffects = 6;
+    static constexpr int numModSlots = 4;
+    static constexpr int numEffects = 4;
     static constexpr int numMacros = 4;
     static constexpr int numMacroTargets = 4; // targets per macro (A/B/C/D), each with its own amount
     static constexpr int numEnvelopes = 4; // shared envelope generator pool; operators pick one via ENV_SRC_N
@@ -35,7 +35,7 @@ namespace ProjectConfig
     static constexpr int numVoices = 8;
     // Base plugin size/visual tweaks
     static constexpr int pluginSizeX = 1200;
-    static constexpr int pluginSizeY = 900;
+    static constexpr int pluginSizeY = 800;
     static constexpr float outerMargin = 0.005f;
     static constexpr float textBoxWidthFraction  = 1.0f; // Generally meaningless with our design.
     // knobDiameter and textboxheightfraction live in OAOColors.h now so end users can change them.
@@ -85,14 +85,14 @@ namespace ModChoices // Choices for LFOs
 {
     inline juce::StringArray sources()
     {
-        return { "None", "Op 1", "Op 2", "Op 3", "Op 4", "Op 5", "Op 6", "FX LFO 1", "FX LFO 2", "FX LFO 3", "FX LFO 4", "FX LFO 5", "FX LFO 6", "Velocity", "Mod Wheel" };
+        return { "None", "Op 1", "Op 2", "Op 3", "Op 4", "Op 5", "Op 6", "Op 7", "Op 8", "FX LFO 1", "FX LFO 2", "FX LFO 3", "FX LFO 4", "FX LFO 5", "FX LFO 6", "Velocity", "Mod Wheel" };
     }
 
     inline juce::StringArray targets()
     {
         juce::StringArray t;
-        t.add("None");                                          // 0
-        for (int op = 0; op < ProjectConfig::numOperators; ++op)                         // 1-30
+        t.add("None");
+        for (int op = 0; op < ProjectConfig::numOperators; ++op)
         {
             t.add("Op " + juce::String(op+1) + " Knob A");
             t.add("Op " + juce::String(op+1) + " Knob B");
@@ -100,7 +100,7 @@ namespace ModChoices // Choices for LFOs
             t.add("Op " + juce::String(op+1) + " Knob D");
             t.add("Op " + juce::String(op+1) + " Level");
         }
-        for (int fx = 0; fx < ProjectConfig::numEffects; ++fx)                         // 31-60
+        for (int fx = 0; fx < ProjectConfig::numEffects; ++fx)
         {
             t.add("FX " + juce::String(fx+1) + " Knob A");
             t.add("FX " + juce::String(fx+1) + " Knob B");
@@ -108,7 +108,7 @@ namespace ModChoices // Choices for LFOs
             t.add("FX " + juce::String(fx+1) + " Knob D");
             t.add("FX " + juce::String(fx+1) + " Mix");
         }
-        for (int src = 0; src < ProjectConfig::numOperators; ++src)                      // 46-81
+        for (int src = 0; src < ProjectConfig::numOperators; ++src)
             for (int dst = 0; dst < ProjectConfig::numOperators; ++dst)
                 t.add("Op " + juce::String(src+1) + " → Op " + juce::String(dst+1));
         return t;

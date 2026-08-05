@@ -197,27 +197,6 @@ juce::AudioProcessorValueTreeState::ParameterLayout FMPluginAudioProcessor::crea
             juce::ParameterID { "MOD_AMT_" + s, 1 },
             "Mod Amount " + s, -1.0f, 1.0f, 0.0f));
     }
-    
-    // Macros: each has one bipolar knob and up to numMacroTargets independent targets
-    auto macroTargetChoices = ModChoices::targets();
-    static const char* macroLetters[] = { "A", "B", "C", "D" };
-    for (int m = 1; m <= ProjectConfig::numMacros; ++m)
-    {
-        juce::String s = juce::String (m);
-        params.push_back (std::make_unique<juce::AudioParameterFloat> (
-            juce::ParameterID { "MACRO_VAL_" + s, 1 }, "Macro " + s + " Value", -1.0f, 1.0f, 0.0f));
-
-        for (int t = 0; t < ProjectConfig::numMacroTargets; ++t)
-        {
-            juce::String letter = macroLetters[t];
-            params.push_back (std::make_unique<juce::AudioParameterChoice> (
-                juce::ParameterID { "MACRO_TGT_" + letter + "_" + s, 1 },
-                "Macro " + s + " Target " + letter, macroTargetChoices, 0));
-            params.push_back (std::make_unique<juce::AudioParameterFloat> (
-                juce::ParameterID { "MACRO_AMT_" + letter + "_" + s, 1 },
-                "Macro " + s + " Amount " + letter, -1.0f, 1.0f, 1.0f));
-        }
-    }
 
     // Gain
     params.push_back (std::make_unique<juce::AudioParameterFloat> (

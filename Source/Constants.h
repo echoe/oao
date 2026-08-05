@@ -84,18 +84,19 @@ namespace ModChoices // Choices for LFOs
 {
     inline juce::StringArray sources()
     {
-	juce::StringArray s;
-	s.add("None");
-	for (int op=0; op < ProjectConfig::numOperators; ++op)
-	{
-	    s.add("Op " + juce::String(op+1));
-	}
-	for (int fx = 0; fx < ProjectConfig::numEffects; ++fx)
-	    s.add("FX LFO " + juce::String(fx+1));
+        juce::StringArray s;
+        s.add("None");
+        for (int op=0; op < ProjectConfig::numOperators; ++op)
+        {
+            s.add("Op " + juce::String(op+1));
+        }
+        for (int fx = 0; fx < ProjectConfig::numEffects; ++fx)
+        {
+            s.add("FX LFO " + juce::String(fx+1));
         }
         s.add("Velocity");
-	s.add("Mod Wheel");
-	return s;
+        s.add("Mod Wheel");
+        return s;
     }
 
     inline juce::StringArray targets()

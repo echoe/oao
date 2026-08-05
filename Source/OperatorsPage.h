@@ -1027,7 +1027,8 @@ public:
             addAndMakeVisible (*opModules.back());
         }
 
-        for (int i = 0; i < ProjectConfig::numModSlots; ++i)
+	static_assert (ProjectConfig::numVisModSlots <= ProjectConfig::numModSlots, "can't show more slots than exist");
+        for (int i = 0; i < ProjectConfig::numVisModSlots; ++i)
         {
             modMatrixSlots.push_back (std::make_unique<CompactModMatrixSlot> (apvts, i, colors));
             addAndMakeVisible (*modMatrixSlots.back());

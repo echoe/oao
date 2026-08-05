@@ -8,10 +8,9 @@ namespace ProjectConfig
     static constexpr int numOperators = 8;
     static constexpr int numOpParams = 5;
     static constexpr int numFxParams = 5;
-    static constexpr int numModSlots = 4;
-    static constexpr int numEffects = 4;
-    static constexpr int numMacros = 4;
-    static constexpr int numMacroTargets = 4; // targets per macro (A/B/C/D), each with its own amount
+    static constexpr int numVisModSlots = 4; //visible mod slots in the Operatorspage
+    static constexpr int numModSlots = 8; //generally should be same as numOperators for legibility
+    static constexpr int numEffects = 4; //FX LFOs follow this setting as well
     static constexpr int numEnvelopes = 4; // shared envelope generator pool; operators pick one via ENV_SRC_N
 
     // --- Unified modulation depth ---
@@ -85,7 +84,18 @@ namespace ModChoices // Choices for LFOs
 {
     inline juce::StringArray sources()
     {
-        return { "None", "Op 1", "Op 2", "Op 3", "Op 4", "Op 5", "Op 6", "Op 7", "Op 8", "FX LFO 1", "FX LFO 2", "FX LFO 3", "FX LFO 4", "FX LFO 5", "FX LFO 6", "Velocity", "Mod Wheel" };
+	juce::StringArray s;
+	s.add("None");
+	for (int op=0; op < ProjectConfig::numOperators; ++op)
+	{
+	    s.add("Op " + juce::String(op+1));
+	}
+	for (int fx = 0; fx < ProjectConfig::numEffects; ++fx)
+	    s.add("FX LFO " + juce::String(fx+1));
+        }
+        s.add("Velocity");
+	s.add("Mod Wheel");
+	return s;
     }
 
     inline juce::StringArray targets()
@@ -154,7 +164,7 @@ namespace ModChoices // Choices for LFOs
         for (int fx = 0; fx < ProjectConfig::numEffects; ++fx)
         {
             juce::PopupMenu sub;
-            int base = fx * 5 + 32;
+            int base = fx * 5 + (ProjectConfig::numOperators * ProjectConfig::numOpParams) + 2; //operator base max, plus this base that increments through the loop
             juce::String fxName = "FX " + juce::String (fx + 1) + " ";
             sub.addItem (base + 0, fxName + "Knob A");
             sub.addItem (base + 1, fxName + "Knob B");
@@ -173,7 +183,8 @@ namespace ModChoices // Choices for LFOs
             juce::String srcName = "Op " + juce::String (src + 1) + " -> ";
             for (int dst = 0; dst < ProjectConfig::numOperators; ++dst)
             {
-                int id = 62 + src * ProjectConfig::numOperators + dst; // 61 entries before this + 1 for 1-indexing
+                int id = (ProjectConfig::numOperators * ProjectConfig::numOpParams) + 2 + (ProjectConfig::numEffects * ProjectConfig::numFxParams) + src * ProjectConfig::numOperators + dst; 
+		// operator base max from previous entry, plus this base that increments through the loop
                 sub.addItem (id, srcName + "Op " + juce::String (dst + 1));
             }
             matrixMenu.addSubMenu ("Op " + juce::String (src + 1), sub);

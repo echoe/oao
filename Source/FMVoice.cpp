@@ -316,22 +316,27 @@ void FMVoice::renderNextBlock (juce::AudioBuffer<float>& outputBuffer, int start
             if (srcIdx == 0 || tgtIdx == 0 || std::abs (amt) < 0.0001f)
                 continue;
         
-            // Source signal: Op 1 = index 1, so operator index = srcIdx - 1
-            // We get different sources depending on the mod slot. This follows the list in Constants.h
+            // We get different sources depending on the mod slot. automatically calculated
+            const int opSrcEnd      = ProjectConfig::numOperators;
+            const int fxLfoSrcStart = opSrcEnd + 1;
+            const int fxLfoSrcEnd   = opSrcEnd + ProjectConfig::numEffects;
+            const int velocitySrc   = fxLfoSrcEnd + 1;
+            const int modWheelSrc   = fxLfoSrcEnd + 2;
+
             float rawSrc = 0.0f;
-            if (srcIdx >= 1 && srcIdx <= 6)
+            if (srcIdx >= 1 && srcIdx <= opSrcEnd)
             {
                 rawSrc = lastOpOutputs[srcIdx - 1];
             }
-            else if (srcIdx >= 7 && srcIdx <= 9)
+            else if (srcIdx >= fxLfoSrcStart && srcIdx <= fxLfoSrcEnd)
             {
-                rawSrc = fxLfoOutputs[srcIdx - 7].load(std::memory_order_relaxed);
+                rawSrc = fxLfoOutputs[srcIdx - fxLfoSrcStart].load(std::memory_order_relaxed);
             }
-            else if (srcIdx == 10)
+            else if (srcIdx == velocitySrc)
             {
                 rawSrc = currentVelocity.load(std::memory_order_relaxed);
             }
-            else if (srcIdx == 11)
+            else if (srcIdx == modWheelSrc)
             {
                 rawSrc = currentModWheel.load(std::memory_order_relaxed);
             }

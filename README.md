@@ -1,6 +1,6 @@
 # Oops! All Operators! (OAO)
 
-<img src=https://raw.githubusercontent.com/echoe/oao/refs/heads/main/pictures/operators.png width="450" height="360" />
+<img src=https://raw.githubusercontent.com/echoe/oao/refs/heads/main/pictures/operators_4.png width="450" height="360" />
 
 This is an FM synthesizer/effects unit, where the operators do everything. It's open source, written in C++ using the JUCE framework and a lot of LLM help.
 Notes:
@@ -44,22 +44,19 @@ This picks the number of voices in the synth. This defauts to 8 but you can go f
 ### Gain
 If you're using randomization you may want to turn the gain down as a precaution! Don't go deaf!!! It's easy for things to get too wild. I've tried to moderate that and haven't made all audio from my computer break for a while, but this is a freeware VST made by one developer and an LLM, so, uh, no guarantees.
 
-## Macros
-There are too many operators so we've added macros so that you can control several controls at once. They're right there in the front of the operators page; changing them should be pretty straightforwards. You have up to four targets per macro, and you can set the strength of the macro setting for each target individually.
-
 ## Operator types
 
 ### Wave: Sine, Triangle, Saw, Square, Pulse, SquarePWM, White Noise, Pink Noise
-- Wave Ratio options: Standard, Sync, Frequency, LFO
--- Standard: Normal ratio.
--- Sync: this tempo syncs to the speed of your DAW.
--- Frequency: this sets the oscillator to a specific hz speed (10 to 16000 Hz, mapped logarhythmically).
--- LFO: This sets the oscillator to normal LFO speeds (0.01 to 16hz).
 - Wave Options: Ratio, Detune, Phase, Fold.
 -- Ratio: from 0.01 to 16, this controls the pitch of the waveform relative to the note you're playing. You, uh, need this for FM.
 -- Detune: You can slightly detune the note if you want, without moving the Ratio by tiny steps.
 -- Phase: Changes the phase of the waveform.
 -- Fold: Folds the waveform in on itself.
+- Ratio options: Standard, Sync, Frequency, LFO
+-- Standard: Normal ratio.
+-- Sync: this tempo syncs to the speed of your DAW(0.01 to 16x).
+-- Frequency: this sets the oscillator to a specific hz speed (10 to 16000 Hz, mapped logarhythmically).
+-- LFO: This sets the oscillator to normal LFO speeds (0.01 to 16hz), so you can use your operators as LFOs! ... But is that really such a good idea? I dunno, it's fun sometimes! There are dedicated LFO's on the effects page if you really don't want to change anything there.
 
 For SquarePWM and Pulse, instead of Phase there is a PWM option there ... follow your PWM dreams.
 
@@ -87,10 +84,10 @@ Additional Notes:
 - Boundary changes fadeout length for the oneshot, crossfade length for loop, and grain window size for scatter.
 - Note: When you save a preset, the preset saves a copy of the sample in the xml. Long samples will make very large presets.
 
-### Effect:
+### Effect: route operators into the effect operator to run effects on the sound! These make no sound by themselves.
 #### None
 - Options: It doesn't do anything
-- Use this as a passthrough! 
+- Use this as a passthrough. This is mostly used on the effects page, of course.
 ## Filters
 #### SVF (Lowpass, Highpass, Bandpass)
 - Options: Cutoff, Resonance, Keytrack, Feedback
@@ -191,8 +188,8 @@ Additional Notes:
 - It's a looper! That's really it. No buttons, so it's a little weird, but it works!
 - Note: Decay starts at 0 (no decay) and goes up to full decay (the looper won't save anything from the previous loops at full decay).
 
-#### More?
- The process to add more effects is very easy:
+#### Did you want to edit it yourself to change effects or have a specific effect that's your favorite?
+ The process to add more effects in the plugin is very easy:
 - Add necessary state variables to SynthEffect.h's private section, and any variables it needs to reset to the reset() call.
 - Add a processing function to SynthEffect.h that actually takes input and processes the input into the effect result.
 - Update Constants.h to add the effect in the EffectChoices array and in the case settings.
@@ -201,28 +198,40 @@ Additional Notes:
 - There is also an FX-Specific plugin that now builds, where you can use the effects by themselves.
 
 ## Modulation Matrix
-- This is a matrix that lets you modulate any operator with any other operator. On the right of this, there is a mod matrix, letting you modulate anything in the synth (including effects, but effects are global only) with one of the operators.
+
+<img src=https://raw.githubusercontent.com/echoe/oao/refs/heads/main/pictures/matrix_4.png width="450" height="360" />
+
+- This is a matrix that lets you modulate any operator with any other operator. If four dropdowns per operator isn't enough, go nuts.
+- The little matrix on the right is also on the operators page. So, again, you don't need to come here. But you can.
 - This is a frequency modulation matrix - you are modulating the frequency of anything you target (including targeting an effect) with the wave of whatever you are sending in.
 - The mod targets are labeled with the slot they are in (Slot A, Slot B, Slot C, Slot D). This correlates to the knobs left to right.
 - Of particular note is that the matrix is labeled to go from 0 (no modulation) to 1 (full modulation). This actually correlates to a modulation of 2*pi for self-modulation (which is where it starts to all sound the same) and 8*pi for modulating other targets. The modulation of everything has also been attempted to be brought to the point where the 0 to 1 modulation targets that exist have a full musical range to affect for any target you select.
 
 ## Audio Matrix
-- A matrix letting you route audio between operators.
-- You can route audio from one operator into another with this, and you can control which operators are sending out to be heard.
+
+<img src=https://raw.githubusercontent.com/echoe/oao/refs/heads/main/pictures/audio_4.png width="450" height="360" />
+
+- A matrix letting you route audio between operators. You can route each operator to two targets on the operators page, but if you want more ... you come here.
 - The default 'Init' state just has Operator 1 audible. You can check this when you open the synth up by opening up this page and looking on the far right.
 
-## Extra Effects
+## Effects/LFOs
+
+<img src=https://raw.githubusercontent.com/echoe/oao/refs/heads/main/pictures/effects_4.png width="450" height="360" />
+
 - Outside of the general Mod Matrix I wanted end of chain effects, so here we go!
 - Use any six of the effects that you want at the end of the chain. They always run in serial, and are LFO targets if you want.
-- These effects run in either dual mono (most effects, including the looper) or stereo. The stereo effects are:
+- The effects run in either dual mono (most effects, including the looper) or stereo. The stereo effects are:
 -- both choruses
 -- allpass delay and reverb
 -- ambient delay
 
 ## LFOs
-- There are six LFOs, one per effect. ... You don't need to use an operator as an LFO if you don't wanna! They're pretty simple but are ... generally what you'd expect.
+- There are four LFOs, one per effect. ... You don't need to use an operator as an LFO if you don't wanna! They're pretty simple but work how LFO's work, which means they can be nicer to use than an operator-coded "LFO"..
 
 ## Settings
+
+<img src=https://raw.githubusercontent.com/echoe/oao/refs/heads/main/pictures/settings_4.png width="450" height="360" />
+
 - A settings page for a few things.
 ### Size
 - Set the size of the plugin window from 50% to 200%.
@@ -235,12 +244,9 @@ Additional Notes:
 ### Theme
 - Select your color theme from one of eight preset choices, or make your own with color presets! All pages will pick up the new colors and refresh.
 
+## What else?
 
-## Other Features:
-- You can sync an operator to DAW tempo and use it as an LFO.
-- You can pass audio into an operator with the audio routing matrix. Stack that audio!!!
-- You can modulate any operator with any other operator. Doot de doot.
-- If you want to use the effects on other things, use the effects plugin :)
+I think that's about it. I've been learning plugin design for the last few months through this and my other FOSS projects, haha, and it's been ... very interesting! But I like it right now. We will, of course, see how I feel about it in a month. :)
 
 ## How to build
 - I always forget how to do this ... so it's back in the readme for now.
@@ -254,9 +260,3 @@ Additional Notes:
 ### MacOS
 - xcode-select --install (everything else is already there by default)
 
-### What's left
-Honestly, I attempted to use the plugin just now and I just didn't feel the joy of it. There are too many knobs when I'm in *music-making mode*. I don't care enough about most of the knobs even when they're hidden from me, and I hate having to set ADSR per oscillator instead of just setting one or two and having them shared.
-...
-So there's some ways left to go. I'm going to see a few different things and am going to change a lot of the current stuff ... I'm thinking about setting it to four oscillators, with each oscillator going into an effect before going out (so ... sort of eight oscillators), and then feeding into an effects chain. Simplicity.
-
-I want to use this myself, even if nobody else does. It's been an adventure ... figuring out personally why synth makers made the decisions they did. And there's still more to find.

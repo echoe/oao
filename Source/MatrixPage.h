@@ -20,23 +20,32 @@ struct ModMatrixSlot : public juce::Component
         // Target selector. We stack and create the menu so it's usable  without scrolling through 80 choices
         addAndMakeVisible(targetSelector);
         buildTargetMenu();
-        
-        // restore value from parameter on construction:
-        if (auto* param = apvts.getRawParameterValue("MOD_TGT_" + s))
+
+        // Target uses juce::ParameterAttachment rather than ComboBoxAttachment because the
+        // menu is built via buildTargetMenu()'s stacked/submenu layout, so a plain 1:1 ID
+        // mapping isn't guaranteed the way ComboBoxAttachment assumes. ParameterAttachment
+        // lets us keep the existing idx+1 mapping while still getting proper two-way sync:
+        // it listens for the parameter changing from anywhere (the Operators page's own
+        // slot, a preset load, host automation, the Algorithm quick-select) and updates
+        // this dropdown to match, on the message thread.
+        if (auto* param = apvts.getParameter ("MOD_TGT_" + s))
         {
-            int idx = static_cast<int>(param->load(std::memory_order_relaxed));
-            targetSelector.setSelectedId(idx + 1, juce::dontSendNotification);
+            tgtAttach = std::make_unique<juce::ParameterAttachment> (
+                *param,
+                [this] (float value)
+                {
+                    int idx = static_cast<int> (value);
+                    targetSelector.setSelectedId (idx + 1, juce::dontSendNotification);
+                });
+            tgtAttach->sendInitialUpdate();
         }
 
-        targetSelector.onChange = [this, &apvts, s]()
+        targetSelector.onChange = [this]()
         {
-            // Map ComboBox ID back to parameter index
-            int selectedId = targetSelector.getSelectedId();
-            if (auto* param = apvts.getParameter("MOD_TGT_" + s))
+            if (tgtAttach != nullptr)
             {
-                // ComboBox IDs are 1-based, parameter choice indices are 0-based
-                float normalized = param->convertTo0to1(selectedId - 1);
-                param->setValueNotifyingHost(normalized);
+                int selectedId = targetSelector.getSelectedId();
+                tgtAttach->setValueAsCompleteGesture (static_cast<float> (selectedId - 1));
             }
         };
         
@@ -156,6 +165,7 @@ private:
     juce::Slider   amountSlider;
 
     std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> srcAttach;
+    std::unique_ptr<juce::ParameterAttachment> tgtAttach;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>   amtAttach;
 };
 

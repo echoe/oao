@@ -313,6 +313,7 @@ struct CompactOperatorGroup : public juce::Component
         updateComboBox (waveShapeSelector);
         updateComboBox (effectTypeSelector);
         updateComboBox (envSourceSelector);
+        updateComboBox (freqModeSelector);
         for (auto& cb : audioOutTarget)
             updateComboBox (cb);
         for (auto& cb : fmInputSource)
@@ -814,6 +815,7 @@ struct CompactModMatrixSlot : public juce::Component
         // --- Depth: a horizontal slider spanning the full width, underneath the Src/Tgt rows ---
         int depthRowH = juce::jmax (26, juce::roundToInt (area.getHeight() * 0.30f));
         auto depthRow = area.removeFromBottom (depthRowH);
+        depthDividerY = depthRow.getY(); // capture before depthRow gets consumed below
 
         int depthLabelH = juce::jmax (11, juce::roundToInt (depthRowH * 0.32f));
         depthLabel.setBounds (depthRow.removeFromTop (depthLabelH));
@@ -846,7 +848,24 @@ struct CompactModMatrixSlot : public juce::Component
         targetSelector.setBounds (tComboArea.withSizeKeepingCentre (tComboArea.getWidth(), comboHeight));
     }
 
-    void paint (juce::Graphics&) override {}
+    void paint (juce::Graphics& g) override
+    {
+        // Frame each mod matrix row the same way operator cards are framed, so the
+        // matrix reads as a clear row of slots rather than floating controls.
+        auto bounds = getLocalBounds().toFloat();
+        g.setColour (colors.background);
+        g.fillRoundedRectangle (bounds, 4.0f);
+
+        g.setColour (colors.text.withAlpha (0.15f));
+        g.drawRoundedRectangle (bounds.reduced (1.0f), 4.0f, 1.0f);
+
+        // Divider separating the Src/Tgt rows from the Depth slider below.
+        if (depthDividerY > 0)
+        {
+            g.setColour (colors.text.withAlpha (0.08f));
+            g.drawHorizontalLine (depthDividerY, bounds.getX() + 4.0f, bounds.getRight() - 4.0f);
+        }
+    }
 
     void lookAndFeelChanged() override
     {
@@ -874,6 +893,7 @@ struct CompactModMatrixSlot : public juce::Component
 
 private:
     OAOColors& colors;
+    int depthDividerY = -1; // Y position of the divider above the Depth row, set in resized()
     juce::Label    rowSLabel, rowTLabel, depthLabel;
     juce::ComboBox sourceSelector, targetSelector;
     juce::Slider   amountSlider;
@@ -994,14 +1014,7 @@ public:
             addAndMakeVisible (*opModules.back());
         }
 
-        // Note: the standalone Matrix page's sidebar actually creates numOperators (12)
-        // ModMatrixSlot rows even though only numModSlots (6) MOD_SRC_/MOD_TGT_/MOD_AMT_
-        // params exist — slots 7-12 there are bound to params that don't exist. This embedded
-        // copy only shows the first 4 of the real 6 slots, to keep the condensed one-page
-        // layout from getting too crowded; slots 5-6 are still reachable from that page.
-        constexpr int numVisibleModSlots = 4;
-        static_assert (numVisibleModSlots <= ProjectConfig::numModSlots, "can't show more slots than exist");
-        for (int i = 0; i < numVisibleModSlots; ++i)
+        for (int i = 0; i < ProjectConfig::numModSlots; ++i)
         {
             modMatrixSlots.push_back (std::make_unique<CompactModMatrixSlot> (apvts, i, colors));
             addAndMakeVisible (*modMatrixSlots.back());

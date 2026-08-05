@@ -221,7 +221,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout FMPluginAudioProcessor::crea
 
     // Gain
     params.push_back (std::make_unique<juce::AudioParameterFloat> (
-    juce::ParameterID { "GAIN_CEIL", 1 }, "Gain Ceiling", juce::NormalisableRange<float> (-24.0f, 0.0f, 0.1f),-0.2f)); // Ranges from -24dB to 0dB, default at -0.2dB
+    juce::ParameterID { "GAIN_CEIL", 1 }, "Gain Ceiling", juce::NormalisableRange<float> (-24.0f, 0.0f, 0.1f),-10.0f)); // Ranges from -24dB to 0dB, default at -10dB
 
     // This line has to be the end of this function, otherwise stuff won't process
     return { params.begin(), params.end() };

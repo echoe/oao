@@ -6,7 +6,7 @@
 FMPluginAudioProcessorEditor::FMPluginAudioProcessorEditor (FMPluginAudioProcessor& p)
     : AudioProcessorEditor (&p), 
       audioProcessor (p),
-      presetBar (p), //initialize preset bar	
+      presetBar (p, oaoColors), //initialize preset bar	
       opsPage (p.apvts, oaoColors),     // Pass APVTS context straight down
       matrixPage (p.apvts, "MOD_", "Modulation Matrix", oaoColors),
       audioMatrixPage (p.apvts, "AUDIO_ROUTE_", "Audio Matrix", oaoColors),
@@ -18,6 +18,7 @@ FMPluginAudioProcessorEditor::FMPluginAudioProcessorEditor (FMPluginAudioProcess
     oaoLookAndFeel.applyColors();
     setLookAndFeel (&oaoLookAndFeel);
     effectsPage.lookAndFeelChanged();
+    presetBar.lookAndFeelChanged();
     settingsPage.refreshAll(); //update settingsPage boxes
 
 #ifndef OAO_FX_ONLY
@@ -83,6 +84,7 @@ FMPluginAudioProcessorEditor::FMPluginAudioProcessorEditor (FMPluginAudioProcess
         audioMatrixPage.lookAndFeelChanged();
 #endif
         effectsPage.lookAndFeelChanged();
+        presetBar.lookAndFeelChanged();
         this->lookAndFeelChanged();
         repaint();
     };

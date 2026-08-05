@@ -2,6 +2,7 @@
 #pragma once
 #include <JuceHeader.h>
 #include "PluginProcessor.h"
+#include "OAOColors.h"
 
 class PresetBar : public juce::Component
 {
@@ -19,8 +20,8 @@ public:
     // separately, via FMPluginAudioProcessor::onSamplesRestored).
     std::function<void()> onPatchChanged;
 
-    PresetBar (FMPluginAudioProcessor& processorToLink)
-        : audioProcessor (processorToLink)
+    PresetBar (FMPluginAudioProcessor& processorToLink, OAOColors& c)
+        : audioProcessor (processorToLink), colors (c)
     {
         auto setupButton = [this] (juce::TextButton& btn, const juce::String& text) {
             btn.setButtonText (text);
@@ -208,6 +209,36 @@ public:
     {
         sendLookAndFeelChange();
         repaint();
+    }
+
+    void lookAndFeelChanged() override
+    {
+        juce::Component::lookAndFeelChanged();
+
+        // Labels
+        presetNameLabel.setColour (juce::Label::textColourId, colors.text);
+        oversamplingLabel.setColour (juce::Label::textColourId, colors.text);
+        polyphonyLabel.setColour   (juce::Label::textColourId, colors.text);
+        algorithmLabel.setColour   (juce::Label::textColourId, colors.text);
+
+        // Algo / OS / Poly dropdowns — these were never getting explicit colours,
+        // so they were stuck showing whatever the LookAndFeel's colours were at
+        // construction time instead of tracking theme changes.
+        auto updateComboBox = [this] (juce::ComboBox& cb)
+        {
+            cb.setColour (juce::ComboBox::backgroundColourId, colors.surface);
+            cb.setColour (juce::ComboBox::textColourId, colors.text);
+            cb.sendLookAndFeelChange();
+        };
+
+        updateComboBox (algorithmSelector);
+        updateComboBox (oversamplingSelector);
+        updateComboBox (polyphonySelector);
+
+        presetNameLabel.sendLookAndFeelChange();
+        oversamplingLabel.sendLookAndFeelChange();
+        polyphonyLabel.sendLookAndFeelChange();
+        algorithmLabel.sendLookAndFeelChange();
     }
 
 private:
@@ -980,6 +1011,7 @@ private:
     }
 
     FMPluginAudioProcessor& audioProcessor;
+    OAOColors& colors;
 
     juce::TextButton initButton, saveButton, loadButton;
     juce::TextButton smartRandButton, drumRandButton, effectsRandButton;

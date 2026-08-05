@@ -47,10 +47,8 @@ public:
     void setOversamplingFactor (int factor);
     void prepare (double sampleRate, int samplesPerBlock, WaveTable* wt);
     void setDAWTempo (float newBPM) noexcept;
-    // Broadcast the processor's current mod wheel position into this voice, every block,
-    // regardless of whether this voice is currently sounding. Called from
-    // FMPluginAudioProcessor::processBlock the same way setDAWTempo is — see the comment there
-    // for why this replaces relying on the default juce::Synthesiser CC routing.
+    // Broadcast the processor's current mod wheel position into this voice every block,
+    // from FMPluginAudioProcessor::processBlock like setDAWTempo is
     void setModWheel (float newValue) noexcept { currentModWheel.store (newValue, std::memory_order_relaxed); }
     void resetVoiceState();
     void renderNextBlock (juce::AudioBuffer<float>& outputBuffer, int startSample, int numSamples) override;
@@ -68,11 +66,7 @@ public:
     std::atomic<float> fxLevelMods[ProjectConfig::numEffects]  { 0.0f, 0.0f, 0.0f };
     //mod sources
     std::atomic<float> currentVelocity  { 0.0f }; // per-voice: velocity is genuinely per-note
-    std::atomic<float> currentModWheel  { 0.0f }; // per-voice cache, kept in sync every block by
-                                                    // PluginProcessor::processBlock (see setModWheel below) —
-                                                    // do NOT make this `static`: many hosts run multiple
-                                                    // plugin instances in one process, so a static member
-                                                    // would leak the mod wheel across different tracks.
+    std::atomic<float> currentModWheel  { 0.0f }; // per-voice cache, kept in sync every block
     std::atomic<float> fxLfoOutputs[ProjectConfig::numEffects] { 0.0f, 0.0f, 0.0f };
 
 private:

@@ -30,7 +30,7 @@ juce_add_plugin(OAO
     PLUGIN_MANUFACTURER_CODE "Ecoe"
     PLUGIN_PLUGIN_CODE "OAOS"
     PLIST_TO_MERGE "<plist><dict><key>NSBluetoothAlwaysUsageDescription</key><string>This app uses Bluetooth to connect to external devices.</string><key>NSBluetoothPeripheralUsageDescription</key><string>This app uses Bluetooth to connect to external devices.</string></dict></plist>"
-    FORMATS VST3 Standalone
+    FORMATS AU VST3 Standalone
     PRODUCT_NAME "OAO")
 
 target_sources(OAO PRIVATE
@@ -68,7 +68,7 @@ juce_add_plugin(OAO_FX
     COPY_PLUGIN_AFTER_BUILD TRUE
     PLUGIN_MANUFACTURER_CODE "Ecoe"
     PLUGIN_PLUGIN_CODE "OAOX"
-    FORMATS VST3
+    FORMATS AU VST3
     PRODUCT_NAME "OAO FX")
 
 target_sources(OAO_FX PRIVATE

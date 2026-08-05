@@ -315,9 +315,28 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
         buffer.clear (ch, 0, buffer.getNumSamples());
 #else
     // Synth mode: update voices, render synth.
+
+    // Scan for mod wheel (CC1) moves in this block and cache the latest value. We do this
+    // ourselves rather than relying on juce::Synthesiser's built-in CC routing (which forwards
+    // controllerMoved only to voices currently playing a note) so the wheel position stays
+    // correct even when no notes are held at all. Not sample-accurate — good enough for a
+    // slow-moving continuous controller like this, and consistent with how activeBPM is read.
+    for (const auto meta : midiMessages)
+    {
+        auto msg = meta.getMessage();
+        if (msg.isController() && msg.getControllerNumber() == 1)
+            currentModWheelValue.store (msg.getControllerValue() / 127.0f, std::memory_order_relaxed);
+    }
+
     for (int i = 0; i < synth.getNumVoices(); ++i)
         if (auto* voice = dynamic_cast<FMVoice*> (synth.getVoice (i)))
+        {
             voice->setDAWTempo (activeBPM);
+            // Push the cached wheel value into every voice every block, active or idle, so a
+            // freshly triggered voice always starts with the current position instead of
+            // whatever stale value it happened to have from its last time playing.
+            voice->setModWheel (currentModWheelValue.load (std::memory_order_relaxed));
+        }
 
     // Capture input before clearing (external audio ops, if ever re-added, would use this)
     if (inputCapture.getNumSamples() >= buffer.getNumSamples())

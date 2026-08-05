@@ -198,5 +198,11 @@ private:
     std::array<int, numFxSlots> lastFxEffectType { 0, 0, 0 };
     std::unique_ptr<juce::dsp::Oversampling<float>> oversampling;
     int currentOversamplingFactor = 1;
+    // Cached mod wheel position (CC1), per plugin instance. Parsed directly from the incoming
+    // MidiBuffer in processBlock and pushed into every voice every block (see processBlock),
+    // rather than relying on juce::Synthesiser's default per-CC routing — that only calls
+    // FMVoice::controllerMoved on voices that are currently playing a note, so idle voices
+    // (including ones that haven't been allocated a note yet) would otherwise miss wheel moves.
+    std::atomic<float> currentModWheelValue { 0.0f };
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (FMPluginAudioProcessor)
 };

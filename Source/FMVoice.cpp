@@ -316,7 +316,11 @@ void FMVoice::renderNextBlock (juce::AudioBuffer<float>& outputBuffer, int start
             if (srcIdx == 0 || tgtIdx == 0 || std::abs (amt) < 0.0001f)
                 continue;
         
-            // We get different sources depending on the mod slot. automatically calculated
+            // Source signal: Op 1 = index 1, so operator index = srcIdx - 1
+            // We get different sources depending on the mod slot. This follows the list in
+            // ModChoices::sources() in Constants.h: None, Op1..OpN, FX LFO1..FX LFOn, Velocity, Mod Wheel.
+            // Boundaries must be computed from ProjectConfig, not hardcoded, since they move
+            // whenever numOperators / numEffects change.
             const int opSrcEnd      = ProjectConfig::numOperators;
             const int fxLfoSrcStart = opSrcEnd + 1;
             const int fxLfoSrcEnd   = opSrcEnd + ProjectConfig::numEffects;

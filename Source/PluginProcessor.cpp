@@ -276,6 +276,10 @@ void FMPluginAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlo
     // Start LFOs — cache APVTS param pointers at prepare time
     for (int i = 0; i < ProjectConfig::numEffects; ++i)
         fxLfo[i].prepare (sampleRate, apvts, i);
+    // Pre-allocate the per-block LFO output cache to the host-advertised max block size, so
+    // the audio thread doesn't allocate on every processBlock call.
+    lfoOutputACache.assign (static_cast<size_t> (ProjectConfig::numEffects) * static_cast<size_t> (samplesPerBlock), 0.0f);
+    lfoOutputBCache.assign (static_cast<size_t> (ProjectConfig::numEffects) * static_cast<size_t> (samplesPerBlock), 0.0f);
     // Pre-allocate the input capture buffer using the max block size
     inputCapture.setSize (getTotalNumInputChannels(), samplesPerBlock);
     inputCapture.clear(); // Good practice to zero it out initially
@@ -423,6 +427,36 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
         auto* rightData  = buffer.getWritePointer (1);
         int   numSamples = buffer.getNumSamples();
 
+        // Tick every FX LFO exactly once per sample, unconditionally, up front — before any
+        // per-slot processing. This used to happen *inside* the per-slot loop below, gated
+        // behind "if (effectType == 0) continue": with zero FX slots active, the tick() call
+        // was never reached at all for the whole block, so every LFO sat frozen at whatever
+        // phase it last had — which is exactly why it looked "not even being read" as a mod
+        // source (a constant never counts as a moving signal). With N slots active, every
+        // LFO instead got ticked N times per sample — running N times too fast, out of sync
+        // with tempo.
+        // Cache each sample's Output A/B here so the per-slot loop below can read the right
+        // value for that sample index without re-ticking.
+        // Defensive resize: normally a no-op, since prepareToPlay already sized these to the
+        // host-advertised max block size. Only allocates if a host calls processBlock with a
+        // larger block than it originally promised.
+        size_t requiredSize = static_cast<size_t> (ProjectConfig::numEffects) * static_cast<size_t> (numSamples);
+        if (lfoOutputACache.size() < requiredSize)
+        {
+            lfoOutputACache.resize (requiredSize);
+            lfoOutputBCache.resize (requiredSize);
+        }
+
+        for (int i = 0; i < numSamples; ++i)
+        {
+            for (int lfo = 0; lfo < ProjectConfig::numEffects; ++lfo)
+            {
+                fxLfo[lfo].tick (activeBPM);
+                lfoOutputACache[(size_t) lfo * (size_t) numSamples + (size_t) i] = fxLfo[lfo].getOutputA();
+                lfoOutputBCache[(size_t) lfo * (size_t) numSamples + (size_t) i] = fxLfo[lfo].getOutputB();
+            }
+        }
+
         for (int slot = 0; slot < ProjectConfig::numEffects; ++slot)
         {
             int effectType = static_cast<int> (fxTypeParams[slot]->load (std::memory_order_relaxed));
@@ -465,10 +499,6 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
 
             for (int i = 0; i < numSamples; ++i)
             {
-                // Tick every LFO once per sample so their phases stay in lockstep
-                for (int lfo = 0; lfo < ProjectConfig::numEffects; ++lfo)
-                    fxLfo[lfo].tick (activeBPM);
-
                 float ratio  = baseRatio;
                 float detune = baseDetune;
                 float phase  = basePhase;
@@ -478,8 +508,9 @@ void FMPluginAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
                 for (int c = 0; c < numContributions; ++c)
                 {
                     const auto& contrib = contributions[c];
-                    float lfoVal = contrib.useB ? fxLfo[contrib.lfoIndex].getOutputB()
-                                                 : fxLfo[contrib.lfoIndex].getOutputA();
+                    size_t cacheIdx = (size_t) contrib.lfoIndex * (size_t) numSamples + (size_t) i;
+                    float lfoVal = contrib.useB ? lfoOutputBCache[cacheIdx]
+                                                 : lfoOutputACache[cacheIdx];
                     switch (contrib.paramIdx)
                     {
                         // Same "1.0 = full musical swing" convention used everywhere else

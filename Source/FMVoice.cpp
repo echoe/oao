@@ -240,6 +240,23 @@ void FMVoice::renderNextBlock (juce::AudioBuffer<float>& outputBuffer, int start
         // matrix modulation storage
         float matrixModOffsets[ProjectConfig::numOperators][ProjectConfig::numOperators] {};
 
+        // FX mod accumulators — these live as per-voice members (fxRatioMods etc., in
+        // FMVoice.h) rather than per-sample locals like the arrays above, because they're
+        // read elsewhere (outside this loop) to drive per-voice FX. But applyToTarget()'s
+        // FX branch below does load-then-add-then-store onto whatever's already there, so
+        // without resetting them here every sample, they never represent "this sample's
+        // modulation" — they just accumulate without bound for as long as any mod slot
+        // targets an FX knob with a nonzero source, blowing far past any sane range within
+        // milliseconds instead of settling into a fresh per-sample offset.
+        for (int fx = 0; fx < ProjectConfig::numEffects; ++fx)
+        {
+            fxRatioMods[fx].store  (0.0f, std::memory_order_relaxed);
+            fxDetuneMods[fx].store (0.0f, std::memory_order_relaxed);
+            fxPhaseMods[fx].store  (0.0f, std::memory_order_relaxed);
+            fxFoldMods[fx].store   (0.0f, std::memory_order_relaxed);
+            fxLevelMods[fx].store  (0.0f, std::memory_order_relaxed);
+        }
+
         // Advance each shared envelope generator exactly once per sample.
         std::array<float, ProjectConfig::numEnvelopes> envValues;
         std::array<bool,  ProjectConfig::numEnvelopes> envActiveFlags;
@@ -358,7 +375,9 @@ void FMVoice::renderNextBlock (juce::AudioBuffer<float>& outputBuffer, int start
                                                     : ProjectConfig::maxFmModulationIndex;
                 // Clamp defensively to make sure anything >1.0 doesn't break the plugin
                 float matrixRaw = juce::jlimit (0.0f, 1.0f, safeLoad (matrixParams[src][dest]));
-                float modDepth  = (matrixRaw + matrixModOffsets[src][dest]) * depthCeiling;
+                // matrixModOffsets comes from mod slots targeting this FM Matrix cell (an
+                float combinedDepth = juce::jlimit (0.0f, 1.0f, matrixRaw + matrixModOffsets[src][dest]);
+                float modDepth  = combinedDepth * depthCeiling;
                 if (modDepth > 0.0f)
                 {
                     float modSignal = (src == dest) ? (lastOpOutputs[src] + previousOpOutputs[src]) * 0.5f : lastOpOutputs[src];

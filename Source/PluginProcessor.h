@@ -192,6 +192,13 @@ private:
     std::atomic<float>* fxFoldParams[numFxSlots]   { nullptr };
     // FX LFOs — three global, voice-independent modulators
     FXModLFO fxLfo[ProjectConfig::numEffects];
+    // Per-block cache of each FX LFO's Output A/B, one entry per (lfo, sample). Ticked and
+    // filled once per sample, unconditionally, at the top of processBlock's effects loop, so
+    // every LFO advances at the correct per-sample rate regardless of how many FX slots are
+    // actually active — then each slot's processing reads back the value for its sample index
+    // instead of re-ticking. Sized once in prepareToPlay (with a defensive resize in
+    // processBlock if a host ever calls it with a larger block than samplesPerBlock advertised).
+    std::vector<float> lfoOutputACache, lfoOutputBCache;
     // One shared sample buffer per operator slot (shared across all voices, set once)
     std::array<std::shared_ptr<juce::AudioBuffer<float>>, ProjectConfig::numOperators> loadedSamples;
     // also for everything we need to flush on every run to not echo forever

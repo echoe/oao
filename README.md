@@ -1,6 +1,6 @@
 # Oops! All Operators! (OAO)
 
-<img src=https://raw.githubusercontent.com/echoe/oao/refs/heads/main/pictures/operators_4.png width="450" height="360" />
+<img src=https://raw.githubusercontent.com/echoe/oao/refs/heads/main/pictures/operators_4.png width="600" height="400" />
 
 This is an FM synthesizer/effects unit, where the operators do everything. It's open source, written in C++ using the JUCE framework and a lot of LLM help.
 Notes:
@@ -209,14 +209,14 @@ Additional Notes:
 
 ## Audio Matrix
 
-<img src=https://raw.githubusercontent.com/echoe/oao/refs/heads/main/pictures/audio_4.png width="450" height="360" />
+<img src=https://raw.githubusercontent.com/echoe/oao/refs/heads/main/pictures/audio_4.png width="600" height="400" />
 
 - A matrix letting you route audio between operators. You can route each operator to two targets on the operators page, but if you want more ... you come here.
 - The default 'Init' state just has Operator 1 audible. You can check this when you open the synth up by opening up this page and looking on the far right.
 
 ## Effects/LFOs
 
-<img src=https://raw.githubusercontent.com/echoe/oao/refs/heads/main/pictures/effects_4.png width="450" height="360" />
+<img src=https://raw.githubusercontent.com/echoe/oao/refs/heads/main/pictures/effects_4.png width="600" height="400" />
 
 - Outside of the general Mod Matrix I wanted end of chain effects, so here we go!
 - Use any six of the effects that you want at the end of the chain. They always run in serial, and are LFO targets if you want.
@@ -230,7 +230,7 @@ Additional Notes:
 
 ## Settings
 
-<img src=https://raw.githubusercontent.com/echoe/oao/refs/heads/main/pictures/settings_4.png width="450" height="360" />
+<img src=https://raw.githubusercontent.com/echoe/oao/refs/heads/main/pictures/settings_4.png width="600" height="400" />
 
 - A settings page for a few things.
 ### Size
